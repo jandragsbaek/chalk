@@ -11,18 +11,19 @@ Effect atoms.
 
 ## Run it
 
-Requires Node 24+. pnpm comes through Corepack, which ships with Node.
+Tool versions (Node, pnpm) are pinned in `mise.toml`. With [mise](https://mise.jdx.dev) installed:
 
 ```bash
-corepack pnpm install
-corepack pnpm dev          # server on :4300, web on http://localhost:5173
+mise install
+pnpm install
+pnpm dev          # server on :4300, web on http://localhost:5173
 ```
 
 Production: one process serves the API and the built web app from a single origin.
 
 ```bash
-corepack pnpm build
-corepack pnpm start        # http://127.0.0.1:4300
+pnpm build
+pnpm start        # http://127.0.0.1:4300
 ```
 
 | Variable | Default | Purpose |
@@ -32,7 +33,7 @@ corepack pnpm start        # http://127.0.0.1:4300
 | `CHALK_DB_PATH` | `data/chalk.sqlite` | SQLite database file |
 | `CHALK_WEB_DIST` | unset | Built web app to serve; `start` sets it |
 
-Other commands: `corepack pnpm typecheck`, `corepack pnpm test`.
+Other commands: `pnpm typecheck`, `pnpm test`.
 
 ## How it fits together
 
