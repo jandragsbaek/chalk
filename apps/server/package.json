@@ -7,7 +7,7 @@
     "dev": "node --watch src/bin.ts",
     "start": "NODE_ENV=production CHALK_WEB_DIST=../web/dist node src/bin.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vp test run --config ../../vite.config.ts --dir ."
   },
   "dependencies": {
     "@chalk/contracts": "workspace:*",
@@ -19,6 +19,6 @@
     "@effect/vitest": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vite-plus": "catalog:"
   }
 }

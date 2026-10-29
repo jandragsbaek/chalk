@@ -1,7 +1,7 @@
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 
 const serverPort = process.env.CHALK_PORT ?? "4300";
 

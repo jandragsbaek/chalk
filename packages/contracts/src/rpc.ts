@@ -3,12 +3,7 @@ import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as Schema from "effect/Schema";
 
 import { WorkoutId } from "./baseSchemas.ts";
-import {
-  LogWorkoutInput,
-  Workout,
-  WorkoutNotFoundError,
-  WorkoutStorageError,
-} from "./workout.ts";
+import { LogWorkoutInput, Workout, WorkoutNotFoundError, WorkoutStorageError } from "./workout.ts";
 
 export const RPC_METHODS = {
   workoutsList: "workouts.list",

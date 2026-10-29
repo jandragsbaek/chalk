@@ -1,5 +1,6 @@
 packages:
   - apps/*
+  - oxlint-plugin-chalk
   - packages/*
 
 catalog:
@@ -10,7 +11,9 @@ catalog:
   "@types/node": ^24.0.0
   effect: 4.1.0
   typescript: ^6.0.0
-  vitest: 5.0.5
+  # Vite+ ships its own Vite build; every `vite` dependency resolves to it.
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
+  vite-plus: 1.4.0
 
 minimumReleaseAgeExclude:
   - "@effect/atom-react@4.1.0"
@@ -20,3 +23,18 @@ minimumReleaseAgeExclude:
   - "@effect/vitest@4.1.0"
   - effect@4.1.0
   - lucide-react@1.64.0
+
+overrides:
+  "@effect/vitest>vitest": "-"
+  vite: "catalog:"
+  vite-plus: "catalog:"
+
+packageExtensions:
+  # Our patch makes @effect/vitest import vite-plus/test. A catalog: spec here
+  # resolves through the vite-plus override above.
+  "@effect/vitest@*":
+    dependencies:
+      vite-plus: "catalog:"
+
+patchedDependencies:
+  "@effect/vitest@4.1.0": patches/@effect__vitest@4.1.0.patch
