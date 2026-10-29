@@ -11,28 +11,29 @@ Effect atoms.
 
 ## Run it
 
-Requires Node 24+. pnpm comes through Corepack, which ships with Node.
+Tool versions (Node, pnpm) are pinned in `mise.toml`. With [mise](https://mise.jdx.dev) installed:
 
 ```bash
-corepack pnpm install
-corepack pnpm dev          # server on :4300, web on http://localhost:5173
+mise install
+pnpm install
+pnpm dev          # server on :4300, web on http://localhost:5173
 ```
 
 Production: one process serves the API and the built web app from a single origin.
 
 ```bash
-corepack pnpm build
-corepack pnpm start        # http://127.0.0.1:4300
+pnpm build
+pnpm start        # http://127.0.0.1:4300
 ```
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `CHALK_HOST` | `127.0.0.1` | Interface the server listens on |
-| `CHALK_PORT` | `4300` | Server port (the web dev proxy reads it too) |
-| `CHALK_DB_PATH` | `data/chalk.sqlite` | SQLite database file |
-| `CHALK_WEB_DIST` | unset | Built web app to serve; `start` sets it |
+| Variable         | Default             | Purpose                                      |
+| ---------------- | ------------------- | -------------------------------------------- |
+| `CHALK_HOST`     | `127.0.0.1`         | Interface the server listens on              |
+| `CHALK_PORT`     | `4300`              | Server port (the web dev proxy reads it too) |
+| `CHALK_DB_PATH`  | `data/chalk.sqlite` | SQLite database file                         |
+| `CHALK_WEB_DIST` | unset               | Built web app to serve; `start` sets it      |
 
-Other commands: `corepack pnpm typecheck`, `corepack pnpm test`.
+Other commands: `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm fmt`, and `pnpm check` (everything CI runs). The toolchain is [Vite+](https://viteplus.dev) (`vp`): one root `vite.config.ts` configures tests, Oxlint (with the local `oxlint-plugin-chalk/` rules and `@shadcn/lint`), Oxfmt, and the pre-commit hook, which formats and lints staged files with `vp staged`. `@effect/vitest` is patched (`patches/`) to import `vite-plus/test` instead of `vitest`. The lint setup and the rules in `oxlint-plugin-chalk/` are adapted from [T3 Code](https://github.com/pingdotgg/t3code) under its MIT license (`oxlint-plugin-chalk/LICENSE`).
 
 ## How it fits together
 

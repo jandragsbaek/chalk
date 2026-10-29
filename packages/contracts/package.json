@@ -11,7 +11,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vp test run --config ../../vite.config.ts --dir . --passWithNoTests"
   },
   "dependencies": {
     "effect": "catalog:"
@@ -19,6 +19,6 @@
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vite-plus": "catalog:"
   }
 }

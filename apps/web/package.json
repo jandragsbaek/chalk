@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vp test run --passWithNoTests"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -33,7 +33,7 @@
     "oxc-transform-react": "~0.156.0",
     "tailwindcss": "^4.3.3",
     "typescript": "catalog:",
-    "vite": "^8.3.5",
-    "vitest": "catalog:"
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

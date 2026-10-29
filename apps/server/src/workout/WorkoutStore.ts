@@ -1,9 +1,4 @@
-import {
-  LogWorkoutInput,
-  Workout,
-  WorkoutId,
-  WorkoutNotFoundError,
-} from "@chalk/contracts";
+import { LogWorkoutInput, Workout, WorkoutId, WorkoutNotFoundError } from "@chalk/contracts";
 import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as DateTime from "effect/DateTime";
@@ -66,7 +61,9 @@ const make = Effect.gen(function* () {
 
   const list = Effect.fn("WorkoutStore.list")(function* () {
     const rows = yield* selectAll(undefined).pipe(
-      Effect.mapError((cause) => new WorkoutPersistenceError({ operation: "list workouts", cause })),
+      Effect.mapError(
+        (cause) => new WorkoutPersistenceError({ operation: "list workouts", cause }),
+      ),
     );
     return rows.map(toWorkout);
   });
@@ -88,8 +85,12 @@ const make = Effect.gen(function* () {
   });
 
   const remove = Effect.fn("WorkoutStore.remove")(function* (id: WorkoutId) {
-    const deleted = yield* sql<{ id: string }>`DELETE FROM workouts WHERE id = ${id} RETURNING id`.pipe(
-      Effect.mapError((cause) => new WorkoutPersistenceError({ operation: "delete workout", cause })),
+    const deleted = yield* sql<{
+      id: string;
+    }>`DELETE FROM workouts WHERE id = ${id} RETURNING id`.pipe(
+      Effect.mapError(
+        (cause) => new WorkoutPersistenceError({ operation: "delete workout", cause }),
+      ),
     );
     if (deleted.length === 0) return yield* new WorkoutNotFoundError({ id });
   });

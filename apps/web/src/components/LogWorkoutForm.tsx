@@ -15,8 +15,22 @@ import { Switch } from "./ui/switch.tsx";
 const decodeLogWorkoutInput = Schema.decodeUnknownOption(LogWorkoutInput);
 
 const BENCHMARK_WORKOUTS = [
-  "Fran", "Grace", "Helen", "Diane", "Elizabeth", "Isabel", "Karen", "Annie",
-  "Cindy", "Mary", "Jackie", "Nancy", "Murph", "DT", "Filthy Fifty", "Fight Gone Bad",
+  "Fran",
+  "Grace",
+  "Helen",
+  "Diane",
+  "Elizabeth",
+  "Isabel",
+  "Karen",
+  "Annie",
+  "Cindy",
+  "Mary",
+  "Jackie",
+  "Nancy",
+  "Murph",
+  "DT",
+  "Filthy Fifty",
+  "Fight Gone Bad",
 ];
 
 type SubmitStatus =
@@ -125,7 +139,7 @@ export function LogWorkoutForm() {
       </div>
 
       <div className="flex items-end">
-        <Label className="flex h-10 cursor-pointer items-center gap-3">
+        <Label className="h-10 cursor-pointer">
           <Switch checked={rx} onCheckedChange={setRx} />
           {rx ? "Rx" : "Scaled"}
         </Label>

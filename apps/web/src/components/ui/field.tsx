@@ -22,7 +22,11 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
 /** Native select keeps the phone's own picker, which beats a custom popup at the gym. */
 function NativeSelect({ className, ...props }: React.ComponentProps<"select">) {
   return (
-    <select data-slot="native-select" className={cn(controlClassName, "h-10", className)} {...props} />
+    <select
+      data-slot="native-select"
+      className={cn(controlClassName, "h-10", className)}
+      {...props}
+    />
   );
 }
 
@@ -30,7 +34,7 @@ function Label({ className, ...props }: React.ComponentProps<"label">) {
   return (
     <label
       data-slot="label"
-      className={cn("text-sm font-medium text-foreground", className)}
+      className={cn("flex items-center gap-2 text-sm font-medium text-foreground", className)}
       {...props}
     />
   );

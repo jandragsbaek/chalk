@@ -25,7 +25,8 @@ const buttonVariants = cva(
   },
 );
 
-interface ButtonProps extends useRender.ComponentProps<"button">, VariantProps<typeof buttonVariants> {}
+interface ButtonProps
+  extends useRender.ComponentProps<"button">, VariantProps<typeof buttonVariants> {}
 
 function Button({ className, variant, size, render, ...props }: ButtonProps) {
   const defaultProps = {
