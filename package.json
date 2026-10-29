@@ -1,0 +1,16 @@
+{
+  "name": "chalk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @chalk/server --filter @chalk/web dev",
+    "build": "pnpm --filter @chalk/web build",
+    "start": "pnpm --filter @chalk/server start",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.16.1"
+}
