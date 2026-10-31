@@ -8,3 +8,4 @@ export * from "./levels.ts";
 export * from "./levelOverview.ts";
 export * from "./sessionImport.ts";
 export * from "./sessionImport/index.ts";
+export * from "./benchmarks/index.ts";
