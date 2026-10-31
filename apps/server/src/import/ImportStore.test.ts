@@ -67,6 +67,7 @@ describe("ImportStore", () => {
         // back squat, deadlift, wall ball, and thruster as its alternative
         itemCount: 4,
         liftSetCount: 4,
+        tonnageKg: 150 + 3 * 5 * 140,
       });
 
       const sets = yield* (yield* StrengthStore.StrengthStore).list();
@@ -115,6 +116,47 @@ describe("ImportStore", () => {
       expect(stored.document).toEqual(document);
       const [workout] = yield* (yield* WorkoutStore.WorkoutStore).list();
       expect(workout).toMatchObject({ name: "Session 160", kind: "strength", score: "" });
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("saves a programmed movement's result as lift sets on its item, and its tonnage", () =>
+    Effect.gen(function* () {
+      const store = yield* ImportStore.ImportStore;
+      const text = "** Session 170 <2026-10-30 to>\n*** Workout\n- Every 90 sec x 6\n- 2 Snatch";
+      const suggested = yield* suggestedDocument(text);
+      const document: ImportDocument = {
+        ...suggested,
+        spans: suggested.spans.map((span) =>
+          span._tag === "movement"
+            ? { ...span, result: { _tag: "ramp", sets: 6, reps: 2, startKg: 50, stepKg: 2.5 } }
+            : span,
+        ),
+      };
+      const summary = yield* store.save({ document });
+      expect(summary).toMatchObject({ itemCount: 1, liftSetCount: 6, tonnageKg: 675 });
+
+      const sql = yield* SqlClient.SqlClient;
+      const sets = yield* sql<{ movement: string; set: number; reps: number; load: number }>`
+        SELECT l.movement_id AS movement, l.set_number AS "set", l.reps, l.load_kg AS load
+        FROM lift_sets l JOIN workout_items i ON i.id = l.workout_item_id
+        ORDER BY l.set_number
+      `;
+      expect(sets.map((set) => [set.movement, set.set, set.reps, set.load])).toEqual([
+        ["snatch", 1, 2, 50],
+        ["snatch", 2, 2, 52.5],
+        ["snatch", 3, 2, 55],
+        ["snatch", 4, 2, 57.5],
+        ["snatch", 5, 2, 60],
+        ["snatch", 6, 2, 62.5],
+      ]);
+      const records = yield* (yield* StrengthStore.StrengthStore).records();
+      expect(records.find((record) => record.movementId === "snatch")?.repMaxes[0]).toMatchObject({
+        reps: 1,
+        loadKg: 62.5,
+      });
+
+      yield* (yield* WorkoutStore.WorkoutStore).remove(summary.workoutId);
+      expect(yield* (yield* StrengthStore.StrengthStore).list()).toEqual([]);
     }).pipe(Effect.provide(layer)),
   );
 

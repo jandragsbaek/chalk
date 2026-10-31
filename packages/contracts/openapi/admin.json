@@ -696,6 +696,9 @@
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
+          "tonnageKg": {
+            "type": "number"
+          },
           "importedAt": {
             "type": "string"
           }
@@ -708,6 +711,7 @@
           "partCount",
           "itemCount",
           "liftSetCount",
+          "tonnageKg",
           "importedAt"
         ],
         "additionalProperties": false
@@ -1047,6 +1051,116 @@
                       "type": "string",
                       "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
                       "minLength": 1
+                    },
+                    "result": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "_tag": {
+                              "type": "string",
+                              "enum": [
+                                "fixed"
+                              ]
+                            },
+                            "sets": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "reps": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "loadKg": {
+                              "type": "number",
+                              "minimum": 0
+                            }
+                          },
+                          "required": [
+                            "_tag",
+                            "sets",
+                            "reps",
+                            "loadKg"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "_tag": {
+                              "type": "string",
+                              "enum": [
+                                "ramp"
+                              ]
+                            },
+                            "sets": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "reps": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "startKg": {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            "stepKg": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "_tag",
+                            "sets",
+                            "reps",
+                            "startKg",
+                            "stepKg"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "_tag": {
+                              "type": "string",
+                              "enum": [
+                                "each"
+                              ]
+                            },
+                            "sets": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "reps": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "loadKg": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  }
+                                },
+                                "required": [
+                                  "reps",
+                                  "loadKg"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "_tag",
+                            "sets"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
                     }
                   },
                   "required": [

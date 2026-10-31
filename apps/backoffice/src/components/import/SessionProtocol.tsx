@@ -1,5 +1,7 @@
 import {
+  formatPerformed,
   formatQuantity,
+  tonnageOf,
   type DerivedBlock,
   type DerivedItem,
   type DerivedSession,
@@ -8,7 +10,7 @@ import {
   type SpanId,
 } from "@chalk/contracts";
 
-import { describeBlock } from "../../lib/blockLabels.ts";
+import { describeBlock, formatKg } from "../../lib/blockLabels.ts";
 
 export interface ProtocolHandlers {
   readonly nameOf: (id: MovementId) => string | undefined;
@@ -40,7 +42,7 @@ function ItemRow({
   const name = item.movementId === undefined ? undefined : handlers.nameOf(item.movementId);
   const core = item.movementId === undefined ? undefined : handlers.coreOf(item.movementId);
   // Re-keyed when the row's content changes, so an edit lights the rows it touched.
-  const signature = JSON.stringify([item.movementId, item.sets]);
+  const signature = JSON.stringify([item.movementId, item.sets, item.performed]);
   return (
     <li>
       <button
@@ -99,6 +101,18 @@ function ItemRow({
               </span>
             ))
           )}
+          {item.performed.length > 0 ? (
+            <span
+              data-result-box
+              className="flex basis-full flex-wrap items-baseline gap-x-2 bg-card px-1.5 text-sm leading-6"
+            >
+              <span className="form-label text-muted-foreground">Lifted</span>
+              <span className="tabular-nums">{formatPerformed(item.performed)}</span>
+              <span className="ml-auto font-semibold tabular-nums">
+                {formatKg(tonnageOf(item.performed))}
+              </span>
+            </span>
+          ) : null}
         </span>
       </button>
       {item.alternatives.length > 0 ? (
@@ -181,7 +195,7 @@ function Issues({
 
 /**
  * The session as it will be saved, set like a meet protocol: parts, their blocks, one row per
- * movement with its sets in boxes, and the lift sets read from the notes.
+ * movement with its sets in boxes and what was lifted, and the lift sets read from the notes.
  */
 export function SessionProtocol({
   session,
@@ -229,16 +243,27 @@ export function SessionProtocol({
                 >
                   {describeBlock(block.format, block.params)}
                 </button>
-                {block.scores.map((score) => (
-                  <span
-                    key={score}
-                    data-result-box
-                    className="flex items-baseline gap-1.5 bg-card px-1.5 text-sm font-semibold leading-6"
-                  >
-                    <span className="form-label text-muted-foreground">Score</span>
-                    {score}
-                  </span>
-                ))}
+                <span className="flex flex-wrap justify-end gap-1.5">
+                  {block.scores.map((score) => (
+                    <span
+                      key={score}
+                      data-result-box
+                      className="flex items-baseline gap-1.5 bg-card px-1.5 text-sm font-semibold leading-6"
+                    >
+                      <span className="form-label text-muted-foreground">Score</span>
+                      {score}
+                    </span>
+                  ))}
+                  {block.tonnageKg > 0 ? (
+                    <span
+                      data-result-box
+                      className="flex items-baseline gap-1.5 bg-card px-1.5 text-sm font-semibold leading-6 tabular-nums"
+                    >
+                      <span className="form-label text-muted-foreground">Lifted</span>
+                      {formatKg(block.tonnageKg)}
+                    </span>
+                  ) : null}
+                </span>
               </div>
               {block.intents.length > 0 ? (
                 <ul className="divide-y border-b">

@@ -23,6 +23,10 @@ export const MEASURE_LABELS: Record<Measure, string> = {
   rpe: "RPE",
 };
 
+/** 1950 → "1,950 kg", 52.5 → "52.5 kg". */
+export const formatKg = (kg: number) =>
+  `${kg.toLocaleString("en-US", { maximumFractionDigits: 2 })} kg`;
+
 /** 90 → "1:30", 120 → "2 min", 40 → "40 s". */
 export const formatSeconds = (seconds: number) => {
   if (seconds < 60) return `${seconds} s`;

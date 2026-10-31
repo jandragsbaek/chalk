@@ -64,7 +64,9 @@ const SUMMARY_SELECT = `
             JOIN workout_blocks b ON b.id = i.block_id
             JOIN workout_parts p ON p.id = b.part_id
           WHERE p.workout_id = si.workout_id) AS "itemCount",
-         (SELECT COUNT(*) FROM lift_sets l WHERE l.workout_id = si.workout_id) AS "liftSetCount"
+         (SELECT COUNT(*) FROM lift_sets l WHERE l.workout_id = si.workout_id) AS "liftSetCount",
+         (SELECT COALESCE(SUM(l.reps * l.load_kg), 0) FROM lift_sets l
+          WHERE l.workout_id = si.workout_id) AS "tonnageKg"
   FROM session_imports si JOIN workouts w ON w.id = si.workout_id
 `;
 
@@ -78,7 +80,7 @@ export class ImportStore extends Context.Service<
     ) => Effect.Effect<StoredImport, ImportNotFoundError | ImportPersistenceError>;
     /**
      * Derives the session from the document and stores it: workout, parts, blocks, items, and
-     * lift sets from the notes. The derivation runs here too, so the client cannot save
+     * lift sets from the notes and from the items' results. The derivation runs here too, so the client cannot save
      * something the editor would have refused.
      */
     readonly save: (
@@ -155,11 +157,12 @@ const make = Effect.gen(function* () {
     return loaded;
   });
 
-  /** An item and its alternatives ("or ..."), which point back at it. */
+  /** An item and its alternatives ("or ..."), which point back at it, with their results. */
   const insertItem = Effect.fn("ImportStore.insertItem")(function* (
     blockId: string,
     position: number,
     item: DerivedItem,
+    lifted: { workoutId: WorkoutId; performedOn: string; notes: string; createdAt: string },
   ) {
     const queue: Array<readonly [DerivedItem, string | null]> = [[item, null]];
     for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
@@ -171,6 +174,14 @@ const make = Effect.gen(function* () {
         INSERT INTO workout_items (id, block_id, position, movement_id, alternative_of, prescription)
         VALUES (${id}, ${blockId}, ${position}, ${current.movementId}, ${alternativeOf}, ${prescription})
       `;
+      for (const [index, set] of current.performed.entries())
+        yield* sql`
+          INSERT INTO lift_sets (id, movement_id, performed_on, reps, load_kg, notes, created_at,
+                                 workout_id, workout_item_id, set_number)
+          VALUES (${yield* newId}, ${current.movementId}, ${lifted.performedOn}, ${set.reps},
+                  ${set.loadKg}, ${lifted.notes}, ${lifted.createdAt}, ${lifted.workoutId}, ${id},
+                  ${index + 1})
+        `;
       for (const alternative of current.alternatives) queue.push([alternative, id]);
     }
   });
@@ -225,7 +236,12 @@ const make = Effect.gen(function* () {
                     ${yield* encodeIntents(block.intents)})
           `;
           for (const [itemPosition, item] of block.items.entries())
-            yield* insertItem(blockId, itemPosition, item);
+            yield* insertItem(blockId, itemPosition, item, {
+              workoutId,
+              performedOn,
+              notes: `Imported from ${session.name}`,
+              createdAt: now,
+            });
         }
       }
       for (const set of session.liftSets)

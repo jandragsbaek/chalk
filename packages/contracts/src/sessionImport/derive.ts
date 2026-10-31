@@ -3,6 +3,8 @@ import type {
   BlockFormat,
   BlockParams,
   ImportDocument,
+  LiftResult,
+  PerformedSet,
   Quantity,
   Span,
   SpanId,
@@ -22,6 +24,8 @@ export interface DerivedItem {
   readonly movementId: MovementId | undefined;
   readonly text: string;
   readonly sets: ReadonlyArray<DerivedSet>;
+  /** What was lifted, set by set; empty without a valid result. */
+  readonly performed: ReadonlyArray<PerformedSet>;
   readonly alternatives: ReadonlyArray<DerivedItem>;
 }
 
@@ -41,6 +45,8 @@ export interface DerivedBlock {
   readonly items: ReadonlyArray<DerivedItem>;
   readonly intents: ReadonlyArray<DerivedIntent>;
   readonly scores: ReadonlyArray<string>;
+  /** Reps × load over the block's performed sets, alternatives included. */
+  readonly tonnageKg: number;
 }
 
 export interface DerivedPart {
@@ -79,6 +85,8 @@ export interface DerivedSession {
   readonly notes: string;
   readonly parts: ReadonlyArray<DerivedPart>;
   readonly liftSets: ReadonlyArray<DerivedLiftSet>;
+  /** Reps × load over every performed set and every lift set from the notes. */
+  readonly tonnageKg: number;
   readonly issues: ReadonlyArray<ImportIssue>;
 }
 
@@ -127,6 +135,53 @@ export const formatQuantity = (quantity: Quantity): string => {
   if (quantity.measure === "rpe") return `RPE ${value}${female}`;
   const single = quantity.measure === "reps" && !quantity.female && quantity.amount.max === 1;
   return `${value}${female} ${single ? "rep" : MEASURE_LABELS[quantity.measure]}`;
+};
+
+/** Sets or reps a result can hold; also bounds how far a result expands. */
+const MAX_COUNT = 100;
+const MAX_LOAD_KG = 1000;
+
+const roundKg = (kg: number) => Math.round(kg * 100) / 100;
+
+/** The sets a result stands for, in order: a ramp of 6 from 50 by 2.5 ends at 62.5. */
+export const performedSets = (result: LiftResult): ReadonlyArray<PerformedSet> => {
+  if (result._tag === "each") return result.sets.slice(0, MAX_COUNT);
+  const count = Math.max(0, Math.min(MAX_COUNT, Math.floor(result.sets)));
+  return Array.from({ length: count }, (_, index) => ({
+    reps: result.reps,
+    loadKg:
+      result._tag === "fixed" ? result.loadKg : roundKg(result.startKg + index * result.stepKg),
+  }));
+};
+
+/** Total kilograms moved: reps × load, summed. */
+export const tonnageOf = (
+  sets: ReadonlyArray<{ readonly reps: number; readonly loadKg: number }>,
+) => roundKg(sets.reduce((total, set) => total + set.reps * set.loadKg, 0));
+
+/** "6 × 2 @ 60 kg", "2 reps @ 50 · 52.5 · 55 kg", "10 @ 20 kg · 5 @ 40 kg". */
+export const formatPerformed = (sets: ReadonlyArray<PerformedSet>): string => {
+  const [first] = sets;
+  if (!first) return "";
+  const sameReps = sets.every((set) => set.reps === first.reps);
+  if (sameReps && sets.every((set) => set.loadKg === first.loadKg))
+    return `${sets.length} × ${first.reps} @ ${first.loadKg} kg`;
+  if (sameReps)
+    return `${first.reps} ${first.reps === 1 ? "rep" : "reps"} @ ${sets.map((set) => set.loadKg).join(" · ")} kg`;
+  return sets.map((set) => `${set.reps} @ ${set.loadKg} kg`).join(" · ");
+};
+
+/** Why a result cannot be saved, or `undefined` when it can. */
+const resultProblem = (result: LiftResult): string | undefined => {
+  const sets = result._tag === "each" ? result.sets.length : result.sets;
+  if (!Number.isInteger(sets) || sets < 1 || sets > MAX_COUNT)
+    return `a result needs 1 to ${MAX_COUNT} sets`;
+  const performed = performedSets(result);
+  if (performed.some((set) => !Number.isInteger(set.reps) || set.reps < 1 || set.reps > MAX_COUNT))
+    return `reps must be 1 to ${MAX_COUNT}`;
+  if (performed.some((set) => !(set.loadKg > 0) || set.loadKg > MAX_LOAD_KG))
+    return `every load must be above 0 and at most ${MAX_LOAD_KG} kg`;
+  return undefined;
 };
 
 const kindOf = (parts: ReadonlyArray<DerivedPart>): WorkoutKind => {
@@ -269,6 +324,13 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
         });
 
       if (inNotes(span)) {
+        if (span.result !== undefined)
+          issues.push({
+            severity: "warning",
+            check: "numbers",
+            message: `The result on "${slice(span)}" is in the notes and is left out.`,
+            spanId: span.id,
+          });
         resultMovements.push(span);
         continue;
       }
@@ -325,13 +387,33 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     return Array.from(sets, ([line, quantities]) => ({ line, quantities }));
   };
 
+  const performedOf = (movement: SpanOf<"movement">): ReadonlyArray<PerformedSet> => {
+    if (movement.result === undefined) return [];
+    const problem = resultProblem(movement.result);
+    if (problem === undefined) return performedSets(movement.result);
+    const name =
+      (movement.movementId === undefined ? undefined : nameOf(movement.movementId)) ??
+      slice(movement);
+    issues.push({
+      severity: "error",
+      check: "numbers",
+      message: `${name}: ${problem}.`,
+      spanId: movement.id,
+    });
+    return [];
+  };
+
   const toItem = (movement: SpanOf<"movement">): DerivedItem => ({
     spanId: movement.id,
     movementId: movement.movementId,
     text: slice(movement),
     sets: setsOf(movement),
+    performed: performedOf(movement),
     alternatives: (alternativesOf.get(movement.id) ?? []).map(toItem),
   });
+  const itemTonnage = (item: DerivedItem): number =>
+    tonnageOf(item.performed) +
+    item.alternatives.reduce((total, alternative) => total + itemTonnage(alternative), 0);
 
   const toIntent = (intent: SpanOf<"intent">): DerivedIntent => {
     // An intent spanning lines reads as one sentence, without bullets or comment stars.
@@ -403,15 +485,19 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
       spanId: part.spanId,
       title: part.title,
       rawText: rawTextOf(part),
-      blocks: blocks.map((block) => ({
-        spanId: block.spanId,
-        title: block.title,
-        format: block.format,
-        params: block.params,
-        items: block.items.map(toItem),
-        intents: block.intents.map(toIntent),
-        scores: block.spanId === undefined ? [] : (scoresOf.get(block.spanId) ?? []),
-      })),
+      blocks: blocks.map((block) => {
+        const items = block.items.map(toItem);
+        return {
+          spanId: block.spanId,
+          title: block.title,
+          format: block.format,
+          params: block.params,
+          items,
+          intents: block.intents.map(toIntent),
+          scores: block.spanId === undefined ? [] : (scoresOf.get(block.spanId) ?? []),
+          tonnageKg: roundKg(items.reduce((total, item) => total + itemTonnage(item), 0)),
+        };
+      }),
     };
   });
 
@@ -480,6 +566,30 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     }
   }
 
+  // A lift logged both as a result and in the notes is counted twice; say so.
+  const performedItems = derivedParts
+    .flatMap((part) => part.blocks.flatMap((block) => block.items))
+    .flatMap(function flatten(item): ReadonlyArray<DerivedItem> {
+      return [item, ...item.alternatives.flatMap(flatten)];
+    })
+    .filter((item) => item.performed.length > 0);
+  for (const item of performedItems) {
+    const noted = liftSets.find((set) => set.movementId === item.movementId);
+    if (noted)
+      issues.push({
+        severity: "warning",
+        check: "numbers",
+        message: `${nameOf(noted.movementId) ?? item.text} has a result and lift sets in the notes; both are counted.`,
+        spanId: item.spanId,
+      });
+  }
+  const tonnageKg = roundKg(
+    derivedParts.reduce(
+      (total, part) => total + part.blocks.reduce((sum, block) => sum + block.tonnageKg, 0),
+      0,
+    ) + liftSets.reduce((total, set) => total + set.count * set.reps * set.loadKg, 0),
+  );
+
   const notes = notesRanges
     .flatMap((range) => text.slice(range.from, range.to).split("\n"))
     .map(stripBullet)
@@ -507,6 +617,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     notes,
     parts: derivedParts,
     liftSets,
+    tonnageKg,
     issues,
   };
 };

@@ -7,7 +7,9 @@ Track your CrossFit workouts and strength numbers, and (soon) get coached on the
 Today: log workouts with a free-form score, and log strength sets (reps × kg) against a movement
 catalog, with 1/2/3/5/10RM derived per movement and an estimated 1RM chart over time. The
 backoffice imports past sessions from pasted text: Chalk highlights movements and numbers, you fix
-the highlights, and parts, blocks, movements and lift sets are saved from them. Where it is going:
+the highlights, and parts, blocks, movements and lift sets are saved from them. A strength
+movement takes a result (fixed load, ramp by a step, or set by set), so each session has a total
+lifted in kg. Where it is going:
 
 - [docs/domain.md](docs/domain.md): movements, scaling, workouts composed of movements, rep
   maxes, the weekly volume grid.

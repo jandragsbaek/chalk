@@ -6,6 +6,8 @@ import {
   type Amount,
   type BlockParams,
   type CatalogMovement,
+  type DerivedItem,
+  type LiftResult,
   type MovementId,
   type Span,
   type SpanId,
@@ -17,8 +19,10 @@ import { Link2, Trash2, X } from "lucide-react";
 
 import { BLOCK_FORMAT_LABELS, MEASURE_LABELS } from "../../lib/blockLabels.ts";
 import type { PickMode } from "../../lib/importEditor.ts";
+import type { ResultDefaults } from "../../lib/resultDraft.ts";
 import { CoreMovementField } from "./CoreMovementField.tsx";
 import { MovementPicker } from "./MovementPicker.tsx";
+import { ResultEditor } from "./ResultEditor.tsx";
 
 const TAG_TITLES: Record<Span["_tag"], string> = {
   movement: "Movement",
@@ -160,6 +164,7 @@ export function SpanInspector({
   spans,
   catalog,
   picking,
+  programmed,
   onUpdate,
   onRemove,
   onPick,
@@ -170,6 +175,10 @@ export function SpanInspector({
   readonly spans: ReadonlyArray<Span>;
   readonly catalog: ReadonlyArray<CatalogMovement>;
   readonly picking: PickMode | undefined;
+  /** The derived item of a programmed movement (not one in the notes), which can take a result. */
+  readonly programmed:
+    | { readonly item: DerivedItem; readonly defaults: ResultDefaults }
+    | undefined;
   readonly onUpdate: (span: Span) => void;
   readonly onRemove: (id: SpanId) => void;
   readonly onPick: (mode: PickMode | undefined) => void;
@@ -237,6 +246,17 @@ export function SpanInspector({
               onUpdate(rest);
             }}
           />
+          {programmed ? (
+            <ResultEditor
+              result={span.result}
+              item={programmed.item}
+              defaults={programmed.defaults}
+              onChange={(result: LiftResult | undefined) => {
+                const { result: _old, ...rest } = span;
+                onUpdate(result === undefined ? rest : { ...rest, result });
+              }}
+            />
+          ) : null}
         </>
       ) : null}
 
