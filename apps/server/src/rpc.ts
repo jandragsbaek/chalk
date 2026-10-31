@@ -49,6 +49,8 @@ export const layer = ChalkRpcGroup.toLayer(
       [RPC_METHODS.liftsDelete]: ({ id }) =>
         strength.remove(id).pipe(Effect.catchTags(onStrengthError)),
       [RPC_METHODS.liftsRecords]: () => strength.records().pipe(Effect.catchTags(onStrengthError)),
+      [RPC_METHODS.benchmarksResults]: () =>
+        store.results().pipe(Effect.catchTags({ WorkoutPersistenceError: reportStorageError })),
       [RPC_METHODS.levelsList]: () =>
         levels
           .overview()

@@ -1,4 +1,5 @@
-import type { IsoDate, MovementId } from "../baseSchemas.ts";
+import type { BenchmarkId, IsoDate, MovementId } from "../baseSchemas.ts";
+import { benchmarkById, type Benchmark, type BenchmarkItem } from "../benchmarks/index.ts";
 import type { Performance } from "../levels.ts";
 import type {
   BlockFormat,
@@ -55,6 +56,8 @@ export interface DerivedBlock {
 export interface DerivedPart {
   readonly spanId: SpanId | undefined;
   readonly title: string;
+  /** The named workout the part is, from a `benchmark` span in it. */
+  readonly benchmarkId: BenchmarkId | undefined;
   readonly rawText: string;
   readonly blocks: ReadonlyArray<DerivedBlock>;
 }
@@ -110,6 +113,7 @@ interface MutablePart {
   title: string;
   start: number;
   blocks: Array<MutableBlock>;
+  benchmark: SpanOf<"benchmark"> | undefined;
 }
 
 const isTag =
@@ -236,7 +240,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
   const slice = (span: { start: number; end: number }) => text.slice(span.start, span.end);
   const lineOf = (offset: number) => lineIndexAt(lines, offset);
   const checkOf = (span: Span): ImportCheck =>
-    span._tag === "movement"
+    span._tag === "movement" || span._tag === "benchmark"
       ? "movements"
       : span._tag === "date" || span._tag === "session"
         ? "date"
@@ -290,7 +294,13 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
   const currentPart = (at: number) => {
     const part = parts.at(-1);
     if (part) return part;
-    const implicit: MutablePart = { spanId: undefined, title: "Workout", start: at, blocks: [] };
+    const implicit: MutablePart = {
+      spanId: undefined,
+      title: "Workout",
+      start: at,
+      blocks: [],
+      benchmark: undefined,
+    };
     parts.push(implicit);
     return implicit;
   };
@@ -312,10 +322,62 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
 
   const alternativesOf = new Map<SpanId, Array<SpanOf<"movement">>>();
   const resultMovements: Array<SpanOf<"movement">> = [];
+  /** Where a benchmark opened a part of its own; it ends the part before, like a heading. */
+  const benchmarkStarts: Array<number> = [];
 
   for (const span of spans) {
     if (span._tag === "part") {
-      parts.push({ spanId: span.id, title: slice(span), start: span.start, blocks: [] });
+      parts.push({
+        spanId: span.id,
+        title: slice(span),
+        start: span.start,
+        blocks: [],
+        benchmark: undefined,
+      });
+    } else if (span._tag === "benchmark") {
+      if (inNotes(span)) {
+        issues.push({
+          severity: "warning",
+          check: "movements",
+          message: `Benchmark "${slice(span)}" is in the notes and is left out.`,
+          spanId: span.id,
+        });
+        continue;
+      }
+      const benchmark =
+        span.benchmarkId === undefined ? undefined : benchmarkById(span.benchmarkId);
+      if (span.benchmarkId === undefined)
+        issues.push({
+          severity: "error",
+          check: "movements",
+          message: `Pick a benchmark for "${slice(span)}".`,
+          spanId: span.id,
+        });
+      else if (benchmark === undefined)
+        issues.push({
+          severity: "error",
+          check: "movements",
+          message: `"${span.benchmarkId}" is not a known benchmark.`,
+          spanId: span.id,
+        });
+      // Right under its heading it names that part; after movements it starts the next one.
+      const part = parts.at(-1);
+      if (
+        part !== undefined &&
+        part.benchmark === undefined &&
+        part.blocks.every((block) => block.items.length === 0)
+      )
+        part.benchmark = span;
+      else {
+        benchmarkStarts.push(span.start);
+        parts.push({
+          spanId: undefined,
+          title: benchmark?.name ?? slice(span),
+          start: span.start,
+          blocks: [],
+          benchmark: span,
+        });
+      }
     } else if (span._tag === "block" && !inNotes(span)) {
       currentPart(span.start).blocks.push({
         spanId: span.id,
@@ -482,7 +544,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
   const scoresOf = new Map<SpanId, Array<string>>();
   for (const score of spans.filter(isTag("score"))) {
     const block = score.attachedTo === undefined ? undefined : byId.get(score.attachedTo);
-    if (block?._tag !== "block") {
+    if (block?._tag !== "block" && block?._tag !== "benchmark") {
       issues.push({
         severity: "warning",
         check: "numbers",
@@ -494,15 +556,73 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     scoresOf.set(block.id, [...(scoresOf.get(block.id) ?? []), slice(score)]);
   }
 
-  const boundaries = spans
-    .filter((span) => span._tag === "part" || span._tag === "notes")
-    .map((span) => span.start);
+  const boundaries = [
+    ...spans
+      .filter((span) => span._tag === "part" || span._tag === "notes")
+      .map((span) => span.start),
+    ...benchmarkStarts,
+  ].sort((left, right) => left - right);
   const rawTextOf = (part: MutablePart) => {
     const line = lines[lineOf(part.start)]!;
     const from = part.spanId === undefined ? line.start : line.end;
     const next = boundaries.find((start) => start > part.start);
     const to = next === undefined ? text.length : lines[lineOf(next)]!.start;
     return text.slice(from, Math.max(from, to)).trim();
+  };
+
+  /** A benchmark's blocks as derived ones; item and intent ids hang off the benchmark span. */
+  const expandBenchmark = (
+    benchmark: Benchmark,
+    span: SpanOf<"benchmark">,
+    intents: ReadonlyArray<DerivedIntent>,
+    scores: ReadonlyArray<string>,
+  ): ReadonlyArray<DerivedBlock> => {
+    const line = lineOf(span.start);
+    const toTemplateItem = (item: BenchmarkItem, key: string): DerivedItem => {
+      if (nameOf(item.movementId) === undefined)
+        issues.push({
+          severity: "error",
+          check: "movements",
+          message: `${benchmark.name} uses "${item.movementId}", which is not in the catalog.`,
+          spanId: span.id,
+        });
+      return {
+        spanId: `${span.id}/${key}`,
+        movementId: item.movementId,
+        text: nameOf(item.movementId) ?? item.movementId,
+        sets: item.quantities.length === 0 ? [] : [{ line, quantities: item.quantities }],
+        performed: [],
+        performance: undefined,
+        alternatives: (item.alternatives ?? []).map((alternative, index) =>
+          toTemplateItem(alternative, `${key}.${index}`),
+        ),
+      };
+    };
+    const scoredAt = Math.max(
+      0,
+      benchmark.blocks.findIndex((block) => block.format !== "rest"),
+    );
+    return benchmark.blocks.map((block, blockIndex) => ({
+      spanId: undefined,
+      title: block.title,
+      format: block.format,
+      params: block.params,
+      items: block.items.map((item, itemIndex) =>
+        toTemplateItem(item, `${blockIndex}.${itemIndex}`),
+      ),
+      intents: [
+        ...(blockIndex === 0 ? intents : []),
+        ...block.intents.map((intentText, index) => ({
+          spanId: `${span.id}/${blockIndex}.i${index}`,
+          text: intentText,
+          quantities: parseQuantities(intentText, 0, { bareReps: false }).map(
+            (match) => match.quantity,
+          ),
+        })),
+      ],
+      scores: blockIndex === scoredAt ? scores : [],
+      tonnageKg: 0,
+    }));
   };
 
   const derivedParts: Array<DerivedPart> = parts.map((part) => {
@@ -518,7 +638,32 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     blocks = blocks.filter(
       (block) => block.spanId !== undefined || block.items.length > 0 || block.intents.length > 0,
     );
-    if (blocks.every((block) => block.items.length === 0))
+    const named = part.benchmark;
+    const benchmark =
+      named?.benchmarkId === undefined ? undefined : benchmarkById(named.benchmarkId);
+    const benchmarkScores = named === undefined ? [] : (scoresOf.get(named.id) ?? []);
+    const base = {
+      spanId: part.spanId,
+      title: part.title,
+      benchmarkId: benchmark?.id,
+      rawText: rawTextOf(part),
+    };
+    // Only the name on the board: the part is the benchmark as prescribed.
+    if (named && benchmark && blocks.every((block) => block.items.length === 0))
+      return {
+        ...base,
+        blocks: expandBenchmark(
+          benchmark,
+          named,
+          blocks.flatMap((block) => block.intents.map(toIntent)),
+          benchmarkScores,
+        ),
+      };
+    const scoredAt = Math.max(
+      0,
+      blocks.findIndex((block) => block.items.length > 0),
+    );
+    if (named === undefined && blocks.every((block) => block.items.length === 0))
       issues.push({
         severity: "warning",
         check: "movements",
@@ -526,10 +671,8 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
         ...(part.spanId === undefined ? {} : { spanId: part.spanId }),
       });
     return {
-      spanId: part.spanId,
-      title: part.title,
-      rawText: rawTextOf(part),
-      blocks: blocks.map((block) => {
+      ...base,
+      blocks: blocks.map((block, index) => {
         const items = block.items.map(toItem);
         return {
           spanId: block.spanId,
@@ -538,7 +681,10 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
           params: block.params,
           items,
           intents: block.intents.map(toIntent),
-          scores: block.spanId === undefined ? [] : (scoresOf.get(block.spanId) ?? []),
+          scores: [
+            ...(block.spanId === undefined ? [] : (scoresOf.get(block.spanId) ?? [])),
+            ...(index === scoredAt ? benchmarkScores : []),
+          ],
           tonnageKg: roundKg(items.reduce((total, item) => total + itemTonnage(item), 0)),
         };
       }),

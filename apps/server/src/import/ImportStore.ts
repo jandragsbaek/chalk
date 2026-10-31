@@ -247,8 +247,9 @@ const make = Effect.gen(function* () {
       for (const [partPosition, part] of session.parts.entries()) {
         const partId = yield* newId;
         yield* sql`
-          INSERT INTO workout_parts (id, workout_id, position, title, raw_text)
-          VALUES (${partId}, ${workoutId}, ${partPosition}, ${part.title}, ${part.rawText})
+          INSERT INTO workout_parts (id, workout_id, position, title, raw_text, benchmark_id)
+          VALUES (${partId}, ${workoutId}, ${partPosition}, ${part.title}, ${part.rawText},
+                  ${part.benchmarkId ?? null})
         `;
         for (const [blockPosition, block] of part.blocks.entries()) {
           const blockId = yield* newId;

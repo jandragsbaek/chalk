@@ -26,8 +26,11 @@ coach.
 
 - `workout_parts` and `workout_items` tables (prescribed vs performed, derived total reps).
 - Structured scores per format, with the display string derived.
-- Log form builds a workout from parts and catalog movements; benchmark templates replace the
-  free-text datalist.
+- Log form builds a workout from parts and catalog movements.
+- Benchmarks (done): the Girls, the 244 Heroes and three classics as reference data; logging
+  one writes its structure, the importer links parts to them, `/benchmarks` shows attempts,
+  records and the Rx level on GymDanmark's sheet. Later: a structured score per format, and
+  logging how a scaled attempt was done.
 - Strength parts write lift sets, so rep maxes come from workouts too.
 - Migrate existing workouts to one part each.
 

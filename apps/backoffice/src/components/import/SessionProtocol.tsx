@@ -1,4 +1,5 @@
 import {
+  benchmarkById,
   formatPerformed,
   formatQuantity,
   tonnageOf,
@@ -225,11 +226,11 @@ export function SessionProtocol({
         </p>
       ) : null}
 
-      {session.parts.map((part) => (
-        <section key={part.spanId ?? "implicit"} aria-label={part.title}>
+      {session.parts.map((part, partIndex) => (
+        <section key={part.spanId ?? `implicit-${partIndex}`} aria-label={part.title}>
           <SectionHeader
             title={part.title}
-            meta={`${plural(part.blocks.length, "block", "blocks")}, ${plural(blockItems(part.blocks), "movement", "movements")}`}
+            meta={`${part.benchmarkId === undefined ? "" : `${benchmarkById(part.benchmarkId)?.name ?? part.benchmarkId}, `}${plural(part.blocks.length, "block", "blocks")}, ${plural(blockItems(part.blocks), "movement", "movements")}`}
           />
           <div
             aria-hidden

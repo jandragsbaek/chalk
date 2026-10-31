@@ -21,3 +21,7 @@ export type IsoDate = typeof IsoDate.Type;
 
 export const IsoDateTime = Schema.String;
 export type IsoDateTime = typeof IsoDateTime.Type;
+
+/** Slug of a named workout, e.g. "fran", "mr-joshua". */
+export const BenchmarkId = makeEntityId("BenchmarkId");
+export type BenchmarkId = typeof BenchmarkId.Type;

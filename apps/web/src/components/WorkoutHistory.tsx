@@ -1,5 +1,6 @@
 import type { WorkoutId } from "@chalk/contracts";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { Link } from "@tanstack/react-router";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { Trash2 } from "lucide-react";
 
@@ -44,7 +45,17 @@ export function WorkoutHistory() {
                   >
                     <div className="grid min-w-0 gap-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{workout.name}</span>
+                        {workout.benchmarkId ? (
+                          <Link
+                            to="/benchmarks/$benchmarkId"
+                            params={{ benchmarkId: workout.benchmarkId }}
+                            className="font-medium underline decoration-input hover:decoration-foreground"
+                          >
+                            {workout.name}
+                          </Link>
+                        ) : (
+                          <span className="font-medium">{workout.name}</span>
+                        )}
                         <Badge variant="muted">{WORKOUT_KIND_LABELS[workout.kind]}</Badge>
                         <Badge variant={workout.rx ? "default" : "muted"}>
                           {workout.rx ? "Rx" : "Scaled"}

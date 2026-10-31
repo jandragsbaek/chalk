@@ -1,6 +1,13 @@
 import * as Schema from "effect/Schema";
 
-import { IsoDate, IsoDateTime, TrimmedNonEmptyString, WorkoutId } from "./baseSchemas.ts";
+import {
+  BenchmarkId,
+  IsoDate,
+  IsoDateTime,
+  TrimmedNonEmptyString,
+  WorkoutId,
+} from "./baseSchemas.ts";
+import { KnownBenchmarkId } from "./benchmarks/index.ts";
 
 export const WorkoutKind = Schema.Literals(["for_time", "amrap", "emom", "strength", "other"]);
 export type WorkoutKind = typeof WorkoutKind.Type;
@@ -14,6 +21,8 @@ export const Workout = Schema.Struct({
   score: Schema.String,
   rx: Schema.Boolean,
   notes: Schema.String,
+  /** The named workout the session is (or its first part, for an imported session). */
+  benchmarkId: Schema.optionalKey(BenchmarkId),
   createdAt: IsoDateTime,
 }).annotate({ identifier: "Workout" });
 export type Workout = typeof Workout.Type;
@@ -25,6 +34,8 @@ export const LogWorkoutInput = Schema.Struct({
   score: TrimmedNonEmptyString,
   rx: Schema.Boolean,
   notes: Schema.String,
+  /** Logs the benchmark: the session gets its blocks and movements, and the score counts. */
+  benchmarkId: Schema.optionalKey(KnownBenchmarkId),
 });
 export type LogWorkoutInput = typeof LogWorkoutInput.Type;
 
@@ -48,3 +59,16 @@ export class WorkoutStorageError extends Schema.TaggedError<WorkoutStorageError>
     return `Could not ${this.operation}.`;
   }
 }
+
+/** One attempt at a benchmark: a logged workout, or a part of an imported session. */
+export const BenchmarkResult = Schema.Struct({
+  benchmarkId: BenchmarkId,
+  workoutId: WorkoutId,
+  performedOn: IsoDate,
+  /** As written: "4:32", "18+7"; empty when the session has none. */
+  score: Schema.String,
+  /** Rx or scaled as logged; `null` for an imported session, where it is not recorded. */
+  rx: Schema.NullOr(Schema.Boolean),
+  imported: Schema.Boolean,
+}).annotate({ identifier: "BenchmarkResult" });
+export type BenchmarkResult = typeof BenchmarkResult.Type;

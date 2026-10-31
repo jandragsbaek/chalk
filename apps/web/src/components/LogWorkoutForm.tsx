@@ -1,4 +1,11 @@
-import { LogWorkoutInput } from "@chalk/contracts";
+import {
+  BENCHMARKS,
+  benchmarkWorkoutKind,
+  findBenchmark,
+  LogWorkoutInput,
+  SCORE_PLACEHOLDERS as BENCHMARK_SCORE_PLACEHOLDERS,
+  type Benchmark,
+} from "@chalk/contracts";
 import { useAtomSet } from "@effect/atom-react";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
@@ -7,6 +14,7 @@ import { useState } from "react";
 
 import { localIsoDate } from "../lib/utils.ts";
 import { SCORE_PLACEHOLDERS, WORKOUT_KIND_LABELS, WORKOUT_KINDS } from "../lib/workoutKinds.ts";
+import { LIFTS_REACTIVITY_KEY } from "../state/strength.ts";
 import { logWorkoutAtom, WORKOUTS_REACTIVITY_KEY } from "../state/workouts.ts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, Label, NativeSelect, Textarea } from "@chalk/ui/components/field.tsx";
@@ -14,49 +22,44 @@ import { Switch } from "@chalk/ui/components/switch.tsx";
 
 const decodeLogWorkoutInput = Schema.decodeUnknownOption(LogWorkoutInput);
 
-const BENCHMARK_WORKOUTS = [
-  "Fran",
-  "Grace",
-  "Helen",
-  "Diane",
-  "Elizabeth",
-  "Isabel",
-  "Karen",
-  "Annie",
-  "Cindy",
-  "Mary",
-  "Jackie",
-  "Nancy",
-  "Murph",
-  "DT",
-  "Filthy Fifty",
-  "Fight Gone Bad",
-];
-
 type SubmitStatus =
   | { readonly type: "idle" }
   | { readonly type: "saving" }
   | { readonly type: "error"; readonly message: string };
 
-export function LogWorkoutForm() {
+/**
+ * Logs a workout. A name that is a benchmark (or the `benchmark` of its page) logs that
+ * benchmark: the session gets its movements and the score counts toward its record.
+ */
+export function LogWorkoutForm({ benchmark: fixed }: { readonly benchmark?: Benchmark } = {}) {
   const logWorkout = useAtomSet(logWorkoutAtom, { mode: "promiseExit" });
   const [performedOn, setPerformedOn] = useState(() => localIsoDate(new Date()));
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState<LogWorkoutInput["kind"]>("for_time");
+  const [name, setName] = useState(fixed?.name ?? "");
+  const [kind, setKind] = useState<LogWorkoutInput["kind"]>(
+    fixed ? benchmarkWorkoutKind(fixed) : "for_time",
+  );
   const [score, setScore] = useState("");
   const [rx, setRx] = useState(true);
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<SubmitStatus>({ type: "idle" });
+  const benchmark = fixed ?? findBenchmark(name);
+
+  function handleNameChange(value: string) {
+    setName(value);
+    const named = findBenchmark(value);
+    if (named) setKind(benchmarkWorkoutKind(named));
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const input = decodeLogWorkoutInput({
       performedOn,
-      name: name.trim(),
+      name: benchmark?.name ?? name.trim(),
       kind,
       score: score.trim(),
       rx,
       notes: notes.trim(),
+      ...(benchmark ? { benchmarkId: benchmark.id } : {}),
     });
     if (Option.isNone(input)) {
       setStatus({ type: "error", message: "Add a date, a workout name and a score." });
@@ -66,13 +69,16 @@ export function LogWorkoutForm() {
     setStatus({ type: "saving" });
     const exit = await logWorkout({
       payload: input.value,
-      reactivityKeys: [WORKOUTS_REACTIVITY_KEY],
+      // A benchmark brings movements, which the levels page grades.
+      reactivityKeys: benchmark
+        ? [WORKOUTS_REACTIVITY_KEY, LIFTS_REACTIVITY_KEY]
+        : [WORKOUTS_REACTIVITY_KEY],
     });
     if (Exit.isFailure(exit)) {
       setStatus({ type: "error", message: "Could not save the workout. Try again." });
       return;
     }
-    setName("");
+    if (!fixed) setName("");
     setScore("");
     setNotes("");
     setStatus({ type: "idle" });
@@ -83,39 +89,49 @@ export function LogWorkoutForm() {
       onSubmit={handleSubmit}
       className="grid gap-4 rounded-lg border bg-card p-4 shadow-xs sm:grid-cols-2"
     >
-      <div className="grid gap-1.5 sm:col-span-2">
-        <Label htmlFor="workout-name">Workout</Label>
-        <Input
-          id="workout-name"
-          list="benchmark-workouts"
-          placeholder="Fran, Back squat, Today's WOD..."
-          autoComplete="off"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-        />
-        <datalist id="benchmark-workouts">
-          {BENCHMARK_WORKOUTS.map((workout) => (
-            <option key={workout} value={workout} />
-          ))}
-        </datalist>
-      </div>
+      {fixed ? null : (
+        <div className="grid gap-1.5 sm:col-span-2">
+          <Label htmlFor="workout-name">Workout</Label>
+          <Input
+            id="workout-name"
+            list="benchmark-workouts"
+            placeholder="Fran, Back squat, Today's WOD..."
+            autoComplete="off"
+            value={name}
+            onChange={(event) => handleNameChange(event.target.value)}
+          />
+          <datalist id="benchmark-workouts">
+            {BENCHMARKS.map((option) => (
+              <option key={option.id} value={option.name} />
+            ))}
+          </datalist>
+          {benchmark ? (
+            <p className="text-xs text-muted-foreground">
+              Logs the benchmark: {benchmark.blocks.map((block) => block.title).join(", then ")}.
+              Its movements go into the session.
+            </p>
+          ) : null}
+        </div>
+      )}
 
-      <div className="grid gap-1.5">
-        <Label htmlFor="workout-kind">Type</Label>
-        <NativeSelect
-          id="workout-kind"
-          value={kind}
-          onChange={(event) =>
-            setKind(WORKOUT_KINDS.find((option) => option === event.target.value) ?? "other")
-          }
-        >
-          {WORKOUT_KINDS.map((option) => (
-            <option key={option} value={option}>
-              {WORKOUT_KIND_LABELS[option]}
-            </option>
-          ))}
-        </NativeSelect>
-      </div>
+      {fixed ? null : (
+        <div className="grid gap-1.5">
+          <Label htmlFor="workout-kind">Type</Label>
+          <NativeSelect
+            id="workout-kind"
+            value={kind}
+            onChange={(event) =>
+              setKind(WORKOUT_KINDS.find((option) => option === event.target.value) ?? "other")
+            }
+          >
+            {WORKOUT_KINDS.map((option) => (
+              <option key={option} value={option}>
+                {WORKOUT_KIND_LABELS[option]}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+      )}
 
       <div className="grid gap-1.5">
         <Label htmlFor="workout-date">Date</Label>
@@ -131,7 +147,9 @@ export function LogWorkoutForm() {
         <Label htmlFor="workout-score">Score</Label>
         <Input
           id="workout-score"
-          placeholder={SCORE_PLACEHOLDERS[kind]}
+          placeholder={
+            benchmark ? BENCHMARK_SCORE_PLACEHOLDERS[benchmark.scoring] : SCORE_PLACEHOLDERS[kind]
+          }
           autoComplete="off"
           value={score}
           onChange={(event) => setScore(event.target.value)}

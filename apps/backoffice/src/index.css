@@ -41,6 +41,11 @@
   --tag: var(--copy-goldenrod);
   --tag-ink: var(--copy-goldenrod-ink);
 }
+[data-tag="benchmark"],
+[data-key-tag="benchmark"] {
+  --tag: var(--copy-goldenrod);
+  --tag-ink: var(--copy-goldenrod-ink);
+}
 [data-tag="block"],
 [data-key-tag="block"],
 [data-tag="part"],
@@ -96,6 +101,9 @@ mark[data-tag] {
 }
 mark[data-tag="block"] {
   box-shadow: inset 0 0 0 1px var(--tag-ink);
+}
+mark[data-tag="benchmark"] {
+  box-shadow: inset 0 0 0 2px var(--tag-ink);
 }
 mark[data-tag="part"] {
   background: var(--foreground);

@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LevelsRouteImport } from './routes/levels'
 import { Route as StrengthRouteImport } from './routes/strength'
+import { Route as BenchmarksIndexRouteImport } from './routes/benchmarks.index'
+import { Route as BenchmarksBenchmarkIdRouteImport } from './routes/benchmarks.$benchmarkId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +30,60 @@ const StrengthRoute = StrengthRouteImport.update({
   path: '/strength',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BenchmarksIndexRoute = BenchmarksIndexRouteImport.update({
+  id: '/benchmarks/',
+  path: '/benchmarks/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BenchmarksBenchmarkIdRoute = BenchmarksBenchmarkIdRouteImport.update({
+  id: '/benchmarks/$benchmarkId',
+  path: '/benchmarks/$benchmarkId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/levels': typeof LevelsRoute
   '/strength': typeof StrengthRoute
+  '/benchmarks/$benchmarkId': typeof BenchmarksBenchmarkIdRoute
+  '/benchmarks/': typeof BenchmarksIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/levels': typeof LevelsRoute
   '/strength': typeof StrengthRoute
+  '/benchmarks/$benchmarkId': typeof BenchmarksBenchmarkIdRoute
+  '/benchmarks': typeof BenchmarksIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/levels': typeof LevelsRoute
   '/strength': typeof StrengthRoute
+  '/benchmarks/$benchmarkId': typeof BenchmarksBenchmarkIdRoute
+  '/benchmarks/': typeof BenchmarksIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/levels' | '/strength'
+  fullPaths:
+    '/' | '/levels' | '/strength' | '/benchmarks/$benchmarkId' | '/benchmarks/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/levels' | '/strength'
-  id: '__root__' | '/' | '/levels' | '/strength'
+  to: '/' | '/levels' | '/strength' | '/benchmarks/$benchmarkId' | '/benchmarks'
+  id:
+    | '__root__'
+    | '/'
+    | '/levels'
+    | '/strength'
+    | '/benchmarks/$benchmarkId'
+    | '/benchmarks/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LevelsRoute: typeof LevelsRoute
   StrengthRoute: typeof StrengthRoute
+  BenchmarksBenchmarkIdRoute: typeof BenchmarksBenchmarkIdRoute
+  BenchmarksIndexRoute: typeof BenchmarksIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +109,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StrengthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/benchmarks/': {
+      id: '/benchmarks/'
+      path: '/benchmarks'
+      fullPath: '/benchmarks/'
+      preLoaderRoute: typeof BenchmarksIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/benchmarks/$benchmarkId': {
+      id: '/benchmarks/$benchmarkId'
+      path: '/benchmarks/$benchmarkId'
+      fullPath: '/benchmarks/$benchmarkId'
+      preLoaderRoute: typeof BenchmarksBenchmarkIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +130,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LevelsRoute: LevelsRoute,
   StrengthRoute: StrengthRoute,
+  BenchmarksBenchmarkIdRoute: BenchmarksBenchmarkIdRoute,
+  BenchmarksIndexRoute: BenchmarksIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,4 +1,10 @@
-import { MovementId, normalizeMovementPhrase } from "@chalk/contracts";
+import {
+  BENCHMARK_MOVEMENT_IDS,
+  BENCHMARKS,
+  benchmarkMovementIds,
+  MovementId,
+  normalizeMovementPhrase,
+} from "@chalk/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -30,32 +36,59 @@ describe("CatalogStore", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect("holds every movement the benchmarks use, with its core and sheet row", () =>
+    Effect.gen(function* () {
+      const store = yield* CatalogStore.CatalogStore;
+      const catalog = yield* store.list();
+      const ids = new Set(catalog.map((movement) => movement.id));
+      expect(BENCHMARK_MOVEMENT_IDS.filter((id) => !ids.has(MovementId.make(id)))).toEqual([]);
+      const used = BENCHMARKS.flatMap((benchmark) => benchmarkMovementIds(benchmark));
+      expect(used.filter((id) => !ids.has(id))).toEqual([]);
+
+      const byId = new Map(catalog.map((movement) => [movement.id, movement]));
+      expect(byId.get(MovementId.make("push-jerk"))?.variationOf).toBe("jerk");
+      expect(byId.get(MovementId.make("hang-squat-clean"))).toMatchObject({
+        variationOf: "clean",
+        levelFamily: "bb-clean",
+      });
+      expect(byId.get(MovementId.make("air-squat"))?.aliases).toContain("Squat");
+      // One level only: no core of a variation is itself a variation.
+      expect(
+        catalog.filter(
+          (movement) =>
+            movement.variationOf !== undefined &&
+            byId.get(movement.variationOf)?.variationOf !== undefined,
+        ),
+      ).toEqual([]);
+    }).pipe(Effect.provide(layer)),
+  );
+
   it.effect("creates a movement with a slug id and aliases, and refuses duplicates", () =>
     Effect.gen(function* () {
       const store = yield* CatalogStore.CatalogStore;
       const created = yield* store.create({
-        name: "Burpee over rower",
-        category: "gymnastics",
-        aliases: ["BOR", "Burpees over the rower"],
+        name: "Devil press",
+        category: "dumbbell_kettlebell",
+        aliases: ["DP", "Devil presses with two dumbbells"],
       });
       expect(created).toEqual({
-        id: "burpee-over-rower",
-        name: "Burpee over rower",
-        category: "gymnastics",
-        aliases: ["BOR", "Burpees over the rower"],
+        id: "devil-press",
+        name: "Devil press",
+        category: "dumbbell_kettlebell",
+        aliases: ["DP", "Devil presses with two dumbbells"],
       });
 
       const duplicate = yield* store
-        .create({ name: "burpee over rowers", category: "gymnastics", aliases: [] })
+        .create({ name: "DEVIL PRESS", category: "dumbbell_kettlebell", aliases: [] })
         .pipe(Effect.flip);
       expect(duplicate._tag).toBe("MovementExistsError");
 
       // A failed alias rolls the whole creation back.
       const taken = yield* store
-        .create({ name: "Wall walk", category: "gymnastics", aliases: ["DU"] })
+        .create({ name: "Sandbag squat", category: "other", aliases: ["DU"] })
         .pipe(Effect.flip);
       expect(taken).toMatchObject({ _tag: "AliasTakenError", movementId: "double-under" });
-      expect((yield* store.list()).some((movement) => movement.id === "wall-walk")).toBe(false);
+      expect((yield* store.list()).some((movement) => movement.id === "sandbag-squat")).toBe(false);
     }).pipe(Effect.provide(layer)),
   );
 
@@ -84,7 +117,11 @@ describe("CatalogStore", () => {
         catalog
           .filter((movement) => movement.variationOf === snatch)
           .map((movement) => movement.id);
-      expect(variationsOf(yield* store.list())).toEqual(["hang-power-snatch", "power-snatch"]);
+      expect(variationsOf(yield* store.list())).toEqual([
+        "hang-power-snatch",
+        "power-snatch",
+        "split-snatch",
+      ]);
 
       // "Squat snatch" was an alias of Snatch; the new movement's name takes the phrase over.
       const squat = yield* store.create({
@@ -129,11 +166,15 @@ describe("CatalogStore", () => {
       const promoted = yield* store.setVariationOf(MovementId.make("power-snatch"), null);
       expect(promoted.variationOf).toBeUndefined();
       const moved = yield* store.setVariationOf(
-        MovementId.make("thruster"),
-        MovementId.make("front-squat"),
+        MovementId.make("sumo-deadlift"),
+        MovementId.make("deadlift"),
       );
-      expect(moved.variationOf).toBe("front-squat");
-      expect(variationsOf(yield* store.list())).toEqual(["hang-power-snatch", "squat-snatch"]);
+      expect(moved.variationOf).toBe("deadlift");
+      expect(variationsOf(yield* store.list())).toEqual([
+        "hang-power-snatch",
+        "split-snatch",
+        "squat-snatch",
+      ]);
     }).pipe(Effect.provide(layer)),
   );
 });

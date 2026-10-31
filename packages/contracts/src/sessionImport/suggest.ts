@@ -1,3 +1,5 @@
+import type { BenchmarkId } from "../baseSchemas.ts";
+import { findBenchmark } from "../benchmarks/index.ts";
 import type { Measure, Span, SpanId, SpanOf } from "../sessionImport.ts";
 import { tokenize, type MovementMatcher } from "./movementMatcher.ts";
 import {
@@ -82,6 +84,26 @@ const VARIATION_WORDS: ReadonlySet<string> = new Set([
   "tall",
 ]);
 
+const QUOTED_NAME = /^["“”'‘’]?\s*(.+?)\s*["“”'‘’]?\s*[:!.]?\s*$/u;
+
+/**
+ * A benchmark named by a whole line or heading: "Fran", "\"Murph\" (Hero WOD)", "DT:". Only
+ * exact names count, so "Fran-ish" or "Jackie with a 15-12-9" stay ordinary text.
+ */
+const namedBenchmark = (content: string, matcher: MovementMatcher) => {
+  const masked = maskParentheses(content);
+  const name = QUOTED_NAME.exec(masked)?.[1];
+  if (name === undefined || name.replace(/[^\p{L}\p{N}]/gu, "").length < 2) return undefined;
+  const benchmark = findBenchmark(name);
+  if (benchmark === undefined || matcher.lookup(name) !== undefined) return undefined;
+  const start = masked.indexOf(name);
+  return { benchmarkId: benchmark.id, start, end: start + name.length };
+};
+
+/** "Fran: 4:32", "Cindy 18+7": a benchmark's name, then its score. */
+const BENCHMARK_SCORE =
+  /^(.+?)\s*[:–-]?\s*(\d+:\d{2}(?::\d{2})?|\d+\s*\+\s*\d+|\d+\s*(?:rounds?|runder|rds?)(?:\s*\+\s*\d+(?:\s*reps?)?)?)(?!\d)/iu;
+
 /**
  * First-pass spans for a pasted session: headings, block formats, movements from the catalog,
  * quantities attached to their movement, and results in the notes. Everything is a suggestion;
@@ -95,7 +117,26 @@ export const suggestSpans = (
   const spans: Array<Span> = [];
   let region: "workout" | "notes" = "workout";
   let lastPartMovement: SpanOf<"movement"> | undefined;
-  let lastScoreable: SpanOf<"block"> | undefined;
+  let lastScoreable: SpanOf<"block"> | SpanOf<"benchmark"> | undefined;
+  const benchmarks = new Map<BenchmarkId, SpanOf<"benchmark">>();
+
+  /** A benchmark on a line of its own; `true` when the line was one. */
+  const addBenchmark = (content: string, offset: number) => {
+    const named = namedBenchmark(content, matcher);
+    if (named === undefined) return false;
+    const span: SpanOf<"benchmark"> = {
+      _tag: "benchmark",
+      id: makeId(),
+      start: offset + named.start,
+      end: offset + named.end,
+      benchmarkId: named.benchmarkId,
+    };
+    spans.push(span);
+    benchmarks.set(named.benchmarkId, span);
+    lastPartMovement = undefined;
+    lastScoreable = span;
+    return true;
+  };
 
   const addQuantity = (match: QuantityMatch, attachedTo: SpanId | undefined) => {
     spans.push({
@@ -148,6 +189,7 @@ export const suggestSpans = (
 
   const workoutLine = (content: string, offset: number) => {
     if (/^rest\b/i.test(content) && parseBlockFormat(content) === undefined) return;
+    if (addBenchmark(content, offset)) return;
 
     const format = parseBlockFormat(content);
     if (format) {
@@ -221,14 +263,26 @@ export const suggestSpans = (
 
   const notesLine = (content: string, offset: number) => {
     const masked = maskParentheses(content);
-    const score = findScore(masked);
+    const scored = BENCHMARK_SCORE.exec(masked);
+    const scoredBenchmark = scored ? findBenchmark(scored[1]!) : undefined;
+    const named = scoredBenchmark && benchmarks.get(scoredBenchmark.id);
+    const score = named
+      ? (() => {
+          const start = scored!.index + scored![0].lastIndexOf(scored![2]!);
+          return { start, end: start + scored![2]!.length };
+        })()
+      : findScore(masked);
     if (score) {
       spans.push({
         _tag: "score",
         id: makeId(),
         start: offset + score.start,
         end: offset + score.end,
-        ...(lastScoreable ? { attachedTo: lastScoreable.id } : {}),
+        ...(named
+          ? { attachedTo: named.id }
+          : lastScoreable
+            ? { attachedTo: lastScoreable.id }
+            : {}),
       });
     }
 
@@ -285,6 +339,7 @@ export const suggestSpans = (
       }
       region = "workout";
       if (CONTAINER_HEADING.test(content) || content === "") continue;
+      if (addBenchmark(content, contentStart)) continue;
       spans.push({
         _tag: "part",
         id: makeId(),

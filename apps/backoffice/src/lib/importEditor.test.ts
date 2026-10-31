@@ -34,6 +34,31 @@ const spanAt = (state: EditorState, phrase: string, nth = 0): Span | undefined =
 };
 
 describe("editorReducer", () => {
+  it("tags a benchmark by name, and attaches a score to it", () => {
+    const text = "- Murph\n- Score 41:12";
+    const state = initialEditorState({ text, spans: [] });
+    const named = editorReducer(state, {
+      type: "tag",
+      start: 2,
+      end: 7,
+      choice: { tag: "benchmark" },
+    });
+    expect(named.spans).toEqual([
+      { _tag: "benchmark", id: "e1", start: 2, end: 7, benchmarkId: "murph" },
+    ]);
+    const scored = editorReducer(named, {
+      type: "tag",
+      start: text.indexOf("41"),
+      end: text.length,
+      choice: { tag: "score" },
+    });
+    const picking = editorReducer(scored, { type: "pick", mode: "attach" });
+    const attached = editorReducer(picking, { type: "target", id: "e1" });
+    expect(attached.spans.find((span) => span._tag === "score")).toMatchObject({
+      attachedTo: "e1",
+    });
+  });
+
   it("tags intent as whole lines, without the bullet or comment stars", () => {
     const text = "- Back squat\n- *Build to a heavy single,\n- about RPE 9.*\n- 1 rep";
     const state = initialEditorState({ text, spans: [] });
