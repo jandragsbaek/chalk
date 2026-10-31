@@ -15,9 +15,10 @@ import * as AdminApi from "./adminApi.ts";
 import * as ServerConfig from "./config.ts";
 import * as Sqlite from "./persistence/Sqlite.ts";
 import * as Rpc from "./rpc.ts";
+import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
-const layerServices = WorkoutStore.layer.pipe(
+const layerServices = Layer.mergeAll(WorkoutStore.layer, StrengthStore.layer).pipe(
   Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)),
 );
 
@@ -44,10 +45,18 @@ const layerSpaRoute = Layer.unwrap(
   }),
 );
 
+/** Either mode's routes; it needs whatever either one needs. */
+type LayerModeRoutes = Layer.Layer<
+  never,
+  never,
+  Layer.Services<typeof layerAdminApiRoute> | Layer.Services<typeof layerRpcRoute>
+>;
+
 const layerModeRoutes = Layer.unwrap(
   Effect.gen(function* () {
     const { mode } = yield* ServerConfig.ServerConfig;
-    return mode === "admin" ? layerAdminApiRoute : layerRpcRoute;
+    const routes: LayerModeRoutes = mode === "admin" ? layerAdminApiRoute : layerRpcRoute;
+    return routes;
   }),
 );
 

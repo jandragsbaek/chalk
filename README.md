@@ -2,7 +2,16 @@
 
 # Chalk
 
-Track your CrossFit workouts, and (soon) get coached on them.
+Track your CrossFit workouts and strength numbers, and (soon) get coached on them.
+
+Today: log workouts with a free-form score, and log strength sets (reps × kg) against a movement
+catalog, with 1/2/3/5/10RM derived per movement. Where it is going:
+
+- [docs/domain.md](docs/domain.md): movements, scaling, workouts composed of movements, rep
+  maxes, the weekly volume grid.
+- [docs/roadmap.md](docs/roadmap.md): phases, in order.
+- [docs/coaching.md](docs/coaching.md): a short agentic coaching loop over an MCP server and
+  OpenRouter.
 
 Chalk is also a learning project. It uses the architecture and stack of
 [T3 Code](https://github.com/pingdotgg/t3code), scaled down to a small app: shared Effect Schema
@@ -54,6 +63,7 @@ apps/server                            apps/web (:5173)                  apps/ba
   rpc.ts      thin RPC handlers
   adminApi.ts thin HttpApi handlers
   workout/    WorkoutStore service (SQL)
+  strength/   StrengthStore (movements, lift sets) + rep max computation
   persistence/ SQLite (node:sqlite) + migrations
 ```
 

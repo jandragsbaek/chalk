@@ -1,31 +1,13 @@
-import type { Workout, WorkoutId } from "@chalk/contracts";
+import type { WorkoutId } from "@chalk/contracts";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { Trash2 } from "lucide-react";
 
+import { formatDay, groupByDay } from "../lib/utils.ts";
 import { WORKOUT_KIND_LABELS } from "../lib/workoutKinds.ts";
 import { deleteWorkoutAtom, workoutsAtom, WORKOUTS_REACTIVITY_KEY } from "../state/workouts.ts";
 import { Badge } from "@chalk/ui/components/badge.tsx";
 import { Button } from "@chalk/ui/components/button.tsx";
-
-function groupByDay(workouts: ReadonlyArray<Workout>) {
-  const days = new Map<string, Workout[]>();
-  for (const workout of workouts) {
-    const day = days.get(workout.performedOn);
-    if (day) day.push(workout);
-    else days.set(workout.performedOn, [workout]);
-  }
-  return [...days];
-}
-
-function formatDay(isoDate: string) {
-  return new Date(`${isoDate}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 export function WorkoutHistory() {
   const result = useAtomValue(workoutsAtom);
