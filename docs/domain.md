@@ -32,15 +32,21 @@ One entry in the catalog. Everything else points at a movement id.
 | `name`     | Display name.                                                              |
 | `category` | `barbell`, `dumbbell_kettlebell`, `gymnastics`, `monostructural`, `other`. |
 
-Seeded by migration `002_Strength`. Catalog changes are new migrations, never edits to old ones.
+Seeded by migration `002_Strength`. Seeded entries change only through new migrations, never
+edits to old ones. The importer can add movements (`user_added = 1`, id = slug of the name) and
+aliases from the backoffice.
+
+**Aliases (built).** `movement_aliases { key, alias, movementId }`: other phrases for a movement
+("DU", "Squat snatch", "Burpees over the rower"). `key` is the normalized phrase
+(`normalizeMovementPhrase`: lower case, split on punctuation, trailing plural "s" dropped) and is
+unique, so one phrase means one movement. A movement's own name is never stored as an alias.
+Migration `003_SessionImports` seeds whiteboard shorthand.
 
 Later fields:
 
 - `measure`: what one unit of the movement is: `reps`, `distance_m`, `calories`, `seconds`.
   Rows and runs are counted in meters or calories, not reps; the volume grid needs this.
 - `loadable`: whether a load makes sense (thruster yes, burpee no).
-- `custom`: user-defined movement (box step-over with a sandbag, etc).
-- `aliases`: "T2B", "HSPU", "C2B" for search and for parsing whiteboard text.
 
 ### Scaling option
 
@@ -63,6 +69,14 @@ numbers, so they need no catalog entry.
 `workouts.rx` column stays for workouts logged before parts existed.
 
 ### Workout, parts and items
+
+**Built for imports** (`workout_parts`, `workout_blocks`, `workout_items`): a part holds ordered
+**blocks**, because one part often has several formats ("Every 90 s x 6, then EMOM 5"; two AMRAP
+7s with a rest between). A block has the `format` and its parameters; an item holds the
+movement, an optional `alternative_of` item ("60 double-unders or 90 single-unders"), and its
+prescription as JSON: one set per written line, each a list of quantities (reps, sets, calories,
+meters, seconds, kg, % of 1RM; ranges and male/female splits kept). Performed values are not
+modeled yet. The target model below still applies to logging.
 
 A **workout** is one session on one day. It has ordered **parts** ("A. Back squat 5x5",
 "B. Fran"). A part has:
@@ -131,6 +145,30 @@ which supports both).
 
 Substituted items count toward the movement actually performed, and the grid can toggle to show
 prescribed movements instead, which answers "how many pull-ups were programmed vs done".
+
+## Session import (built)
+
+Backfills history from the athlete's own log, one pasted session at a time (backoffice →
+Import). The pasted text plus a list of **spans** over it is the source of truth
+(`ImportDocument`, stored in `session_imports.document`); everything else is derived and
+re-derivable.
+
+- Span kinds: `date`, `session` (number), `part`, `block` (format + params), `movement`
+  (catalog id, optional `alternativeOf`), `quantity` (measure, amount, optional female amount and
+  scheme, `attachedTo` a movement), `score` (attached to a block), `notes`. Spans never overlap.
+- `suggestSpans` (contracts) proposes spans: org headings (`** Session 167 <2026-10-28 on>`,
+  `**** Workout #1`, `*** Notes`), format lines, catalog movements and aliases, quantities.
+  Quantities attach to the movement in the same `+` / `or` segment of their line; a line of only
+  numbers ("5 reps @40%") attaches to the last movement of the part. Coach comments (`- *...`)
+  and asides in parentheses are skipped.
+- `deriveSession` (contracts) turns a document into the session and its issues; both the editor
+  preview and the server use it, so the server refuses what the editor would. Errors (no date,
+  unresolved movement, a result without reps) block saving; warnings (an unattached number)
+  only mean it is left out.
+- Movements in the notes region with a load become **lift sets**, linked by
+  `lift_sets.workout_id`, so they feed rep maxes. Failed attempts ("Failed 155 kg") are skipped.
+- One import per session number, or per day without one; saving the same session again needs an
+  explicit replace. Deleting the workout deletes its import, structure and lift sets.
 
 ## Units and time
 

@@ -1,0 +1,200 @@
+import { describe, expect, it } from "@effect/vitest";
+
+import type { Span } from "../sessionImport.ts";
+import { formatQuantity } from "./derive.ts";
+import {
+  BENCH_MAX_OUT,
+  CATALOG,
+  SESSION_160,
+  SESSION_166,
+  SESSION_167,
+  SNATCH_EMOM,
+} from "./fixtures/sessions.ts";
+import { makeMovementMatcher, normalizeMovementPhrase } from "./movementMatcher.ts";
+import { parseBlockFormat, quantityFromText } from "./parse.ts";
+import { suggestAttachment, suggestSpans } from "./suggest.ts";
+
+const matcher = makeMovementMatcher(CATALOG);
+
+const suggest = (text: string) => {
+  let next = 0;
+  return suggestSpans(text, matcher, () => `s${++next}`);
+};
+
+/** Spans as readable rows: tag, text, and what the tag carries. */
+const describeSpans = (text: string, spans: ReadonlyArray<Span>) => {
+  const textOf = (id: string | undefined) => {
+    const span = spans.find((candidate) => candidate.id === id);
+    return span ? text.slice(span.start, span.end) : undefined;
+  };
+  return spans.map((span) => {
+    const shown = text.slice(span.start, span.end);
+    switch (span._tag) {
+      case "movement":
+        return span.alternativeOf === undefined
+          ? `movement ${shown} = ${span.movementId}`
+          : `movement ${shown} = ${span.movementId} (or ${textOf(span.alternativeOf)})`;
+      case "quantity":
+        return `quantity ${shown} = ${formatQuantity(span)} -> ${textOf(span.attachedTo) ?? "?"}`;
+      case "block":
+        return `block ${shown} = ${span.format} ${JSON.stringify(span.params)}`;
+      case "date":
+        return `date ${span.date}`;
+      case "session":
+        return `session ${span.number}`;
+      case "score":
+        return `score ${shown} -> ${textOf(span.attachedTo) ?? "?"}`;
+      default:
+        return `${span._tag} ${shown}`;
+    }
+  });
+};
+
+describe("suggestSpans", () => {
+  it("reads the session heading, parts, formats and complexes", () => {
+    expect(describeSpans(SESSION_167, suggest(SESSION_167))).toEqual([
+      "session 167",
+      "date 2026-10-28",
+      "part Workout #1",
+      'block Every 90 sec x 6 = every {"intervalSeconds":90,"rounds":{"min":6,"max":6}}',
+      "movement Power clean = power-clean",
+      "movement hang power clean = hang-power-clean",
+      "quantity 1 = 1 rep -> Power clean",
+      "quantity 2 = 2 reps -> hang power clean",
+      'block EMOM 5 = emom {"durationSeconds":300,"intervalSeconds":60}',
+      "movement Power clean = power-clean",
+      "movement Hang power clean = hang-power-clean",
+      "quantity 1 = 1 rep -> Power clean",
+      "quantity 2 = 2 reps -> Hang power clean",
+      "part Workout #2",
+      'block Amrap 15 = amrap {"durationSeconds":900}',
+      "movement Double under = double-under",
+      "quantity 60 = 60 reps -> Double under",
+      // Single-unders are not in this catalog: the count is left for the athlete to attach.
+      "quantity 90 = 90 reps -> ?",
+      "movement Thrusters = thruster",
+      "quantity 12 = 12 reps -> Thrusters",
+      "quantity @40/25 = 40/25 kg -> Thrusters",
+      "movement Burpee = burpee",
+      "quantity 10 = 10 reps -> Burpee",
+    ]);
+  });
+
+  it("links alternatives, splits AMRAPs around a rest, and leaves unknown movements open", () => {
+    expect(describeSpans(SESSION_166, suggest(SESSION_166))).toEqual([
+      "session 166",
+      "date 2026-10-26",
+      "part Workout #1",
+      'block Every 3 min x 5 = every {"intervalSeconds":180,"rounds":{"min":5,"max":5}}',
+      "movement Front squats = front-squat",
+      "quantity 5 = 5 reps -> Front squats",
+      "quantity @70-80% of 1 RM = 70-80 % -> Front squats",
+      "quantity 20m = 20 m -> ?",
+      "part Workout #2",
+      'block Amrap 7 = amrap {"durationSeconds":420}',
+      "movement row = row",
+      "quantity 12/10 Cal = 12/10 cal -> row",
+      "movement Burpee = burpee",
+      "quantity 10 = 10 reps -> Burpee",
+      "movement Double unders = double-under",
+      "quantity 40 = 40 reps -> Double unders",
+      "quantity 60 = 60 reps -> ?",
+      'block Rest 2 min = rest {"durationSeconds":120}',
+      'block Amrap 7 = amrap {"durationSeconds":420}',
+      "movement Rope climbs = rope-climb",
+      "movement Pull ups = pull-up (or Rope climbs)",
+      "quantity 2 = 2 reps -> Rope climbs",
+      "quantity 8 = 8 reps -> Pull ups",
+      "movement Wall balls = wall-ball",
+      "quantity 15 = 15 reps -> Wall balls",
+    ]);
+  });
+
+  it("hangs a percentage ramp on the movement named above the format line", () => {
+    const rows = describeSpans(BENCH_MAX_OUT, suggest(BENCH_MAX_OUT));
+    expect(rows.slice(0, 6)).toEqual([
+      "part Workout #1",
+      "movement Bench press = bench-press",
+      "block Max out! = strength {}",
+      "quantity 10 reps = 10 reps -> Bench press",
+      "quantity @20-30% = 20-30 % -> Bench press",
+      "quantity 5 Reps = 5 reps -> Bench press",
+    ]);
+    expect(rows).toContain("quantity @ 92-95@ = 92-95 % -> Bench press");
+    // "2-3 forsøg" and "1'er" are prose, and no comment line is read.
+    expect(rows.filter((row) => row.includes("-> Bench press"))).toHaveLength(14);
+    expect(rows).toContain(
+      'block 40 sec på / 20 sec af x 9 = intervals {"workSeconds":40,"restSeconds":20,"rounds":{"min":9,"max":9}}',
+    );
+    expect(rows).toContain("quantity 20-30 sec = 20-30 sec -> ?");
+  });
+
+  it("turns notes into results, skipping failed attempts and asides", () => {
+    const rows = describeSpans(SESSION_160, suggest(SESSION_160));
+    expect(rows.slice(rows.indexOf("notes Notes"))).toEqual([
+      "notes Notes",
+      "movement Back squat = back-squat",
+      "quantity 1RM = 1 rep -> Back squat",
+      "quantity 150 kg = 150 kg -> Back squat",
+    ]);
+  });
+
+  it("matches aliases and plurals, and splits complexes on +", () => {
+    const rows = describeSpans(SNATCH_EMOM, suggest(SNATCH_EMOM));
+    expect(rows).toContain("movement squat snatch = snatch");
+    expect(rows).toContain("quantity 18-15/15-12 cal = 15-18/12-15 cal -> row");
+    expect(rows).toContain("quantity 2 = 2 reps -> overhead squat");
+    // The 50 second cap describes the station, not the row.
+    expect(rows.some((row) => row.includes("50 sec"))).toBe(false);
+  });
+});
+
+describe("parse helpers", () => {
+  it("recognizes block formats at the start of a line", () => {
+    expect(parseBlockFormat("E2MOM x 6")).toMatchObject({
+      format: "every",
+      params: { intervalSeconds: 120, rounds: { min: 6, max: 6 } },
+    });
+    expect(parseBlockFormat("21-15-9 for time")).toMatchObject({
+      format: "for_time",
+      params: { scheme: [21, 15, 9] },
+    });
+    expect(parseBlockFormat("5 rounds for time")).toMatchObject({
+      format: "for_time",
+      params: { rounds: { min: 5, max: 5 } },
+    });
+    expect(parseBlockFormat("12 Thrusters")).toBeUndefined();
+  });
+
+  it("reads a highlighted phrase as the chosen measure, converting pounds", () => {
+    expect(quantityFromText("@95/65 lb", "load_kg")).toEqual({
+      measure: "load_kg",
+      amount: { min: 43, max: 43 },
+      female: { min: 29.5, max: 29.5 },
+    });
+    expect(quantityFromText("21-15-9", "reps")).toEqual({
+      measure: "reps",
+      amount: { min: 45, max: 45 },
+      scheme: [21, 15, 9],
+    });
+    expect(quantityFromText("90", "calories")).toEqual({
+      measure: "calories",
+      amount: { min: 90, max: 90 },
+    });
+    expect(quantityFromText("heavy", "load_kg")).toBeUndefined();
+  });
+
+  it("normalizes movement phrases for alias lookups", () => {
+    expect(normalizeMovementPhrase("Pull-Ups")).toBe("pull up");
+    expect(normalizeMovementPhrase("DUs")).toBe("du");
+    expect(matcher.lookup("double unders")).toBe("double-under");
+  });
+
+  it("attaches a hand-tagged quantity to the movement on its line, else the one above", () => {
+    const spans = suggest(SESSION_166);
+    const at = SESSION_166.indexOf("4 Wall walks");
+    expect(suggestAttachment(SESSION_166, spans, { start: at, end: at + 1, measure: "reps" })).toBe(
+      spans.find((span) => SESSION_166.slice(span.start, span.end) === "Wall balls")?.id,
+    );
+  });
+});

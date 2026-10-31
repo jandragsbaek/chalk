@@ -47,7 +47,7 @@ coach.
 
 ## Later, unordered
 
-- Custom movements and aliases.
+- Custom movements and aliases (done through the importer; no catalog screen yet).
 - kg / lb display preference.
 - Backoffice: catalog management (movements, scaling options, templates).
-- Import from a whiteboard photo or pasted programming text (the coach's tools can parse it).
+- Import pasted session text (done: backoffice → Import, see domain.md). Whiteboard photos later.

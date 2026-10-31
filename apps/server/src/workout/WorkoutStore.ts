@@ -15,6 +15,8 @@ import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 
+import { deleteWorkoutRows } from "./deleteWorkoutRows.ts";
+
 export class WorkoutPersistenceError extends Schema.TaggedError<WorkoutPersistenceError>()(
   "WorkoutPersistenceError",
   {
@@ -155,13 +157,13 @@ const make = Effect.gen(function* () {
   });
 
   const remove = Effect.fn("WorkoutStore.remove")(function* (id: WorkoutId) {
-    const deleted = yield* sql<{
-      id: string;
-    }>`DELETE FROM workouts WHERE id = ${id} RETURNING id`.pipe(
-      Effect.mapError(
-        (cause) => new WorkoutPersistenceError({ operation: "delete workout", cause }),
-      ),
-    );
+    const deleted = yield* sql
+      .withTransaction(deleteWorkoutRows(sql, id))
+      .pipe(
+        Effect.mapError(
+          (cause) => new WorkoutPersistenceError({ operation: "delete workout", cause }),
+        ),
+      );
     if (deleted.length === 0) return yield* new WorkoutNotFoundError({ id });
   });
 

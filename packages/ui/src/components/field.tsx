@@ -3,10 +3,10 @@ import type * as React from "react";
 import { cn } from "../lib/utils.ts";
 
 const controlClassName =
-  "w-full rounded-md border border-input bg-card px-3 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring sm:text-sm";
+  "w-full rounded-md border border-input bg-card px-2.5 text-base text-foreground outline-none transition-[border-color] duration-150 placeholder:text-muted-foreground hover:border-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 sm:text-sm";
 
 function Input({ className, ...props }: React.ComponentProps<"input">) {
-  return <input data-slot="input" className={cn(controlClassName, "h-10", className)} {...props} />;
+  return <input data-slot="input" className={cn(controlClassName, "h-9", className)} {...props} />;
 }
 
 function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
@@ -24,7 +24,7 @@ function NativeSelect({ className, ...props }: React.ComponentProps<"select">) {
   return (
     <select
       data-slot="native-select"
-      className={cn(controlClassName, "h-10", className)}
+      className={cn(controlClassName, "h-9", className)}
       {...props}
     />
   );

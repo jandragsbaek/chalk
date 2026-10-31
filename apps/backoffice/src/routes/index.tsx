@@ -16,15 +16,13 @@ export const Route = createFileRoute("/")({
 function WorkoutsPage() {
   const { q = "" } = Route.useSearch();
   return (
-    <main className="grid gap-6 py-6">
+    <main className="mx-auto grid w-full max-w-6xl content-start gap-5 px-6 py-8">
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-foreground pb-3">
+        <h1 className="protocol-title text-4xl">Workouts</h1>
+        <WorkoutSearch key={q} query={q} />
+      </div>
       <WorkoutStatsStrip />
-      <section className="grid gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-lg font-semibold">Workouts</h1>
-          <WorkoutSearch key={q} query={q} />
-        </div>
-        <WorkoutTable query={q.trim()} />
-      </section>
+      <WorkoutTable query={q.trim()} />
     </main>
   );
 }

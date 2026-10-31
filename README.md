@@ -5,7 +5,9 @@
 Track your CrossFit workouts and strength numbers, and (soon) get coached on them.
 
 Today: log workouts with a free-form score, and log strength sets (reps × kg) against a movement
-catalog, with 1/2/3/5/10RM derived per movement and an estimated 1RM chart over time. Where it is going:
+catalog, with 1/2/3/5/10RM derived per movement and an estimated 1RM chart over time. The
+backoffice imports past sessions from pasted text: Chalk highlights movements and numbers, you fix
+the highlights, and parts, blocks, movements and lift sets are saved from them. Where it is going:
 
 - [docs/domain.md](docs/domain.md): movements, scaling, workouts composed of movements, rep
   maxes, the weekly volume grid.
@@ -63,6 +65,8 @@ apps/server                            apps/web (:5173)                  apps/ba
   rpc.ts      thin RPC handlers
   adminApi.ts thin HttpApi handlers
   workout/    WorkoutStore service (SQL)
+  catalog/    CatalogStore: movements with aliases, user-added movements
+  import/     ImportStore: saves a pasted session (text + spans) and what it derives
   strength/   StrengthStore (movements, lift sets) + rep max computation
   persistence/ SQLite (node:sqlite) + migrations
 ```

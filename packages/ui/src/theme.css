@@ -1,37 +1,89 @@
-/* Design tokens and base styles shared by every Chalk app. Apps import Tailwind first, then this. */
+/*
+ * Design tokens and base styles shared by every Chalk app. Apps import Tailwind first, then this.
+ *
+ * The world is a weightlifting meet protocol: cool photocopy paper, blue-black ink, one official
+ * red for no-lifts, carbonless-copy tints (blue, green, canary, pink) for tagged data, square
+ * ruled boxes. Dark mode is the carbon side of the same form.
+ */
+@import "@fontsource-variable/archivo/wdth.css";
+@import "@fontsource/courier-prime/400.css";
+@import "@fontsource/courier-prime/700.css";
 @source "./components";
 
 @custom-variant dark (@media (prefers-color-scheme: dark));
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.985 0 0);
-  --foreground: oklch(0.18 0 0);
-  --card: oklch(1 0 0);
-  --muted: oklch(0.955 0 0);
-  --muted-foreground: oklch(0.5 0 0);
-  --border: oklch(0.91 0 0);
-  --input: oklch(0.88 0 0);
-  --ring: oklch(0.62 0.19 41);
-  --primary: oklch(0.62 0.19 41);
-  --primary-foreground: oklch(0.99 0 0);
-  --destructive: oklch(0.58 0.22 27);
+  color-scheme: light dark;
+  --radius: 0.125rem;
+  --background: oklch(0.975 0.005 255);
+  --foreground: oklch(0.22 0.03 262);
+  --card: oklch(0.995 0.002 255);
+  --muted: oklch(0.945 0.008 255);
+  --muted-foreground: oklch(0.46 0.022 262);
+  --border: oklch(0.86 0.012 262);
+  --input: oklch(0.72 0.02 262);
+  --ring: oklch(0.5 0.16 262);
+  --primary: oklch(0.22 0.03 262);
+  --primary-foreground: oklch(0.985 0.004 255);
+  --destructive: oklch(0.53 0.2 27);
+  /* Header band: the protocol's printed title block. */
+  --band: oklch(0.22 0.03 262);
+  --band-foreground: oklch(0.975 0.005 255);
+  --band-muted: oklch(0.74 0.025 262);
+  /* Carbonless copies: fill and the ink that edges it. */
+  --copy-blue: oklch(0.9 0.05 245);
+  --copy-blue-ink: oklch(0.5 0.13 255);
+  --copy-green: oklch(0.91 0.06 155);
+  --copy-green-ink: oklch(0.5 0.11 155);
+  --copy-canary: oklch(0.94 0.1 100);
+  --copy-canary-ink: oklch(0.58 0.12 85);
+  --copy-pink: oklch(0.9 0.06 350);
+  --copy-pink-ink: oklch(0.53 0.15 350);
+  --copy-goldenrod: oklch(0.89 0.08 70);
+  --copy-goldenrod-ink: oklch(0.56 0.12 60);
+  --copy-grey: oklch(0.92 0.01 262);
+  --copy-grey-ink: oklch(0.5 0.02 262);
+  /* Referee lamps. */
+  --lamp-good: oklch(0.99 0.003 255);
+  --lamp-fail: oklch(0.6 0.22 27);
+  --lamp-off: oklch(0.34 0.025 262);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: oklch(0.15 0 0);
-    --foreground: oklch(0.96 0 0);
-    --card: oklch(0.19 0 0);
-    --muted: oklch(0.24 0 0);
-    --muted-foreground: oklch(0.68 0 0);
-    --border: oklch(0.28 0 0);
-    --input: oklch(0.32 0 0);
-    --destructive: oklch(0.66 0.2 25);
+    --background: oklch(0.17 0.014 262);
+    --foreground: oklch(0.93 0.01 255);
+    --card: oklch(0.2 0.016 262);
+    --muted: oklch(0.24 0.018 262);
+    --muted-foreground: oklch(0.72 0.018 262);
+    --border: oklch(0.32 0.018 262);
+    --input: oklch(0.46 0.02 262);
+    --ring: oklch(0.72 0.12 262);
+    --primary: oklch(0.93 0.01 255);
+    --primary-foreground: oklch(0.2 0.02 262);
+    --destructive: oklch(0.68 0.18 27);
+    --band: oklch(0.11 0.012 262);
+    --band-foreground: oklch(0.93 0.01 255);
+    --band-muted: oklch(0.66 0.02 262);
+    --copy-blue: oklch(0.36 0.07 250);
+    --copy-blue-ink: oklch(0.74 0.12 250);
+    --copy-green: oklch(0.36 0.06 155);
+    --copy-green-ink: oklch(0.76 0.12 155);
+    --copy-canary: oklch(0.4 0.07 95);
+    --copy-canary-ink: oklch(0.84 0.13 95);
+    --copy-pink: oklch(0.36 0.07 350);
+    --copy-pink-ink: oklch(0.76 0.13 350);
+    --copy-goldenrod: oklch(0.38 0.07 65);
+    --copy-goldenrod-ink: oklch(0.8 0.12 70);
+    --copy-grey: oklch(0.3 0.015 262);
+    --copy-grey-ink: oklch(0.72 0.02 262);
+    --lamp-off: oklch(0.28 0.02 262);
   }
 }
 
 @theme inline {
+  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Courier Prime", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -43,6 +95,9 @@
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-destructive: var(--destructive);
+  --color-band: var(--band);
+  --color-band-foreground: var(--band-foreground);
+  --color-band-muted: var(--band-muted);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
 }
@@ -51,8 +106,41 @@
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  html {
+    scrollbar-color: var(--input) transparent;
   }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: "tnum" 1;
+    caret-color: var(--ring);
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--ring) 24%, transparent);
+    color: inherit;
+  }
+  :focus-visible {
+    outline-color: var(--ring);
+  }
+  a {
+    text-underline-offset: 0.2em;
+  }
+}
+
+/* Form label: the small condensed caps printed in a protocol box's corner. */
+@utility form-label {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 600;
+  font-stretch: 75%;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Protocol title: condensed heavy caps. */
+@utility protocol-title {
+  font-weight: 750;
+  font-stretch: 70%;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  line-height: 1;
 }
