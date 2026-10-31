@@ -7,6 +7,9 @@ import {
   type ImportCheck,
   type ImportIssue,
   type CatalogMovement,
+  type DerivedBlock,
+  type DerivedItem,
+  type DerivedSession,
   type ImportDocument,
   type ImportSummary,
   type MovementId,
@@ -38,6 +41,8 @@ import {
   toDocument,
   type TagChoice,
 } from "../../lib/importEditor.ts";
+import { formatKg } from "../../lib/blockLabels.ts";
+import { resultDefaults } from "../../lib/resultDraft.ts";
 import { SAVE_REACTIVITY_KEYS, saveImportAtom } from "../../state/imports.ts";
 import { AnnotatedText, type TextRange } from "./AnnotatedText.tsx";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
@@ -63,6 +68,40 @@ export const suggestDocument = (
 ): ImportDocument => {
   let next = 0;
   return { text, spans: suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`) };
+};
+
+/** The programmed item a movement span became, with its block; none for a movement in the notes. */
+const findItem = (
+  session: DerivedSession,
+  spanId: SpanId,
+): { readonly item: DerivedItem; readonly block: DerivedBlock } | undefined => {
+  const search = (
+    items: ReadonlyArray<DerivedItem>,
+    block: DerivedBlock,
+  ): { item: DerivedItem; block: DerivedBlock } | undefined => {
+    for (const item of items) {
+      if (item.spanId === spanId) return { item, block };
+      const found = search(item.alternatives, block);
+      if (found) return found;
+    }
+    return undefined;
+  };
+  for (const part of session.parts)
+    for (const block of part.blocks) {
+      const found = search(block.items, block);
+      if (found) return found;
+    }
+  return undefined;
+};
+
+/** Lift set rows the save will write: notes sets times their count, plus every performed set. */
+const liftSetCount = (session: DerivedSession) => {
+  const performed = (items: ReadonlyArray<DerivedItem>): number =>
+    items.reduce((total, item) => total + item.performed.length + performed(item.alternatives), 0);
+  return (
+    session.liftSets.reduce((total, set) => total + set.count, 0) +
+    performed(session.parts.flatMap((part) => part.blocks.flatMap((block) => block.items)))
+  );
 };
 
 export function ImportWorkbench({
@@ -101,6 +140,7 @@ export function ImportWorkbench({
   const session = deriveSession(document, nameOf);
   const errors = session.issues.filter((issue) => issue.severity === "error");
   const selected = state.spans.find((span) => span.id === state.selectedId);
+  const programmed = selected?._tag === "movement" ? findItem(session, selected.id) : undefined;
   const linked = linkedIds(state.spans, hovered ?? state.selectedId);
   const hasDateSpan = state.spans.some((span) => span._tag === "date");
   const lines = splitLines(state.text);
@@ -230,7 +270,8 @@ export function ImportWorkbench({
           <FieldBox label="Movements">
             {countItems(session.parts.flatMap((part) => part.blocks.flatMap((b) => b.items)))}
           </FieldBox>
-          <FieldBox label="Lift sets">{session.liftSets.length}</FieldBox>
+          <FieldBox label="Lift sets">{liftSetCount(session)}</FieldBox>
+          <FieldBox label="Lifted">{formatKg(session.tonnageKg)}</FieldBox>
         </dl>
         <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-2.5">
           <RefereeLamps issues={session.issues} />
@@ -379,6 +420,14 @@ export function ImportWorkbench({
                 spans={state.spans}
                 catalog={catalog}
                 picking={state.picking}
+                programmed={
+                  programmed === undefined
+                    ? undefined
+                    : {
+                        item: programmed.item,
+                        defaults: resultDefaults(programmed.item, programmed.block),
+                      }
+                }
                 onUpdate={(span) => dispatch({ type: "update", span })}
                 onRemove={(id) => dispatch({ type: "remove", id })}
                 onPick={(mode) => dispatch({ type: "pick", mode })}

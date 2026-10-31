@@ -85,8 +85,9 @@ numbers, so they need no catalog entry.
 7s with a rest between). A block has the `format` and its parameters; an item holds the
 movement, an optional `alternative_of` item ("60 double-unders or 90 single-unders"), and its
 prescription as JSON: one set per written line, each a list of quantities (reps, sets, calories,
-meters, seconds, kg, % of 1RM; ranges and male/female splits kept). Performed values are not
-modeled yet. The target model below still applies to logging.
+meters, seconds, kg, % of 1RM; ranges and male/female splits kept). Performed loads are lift
+sets pointing at the item (see Results under Session import); other performed values (reps of
+a metcon, scaling) are not modeled yet. The target model below still applies to logging.
 
 A **workout** is one session on one day. It has ordered **parts** ("A. Back squat 5x5",
 "B. Fran"). A part has:
@@ -185,6 +186,16 @@ re-derivable.
   only mean it is left out.
 - Movements in the notes region with a load become **lift sets**, linked by
   `lift_sets.workout_id`, so they feed rep maxes. Failed attempts ("Failed 155 kg") are skipped.
+- **Results (built).** A programmed movement can carry a `result` on its span, entered in the
+  editor rather than read from the text: `fixed` (sets × reps at one load), `ramp` (first load
+  plus a step per set: 6 × 2 from 50 by 2.5 ends at 62.5) or `each` (reps and load per set).
+  The form is prefilled from the prescription (block rounds, the item's reps, one row per
+  build-up line). `performedSets` expands a result; each set becomes a lift set with
+  `workout_item_id` and `set_number`, so results feed rep maxes and the item knows what was
+  lifted. A result outside 1 to 100 sets or reps, or a load not in (0, 1000] kg, blocks saving.
+- **Tonnage**: reps × load summed, per item, per block and per session (results plus notes lift
+  sets; a movement in both is warned about, since it counts twice). `ImportSummary.tonnageKg`
+  is the same sum over the workout's lift sets.
 - One import per session number, or per day without one; saving the same session again needs an
   explicit replace. Deleting the workout deletes its import, structure and lift sets.
 

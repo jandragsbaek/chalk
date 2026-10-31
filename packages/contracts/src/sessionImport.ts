@@ -71,6 +71,24 @@ export const BlockParams = Schema.Struct({
 });
 export type BlockParams = typeof BlockParams.Type;
 
+const Count = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
+
+/** One performed set: `reps` at `loadKg`. */
+export const PerformedSet = Schema.Struct({ reps: Count, loadKg: NonNegative });
+export type PerformedSet = typeof PerformedSet.Type;
+
+/**
+ * What the athlete lifted for one programmed movement, entered after the fact. `fixed`: every
+ * set at one load. `ramp`: the first set at `startKg`, each next set `stepKg` heavier. `each`:
+ * set by set. `deriveSession` checks the ranges, so the editor can report them.
+ */
+export const LiftResult = Schema.TaggedUnion({
+  fixed: { sets: Count, reps: Count, loadKg: NonNegative },
+  ramp: { sets: Count, reps: Count, startKg: NonNegative, stepKg: Schema.Finite },
+  each: { sets: Schema.Array(PerformedSet) },
+});
+export type LiftResult = typeof LiftResult.Type;
+
 const spanFields = {
   id: SpanId,
   start: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
@@ -96,6 +114,8 @@ export const Span = Schema.TaggedUnion({
     movementId: Schema.optionalKey(MovementId),
     /** "60 double-unders or 90 single-unders": the single-under span points at the first. */
     alternativeOf: Schema.optionalKey(SpanId),
+    /** What was lifted, for a programmed movement (not one in the notes). */
+    result: Schema.optionalKey(LiftResult),
   },
   quantity: { ...spanFields, ...Quantity.fields, attachedTo: Schema.optionalKey(SpanId) },
   /** A score as written ("12+5", "8:32"); attached to the block it scores. */
@@ -157,6 +177,8 @@ export const ImportSummary = Schema.Struct({
   partCount: Schema.Int,
   itemCount: Schema.Int,
   liftSetCount: Schema.Int,
+  /** Sum of reps × load over the session's lift sets. */
+  tonnageKg: Schema.Finite,
   importedAt: IsoDateTime,
 }).annotate({ identifier: "ImportSummary" });
 export type ImportSummary = typeof ImportSummary.Type;

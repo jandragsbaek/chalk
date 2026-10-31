@@ -3,6 +3,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { Link } from "@tanstack/react-router";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 
+import { formatKg } from "../../lib/blockLabels.ts";
 import { importsAtom } from "../../state/imports.ts";
 
 type ImportsResult = ReturnType<typeof useImports>;
@@ -52,6 +53,7 @@ function ImportedTable({ result }: { readonly result: ImportsResult }) {
                 <th className="hidden px-3 py-2 text-right font-semibold sm:table-cell">Parts</th>
                 <th className="hidden px-3 py-2 text-right font-semibold sm:table-cell">Moves</th>
                 <th className="px-3 py-2 text-right font-semibold">Lifts</th>
+                <th className="hidden px-3 py-2 text-right font-semibold sm:table-cell">Lifted</th>
                 <th className="px-3 py-2">
                   <span className="sr-only">Actions</span>
                 </th>
@@ -71,6 +73,9 @@ function ImportedTable({ result }: { readonly result: ImportsResult }) {
                     {summary.itemCount}
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{summary.liftSetCount}</td>
+                  <td className="hidden whitespace-nowrap px-3 py-1.5 text-right tabular-nums sm:table-cell">
+                    {summary.tonnageKg > 0 ? formatKg(summary.tonnageKg) : ""}
+                  </td>
                   <td className="px-2 py-1 text-right">
                     <Button
                       variant="ghost"

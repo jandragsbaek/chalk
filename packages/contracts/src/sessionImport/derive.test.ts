@@ -1,8 +1,15 @@
 import { describe, expect, it } from "@effect/vitest";
 
 import { MovementId } from "../baseSchemas.ts";
-import type { ImportDocument, Span } from "../sessionImport.ts";
-import { blockingIssues, deriveSession, formatQuantity, type DerivedItem } from "./derive.ts";
+import type { ImportDocument, LiftResult, Span } from "../sessionImport.ts";
+import {
+  blockingIssues,
+  deriveSession,
+  formatPerformed,
+  formatQuantity,
+  performedSets,
+  type DerivedItem,
+} from "./derive.ts";
 import {
   BENCH_MAX_OUT,
   CATALOG,
@@ -217,5 +224,93 @@ describe("deriveSession", () => {
     );
     expect(messages).toContain("Two highlights overlap.");
     expect(messages).toContain('"zercher-squat" is not in the catalog.');
+  });
+});
+
+const SNATCH_EVERY = `** Session 170 <2026-10-30 to>
+*** Workout
+- Every 90 sec x 6
+- 2 Snatch + 1 Overhead squat
+*** Notes
+- Snatch 1RM 80 kg`;
+
+/** The suggested document with `results` on the programmed movements they name. */
+const withResults = (
+  text: string,
+  results: Partial<Record<string, LiftResult>>,
+): ImportDocument => {
+  const document = documentOf(text);
+  const notesAt = text.indexOf("*** Notes");
+  return {
+    ...document,
+    spans: document.spans.map((span) => {
+      if (span._tag !== "movement" || span.movementId === undefined || span.start > notesAt)
+        return span;
+      const result = results[span.movementId];
+      return result === undefined ? span : { ...span, result };
+    }),
+  };
+};
+
+describe("lift results", () => {
+  it("expands fixed, ramp and set-by-set results into sets", () => {
+    expect(performedSets({ _tag: "fixed", sets: 3, reps: 2, loadKg: 60 })).toEqual([
+      { reps: 2, loadKg: 60 },
+      { reps: 2, loadKg: 60 },
+      { reps: 2, loadKg: 60 },
+    ]);
+    const ramp = performedSets({ _tag: "ramp", sets: 6, reps: 2, startKg: 50, stepKg: 2.5 });
+    expect(ramp.map((set) => set.loadKg)).toEqual([50, 52.5, 55, 57.5, 60, 62.5]);
+    expect(formatPerformed(ramp)).toBe("2 reps @ 50 · 52.5 · 55 · 57.5 · 60 · 62.5 kg");
+    expect(formatPerformed(performedSets({ _tag: "fixed", sets: 6, reps: 2, loadKg: 60 }))).toBe(
+      "6 × 2 @ 60 kg",
+    );
+    expect(
+      formatPerformed([
+        { reps: 5, loadKg: 40 },
+        { reps: 3, loadKg: 55 },
+      ]),
+    ).toBe("5 @ 40 kg · 3 @ 55 kg");
+    // A typo of 10 000 sets does not expand forever.
+    expect(performedSets({ _tag: "fixed", sets: 10_000, reps: 1, loadKg: 20 })).toHaveLength(100);
+  });
+
+  it("sums what was lifted per block and per session, notes included", () => {
+    const session = deriveSession(
+      withResults(SNATCH_EVERY, {
+        snatch: { _tag: "ramp", sets: 6, reps: 2, startKg: 50, stepKg: 2.5 },
+        "overhead-squat": { _tag: "fixed", sets: 6, reps: 1, loadKg: 50 },
+      }),
+      nameOf,
+    );
+    const [block] = session.parts[0]?.blocks ?? [];
+    expect(block?.items.map((item) => item.performed.length)).toEqual([6, 6]);
+    // Snatch: 2 × (50 + 52.5 + 55 + 57.5 + 60 + 62.5) = 675; overhead squat: 6 × 50 = 300.
+    expect(block?.tonnageKg).toBe(975);
+    expect(session.tonnageKg).toBe(975 + 80);
+    expect(blockingIssues(session)).toEqual([]);
+    expect(session.issues.map((issue) => issue.message)).toContain(
+      "Snatch has a result and lift sets in the notes; both are counted.",
+    );
+  });
+
+  it("refuses a result it cannot count, and counts nothing from it", () => {
+    const messages = (result: LiftResult) => {
+      const session = deriveSession(withResults(SNATCH_EVERY, { snatch: result }), nameOf);
+      expect(session.parts[0]?.blocks[0]?.tonnageKg).toBe(0);
+      return blockingIssues(session).map((issue) => [issue.check, issue.message]);
+    };
+    expect(messages({ _tag: "fixed", sets: 0, reps: 2, loadKg: 60 })).toEqual([
+      ["numbers", "Snatch: a result needs 1 to 100 sets."],
+    ]);
+    expect(messages({ _tag: "each", sets: [] })).toEqual([
+      ["numbers", "Snatch: a result needs 1 to 100 sets."],
+    ]);
+    expect(messages({ _tag: "fixed", sets: 6, reps: 0, loadKg: 60 })).toEqual([
+      ["numbers", "Snatch: reps must be 1 to 100."],
+    ]);
+    expect(messages({ _tag: "ramp", sets: 6, reps: 2, startKg: 10, stepKg: -5 })).toEqual([
+      ["numbers", "Snatch: every load must be above 0 and at most 1000 kg."],
+    ]);
   });
 });
