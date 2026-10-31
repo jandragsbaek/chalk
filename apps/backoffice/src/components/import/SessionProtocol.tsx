@@ -6,16 +6,20 @@ import {
   type DerivedItem,
   type DerivedSession,
   type ImportIssue,
+  type ItemGrade,
   type MovementId,
   type SpanId,
 } from "@chalk/contracts";
 
 import { describeBlock, formatKg } from "../../lib/blockLabels.ts";
+import { LevelLine } from "./LevelVerdict.tsx";
 
 export interface ProtocolHandlers {
   readonly nameOf: (id: MovementId) => string | undefined;
   /** Name of the core movement when `id` is a variation ("Snatch" for a power snatch). */
   readonly coreOf: (id: MovementId) => string | undefined;
+  /** The movement graded against the level sheet; none when it is on no row of it. */
+  readonly gradeOf: (id: SpanId) => ItemGrade | undefined;
   readonly selectedId: SpanId | undefined;
   readonly linked: ReadonlySet<SpanId>;
   readonly onSelect: (id: SpanId) => void;
@@ -42,7 +46,8 @@ function ItemRow({
   const name = item.movementId === undefined ? undefined : handlers.nameOf(item.movementId);
   const core = item.movementId === undefined ? undefined : handlers.coreOf(item.movementId);
   // Re-keyed when the row's content changes, so an edit lights the rows it touched.
-  const signature = JSON.stringify([item.movementId, item.sets, item.performed]);
+  const signature = JSON.stringify([item.movementId, item.sets, item.performed, item.performance]);
+  const grade = handlers.gradeOf(item.spanId);
   return (
     <li>
       <button
@@ -113,6 +118,7 @@ function ItemRow({
               </span>
             </span>
           ) : null}
+          {grade ? <LevelLine grade={grade} nameOf={handlers.nameOf} /> : null}
         </span>
       </button>
       {item.alternatives.length > 0 ? (

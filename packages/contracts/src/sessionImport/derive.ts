@@ -1,4 +1,5 @@
 import type { IsoDate, MovementId } from "../baseSchemas.ts";
+import type { Performance } from "../levels.ts";
 import type {
   BlockFormat,
   BlockParams,
@@ -26,6 +27,8 @@ export interface DerivedItem {
   readonly sets: ReadonlyArray<DerivedSet>;
   /** What was lifted, set by set; empty without a valid result. */
   readonly performed: ReadonlyArray<PerformedSet>;
+  /** How it was done, when the athlete said; `undefined` while it has a problem. */
+  readonly performance: Performance | undefined;
   readonly alternatives: ReadonlyArray<DerivedItem>;
 }
 
@@ -184,6 +187,30 @@ const resultProblem = (result: LiftResult): string | undefined => {
   return undefined;
 };
 
+/** Most reps, sets or kilograms one performance can claim; past this it is a typo. */
+const MAX_PERFORMANCE = 1000;
+
+/** Why a performance cannot be saved, or `undefined` when it can. */
+const performanceProblem = (
+  performance: Performance,
+  nameOf: (id: MovementId) => string | undefined,
+): string | undefined => {
+  if (performance.loadKg !== undefined && performance.loadKg > MAX_LOAD_KG)
+    return `the load must be at most ${MAX_LOAD_KG} kg`;
+  for (const entry of performance.variants ?? []) {
+    if (nameOf(entry.movementId) === undefined)
+      return `"${entry.movementId}" is not in the catalog`;
+    if (!Number.isInteger(entry.reps) || entry.reps > MAX_PERFORMANCE)
+      return `reps per variation must be 0 to ${MAX_PERFORMANCE}`;
+  }
+  if (
+    performance.unbroken !== undefined &&
+    (!Number.isInteger(performance.unbroken) || performance.unbroken > MAX_PERFORMANCE)
+  )
+    return `the biggest unbroken set must be 0 to ${MAX_PERFORMANCE}`;
+  return undefined;
+};
+
 const kindOf = (parts: ReadonlyArray<DerivedPart>): WorkoutKind => {
   const formats = parts.flatMap((part) => part.blocks.map((block) => block.format));
   const last = parts.at(-1)?.blocks.map((block) => block.format) ?? [];
@@ -324,11 +351,11 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
         });
 
       if (inNotes(span)) {
-        if (span.result !== undefined)
+        if (span.result !== undefined || span.performance !== undefined)
           issues.push({
             severity: "warning",
             check: "numbers",
-            message: `The result on "${slice(span)}" is in the notes and is left out.`,
+            message: `What was done on "${slice(span)}" is in the notes and is left out.`,
             spanId: span.id,
           });
         resultMovements.push(span);
@@ -403,12 +430,29 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     return [];
   };
 
+  const performanceOf = (movement: SpanOf<"movement">): Performance | undefined => {
+    if (movement.performance === undefined) return undefined;
+    const problem = performanceProblem(movement.performance, nameOf);
+    if (problem === undefined) return movement.performance;
+    const name =
+      (movement.movementId === undefined ? undefined : nameOf(movement.movementId)) ??
+      slice(movement);
+    issues.push({
+      severity: "error",
+      check: "numbers",
+      message: `${name}: ${problem}.`,
+      spanId: movement.id,
+    });
+    return undefined;
+  };
+
   const toItem = (movement: SpanOf<"movement">): DerivedItem => ({
     spanId: movement.id,
     movementId: movement.movementId,
     text: slice(movement),
     sets: setsOf(movement),
     performed: performedOf(movement),
+    performance: performanceOf(movement),
     alternatives: (alternativesOf.get(movement.id) ?? []).map(toItem),
   });
   const itemTonnage = (item: DerivedItem): number =>

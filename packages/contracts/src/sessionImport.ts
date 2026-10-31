@@ -8,6 +8,7 @@ import {
   WorkoutId,
 } from "./baseSchemas.ts";
 import { Debrief } from "./debrief.ts";
+import { Complement, LevelFamilyId, Performance } from "./levels.ts";
 import { MovementCategory } from "./strength.ts";
 
 /**
@@ -117,6 +118,8 @@ export const Span = Schema.TaggedUnion({
     alternativeOf: Schema.optionalKey(SpanId),
     /** What was lifted, for a programmed movement (not one in the notes). */
     result: Schema.optionalKey(LiftResult),
+    /** How it was done (load, reps by variation, biggest unbroken set); empty = as prescribed. */
+    performance: Schema.optionalKey(Performance),
   },
   quantity: { ...spanFields, ...Quantity.fields, attachedTo: Schema.optionalKey(SpanId) },
   /** A score as written ("12+5", "8:32"); attached to the block it scores. */
@@ -147,6 +150,14 @@ export const CatalogMovement = Schema.Struct({
   category: MovementCategory,
   aliases: Schema.Array(Schema.String),
   variationOf: Schema.optionalKey(MovementId),
+  /** The row of the level sheet it is graded on ("bb-clean" for a power clean). */
+  levelFamily: Schema.optionalKey(LevelFamilyId),
+  /** Programmed by the coach to support the main movements (Bulgarian split squats). */
+  accessory: Schema.optionalKey(Schema.Boolean),
+  /** Patterns and muscles an accessory trains. */
+  complements: Schema.optionalKey(Schema.Array(Complement)),
+  /** Level families an accessory builds toward (gorilla rows for pull-ups). */
+  supports: Schema.optionalKey(Schema.Array(LevelFamilyId)),
 }).annotate({ identifier: "CatalogMovement" });
 export type CatalogMovement = typeof CatalogMovement.Type;
 
@@ -161,6 +172,15 @@ export type CreateMovementInput = typeof CreateMovementInput.Type;
 /** `null` makes the movement a core movement again. */
 export const SetVariationOfInput = Schema.Struct({ variationOf: Schema.NullOr(MovementId) });
 export type SetVariationOfInput = typeof SetVariationOfInput.Type;
+
+/** How a movement is graded and, for an accessory, what it complements. */
+export const SetMovementLevelsInput = Schema.Struct({
+  levelFamily: Schema.NullOr(LevelFamilyId),
+  accessory: Schema.Boolean,
+  complements: Schema.Array(Complement),
+  supports: Schema.Array(LevelFamilyId),
+});
+export type SetMovementLevelsInput = typeof SetMovementLevelsInput.Type;
 
 export const AddAliasInput = Schema.Struct({ alias: TrimmedNonEmptyString });
 export type AddAliasInput = typeof AddAliasInput.Type;

@@ -450,6 +450,194 @@
         }
       }
     },
+    "/api/admin/movements/{id}/levels": {
+      "put": {
+        "tags": [
+          "movements"
+        ],
+        "operationId": "movements.setLevels",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "CatalogMovement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogMovement"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "CatalogNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogNotFoundErrorEncoded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "ImportStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "levelFamily": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "bb-deadlift",
+                          "bb-front-squat",
+                          "bb-back-squat",
+                          "bb-overhead-squat",
+                          "bb-clean",
+                          "bb-press",
+                          "bb-thruster",
+                          "bb-snatch",
+                          "kb-swing",
+                          "kb-deadlift",
+                          "db-deadlift",
+                          "kb-squat",
+                          "db-squat",
+                          "kb-clean",
+                          "db-clean",
+                          "kb-press",
+                          "db-press",
+                          "kb-thruster",
+                          "db-thruster",
+                          "kb-snatch",
+                          "db-snatch",
+                          "pull-ups",
+                          "toes-to-bar",
+                          "hspu",
+                          "handstand-walk",
+                          "skipping-rope",
+                          "pistols",
+                          "rope-climbs",
+                          "box-jumps",
+                          "wall-balls",
+                          "push-ups",
+                          "ghd-sit-ups"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "accessory": {
+                    "type": "boolean"
+                  },
+                  "complements": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "squat",
+                        "hinge",
+                        "single_leg",
+                        "horizontal_push",
+                        "vertical_push",
+                        "horizontal_pull",
+                        "vertical_pull",
+                        "midline",
+                        "carry",
+                        "grip",
+                        "quads",
+                        "glutes",
+                        "hamstrings",
+                        "adductors",
+                        "calves",
+                        "lats",
+                        "upper_back",
+                        "chest",
+                        "shoulders",
+                        "triceps",
+                        "biceps"
+                      ]
+                    }
+                  },
+                  "supports": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "bb-deadlift",
+                        "bb-front-squat",
+                        "bb-back-squat",
+                        "bb-overhead-squat",
+                        "bb-clean",
+                        "bb-press",
+                        "bb-thruster",
+                        "bb-snatch",
+                        "kb-swing",
+                        "kb-deadlift",
+                        "db-deadlift",
+                        "kb-squat",
+                        "db-squat",
+                        "kb-clean",
+                        "db-clean",
+                        "kb-press",
+                        "db-press",
+                        "kb-thruster",
+                        "db-thruster",
+                        "kb-snatch",
+                        "db-snatch",
+                        "pull-ups",
+                        "toes-to-bar",
+                        "hspu",
+                        "handstand-walk",
+                        "skipping-rope",
+                        "pistols",
+                        "rope-climbs",
+                        "box-jumps",
+                        "wall-balls",
+                        "push-ups",
+                        "ghd-sit-ups"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "levelFamily",
+                  "accessory",
+                  "complements",
+                  "supports"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/admin/imports": {
       "get": {
         "tags": [
@@ -1161,6 +1349,9 @@
                           "additionalProperties": false
                         }
                       ]
+                    },
+                    "performance": {
+                      "$ref": "#/components/schemas/Performance"
                     }
                   },
                   "required": [
@@ -1382,6 +1573,51 @@
         },
         "additionalProperties": false
       },
+      "Performance": {
+        "type": "object",
+        "properties": {
+          "loadKg": {
+            "type": "number",
+            "minimum": 0
+          },
+          "implements": {
+            "type": "number",
+            "enum": [
+              1,
+              2
+            ]
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "movementId": {
+                  "type": "string",
+                  "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                  "minLength": 1
+                },
+                "reps": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "movementId",
+                "reps"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "unbroken": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "additionalProperties": false
+      },
       "ImportNotFoundErrorEncoded": {
         "type": "object",
         "properties": {
@@ -1416,42 +1652,6 @@
         "required": [
           "summary",
           "document"
-        ],
-        "additionalProperties": false
-      },
-      "VariationInvalidErrorEncoded": {
-        "type": "object",
-        "properties": {
-          "_tag": {
-            "type": "string",
-            "enum": [
-              "VariationInvalidError"
-            ]
-          },
-          "id": {
-            "type": "string",
-            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
-            "minLength": 1
-          },
-          "variationOf": {
-            "type": "string",
-            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
-            "minLength": 1
-          },
-          "reason": {
-            "type": "string",
-            "enum": [
-              "self",
-              "core-is-variation",
-              "has-variations"
-            ]
-          }
-        },
-        "required": [
-          "_tag",
-          "id",
-          "variationOf",
-          "reason"
         ],
         "additionalProperties": false
       },
@@ -1509,6 +1709,115 @@
             "type": "string",
             "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
             "minLength": 1
+          },
+          "levelFamily": {
+            "type": "string",
+            "enum": [
+              "bb-deadlift",
+              "bb-front-squat",
+              "bb-back-squat",
+              "bb-overhead-squat",
+              "bb-clean",
+              "bb-press",
+              "bb-thruster",
+              "bb-snatch",
+              "kb-swing",
+              "kb-deadlift",
+              "db-deadlift",
+              "kb-squat",
+              "db-squat",
+              "kb-clean",
+              "db-clean",
+              "kb-press",
+              "db-press",
+              "kb-thruster",
+              "db-thruster",
+              "kb-snatch",
+              "db-snatch",
+              "pull-ups",
+              "toes-to-bar",
+              "hspu",
+              "handstand-walk",
+              "skipping-rope",
+              "pistols",
+              "rope-climbs",
+              "box-jumps",
+              "wall-balls",
+              "push-ups",
+              "ghd-sit-ups"
+            ]
+          },
+          "accessory": {
+            "type": "boolean"
+          },
+          "complements": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "squat",
+                "hinge",
+                "single_leg",
+                "horizontal_push",
+                "vertical_push",
+                "horizontal_pull",
+                "vertical_pull",
+                "midline",
+                "carry",
+                "grip",
+                "quads",
+                "glutes",
+                "hamstrings",
+                "adductors",
+                "calves",
+                "lats",
+                "upper_back",
+                "chest",
+                "shoulders",
+                "triceps",
+                "biceps"
+              ]
+            }
+          },
+          "supports": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "bb-deadlift",
+                "bb-front-squat",
+                "bb-back-squat",
+                "bb-overhead-squat",
+                "bb-clean",
+                "bb-press",
+                "bb-thruster",
+                "bb-snatch",
+                "kb-swing",
+                "kb-deadlift",
+                "db-deadlift",
+                "kb-squat",
+                "db-squat",
+                "kb-clean",
+                "db-clean",
+                "kb-press",
+                "db-press",
+                "kb-thruster",
+                "db-thruster",
+                "kb-snatch",
+                "db-snatch",
+                "pull-ups",
+                "toes-to-bar",
+                "hspu",
+                "handstand-walk",
+                "skipping-rope",
+                "pistols",
+                "rope-climbs",
+                "box-jumps",
+                "wall-balls",
+                "push-ups",
+                "ghd-sit-ups"
+              ]
+            }
           }
         },
         "required": [
@@ -1516,6 +1825,42 @@
           "name",
           "category",
           "aliases"
+        ],
+        "additionalProperties": false
+      },
+      "VariationInvalidErrorEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "VariationInvalidError"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "variationOf": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "self",
+              "core-is-variation",
+              "has-variations"
+            ]
+          }
+        },
+        "required": [
+          "_tag",
+          "id",
+          "variationOf",
+          "reason"
         ],
         "additionalProperties": false
       },

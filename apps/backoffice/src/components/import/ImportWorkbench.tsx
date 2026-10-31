@@ -1,5 +1,7 @@
 import {
   deriveSession,
+  levelKey,
+  levelName,
   lineNumberOf,
   makeMovementMatcher,
   splitLines,
@@ -27,6 +29,7 @@ import {
 } from "@chalk/ui/components/alert-dialog.tsx";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input } from "@chalk/ui/components/field.tsx";
+import { LevelBadge } from "@chalk/ui/components/level-ruler.tsx";
 import { useAtomSet } from "@effect/atom-react";
 import * as Cause from "effect/Cause";
 import * as Exit from "effect/Exit";
@@ -42,6 +45,7 @@ import {
   type TagChoice,
 } from "../../lib/importEditor.ts";
 import { formatKg } from "../../lib/blockLabels.ts";
+import { gradeSession } from "../../lib/levelGrades.ts";
 import { resultDefaults } from "../../lib/resultDraft.ts";
 import { SAVE_REACTIVITY_KEYS, saveImportAtom } from "../../state/imports.ts";
 import { AnnotatedText, type TextRange } from "./AnnotatedText.tsx";
@@ -143,6 +147,7 @@ export function ImportWorkbench({
   const errors = session.issues.filter((issue) => issue.severity === "error");
   const selected = state.spans.find((span) => span.id === state.selectedId);
   const programmed = selected?._tag === "movement" ? findItem(session, selected.id) : undefined;
+  const grades = gradeSession(session, catalog);
   const linked = linkedIds(state.spans, hovered ?? state.selectedId);
   const hasDateSpan = state.spans.some((span) => span._tag === "date");
   const lines = splitLines(state.text);
@@ -293,6 +298,26 @@ export function ImportWorkbench({
           </FieldBox>
           <FieldBox label="Lift sets">{liftSetCount(session)}</FieldBox>
           <FieldBox label="Lifted">{formatKg(session.tonnageKg)}</FieldBox>
+          {grades.programmed ? (
+            <FieldBox label="Programmed level">
+              <LevelBadge level={levelKey(grades.programmed.level)} open>
+                {levelName(grades.programmed.level)}
+              </LevelBadge>
+            </FieldBox>
+          ) : null}
+          {grades.programmed ? (
+            <FieldBox label="Done at">
+              {grades.performed && grades.unrecorded === 0 ? (
+                <LevelBadge level={levelKey(grades.performed.level)}>
+                  {levelName(grades.performed.level)}
+                </LevelBadge>
+              ) : (
+                <span className="text-sm font-normal text-muted-foreground">
+                  {grades.unrecorded} to record
+                </span>
+              )}
+            </FieldBox>
+          ) : null}
         </dl>
         <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-2.5">
           <RefereeLamps issues={session.issues} />
@@ -420,6 +445,7 @@ export function ImportWorkbench({
               handlers={{
                 nameOf,
                 coreOf,
+                gradeOf: (id) => grades.byItem.get(id),
                 selectedId: state.selectedId,
                 linked,
                 onSelect: handleClickSpan,
@@ -467,6 +493,7 @@ export function ImportWorkbench({
                     : {
                         item: programmed.item,
                         defaults: resultDefaults(programmed.item, programmed.block),
+                        grade: grades.byItem.get(programmed.item.spanId),
                       }
                 }
                 onUpdate={(span) => dispatch({ type: "update", span })}

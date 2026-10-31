@@ -9,7 +9,9 @@ catalog, with 1/2/3/5/10RM derived per movement and an estimated 1RM chart over 
 backoffice imports past sessions from pasted text: Chalk highlights movements and numbers, you fix
 the highlights, and parts, blocks, movements and lift sets are saved from them. A strength
 movement takes a result (fixed load, ramp by a step, or set by set), so each session has a total
-lifted in kg. Where it is going:
+lifted in kg. Each movement is graded on GymDanmark's FF level sheet (Fundamentals to RX, plus
+Chalk's own Elite): the importer records how it was done, and `/levels` draws a ruler per
+movement family with where the workouts put you and what you can do. Where it is going:
 
 - [docs/domain.md](docs/domain.md): movements, scaling, workouts composed of movements, rep
   maxes, the weekly volume grid.

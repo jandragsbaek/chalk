@@ -3,6 +3,7 @@ import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as Schema from "effect/Schema";
 
 import { LiftSetId, WorkoutId } from "./baseSchemas.ts";
+import { LevelOverview, LevelStorageError } from "./levelOverview.ts";
 import {
   LiftSet,
   LiftSetNotFoundError,
@@ -23,6 +24,7 @@ export const RPC_METHODS = {
   liftsLog: "lifts.log",
   liftsDelete: "lifts.delete",
   liftsRecords: "lifts.records",
+  levelsList: "levels.list",
 } as const;
 
 /** Mount point for the RPC endpoint on the server, and the web dev proxy. */
@@ -70,6 +72,11 @@ const LiftsRecordsRpc = Rpc.make(RPC_METHODS.liftsRecords, {
   error: StrengthStorageError,
 });
 
+const LevelsListRpc = Rpc.make(RPC_METHODS.levelsList, {
+  success: LevelOverview,
+  error: LevelStorageError,
+});
+
 export const ChalkRpcGroup = RpcGroup.make(
   WorkoutsListRpc,
   WorkoutsLogRpc,
@@ -79,4 +86,5 @@ export const ChalkRpcGroup = RpcGroup.make(
   LiftsLogRpc,
   LiftsDeleteRpc,
   LiftsRecordsRpc,
+  LevelsListRpc,
 );

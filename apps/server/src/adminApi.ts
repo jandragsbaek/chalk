@@ -60,6 +60,10 @@ export const layerMovements = HttpApiBuilder.group(
         store
           .setVariationOf(params.id, payload.variationOf)
           .pipe(Effect.catchTags({ CatalogPersistenceError: reportImportStorageError })),
+      setLevels: ({ params, payload }) =>
+        store
+          .setLevels(params.id, payload)
+          .pipe(Effect.catchTags({ CatalogPersistenceError: reportImportStorageError })),
     });
   }),
 );

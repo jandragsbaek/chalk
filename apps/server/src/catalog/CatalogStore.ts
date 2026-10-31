@@ -2,6 +2,8 @@ import {
   AliasTakenError,
   CatalogMovement,
   CatalogNotFoundError,
+  Complement,
+  LevelFamilyId,
   MovementCategory,
   MovementExistsError,
   MovementId,
@@ -9,6 +11,7 @@ import {
   TrimmedNonEmptyString,
   VariationInvalidError,
   type CreateMovementInput,
+  type SetMovementLevelsInput,
 } from "@chalk/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -25,6 +28,7 @@ export class CatalogPersistenceError extends Schema.TaggedError<CatalogPersisten
       "create a movement",
       "add an alias",
       "set a core movement",
+      "set a movement's levels",
     ]),
     cause: Schema.Defect(),
   },
@@ -51,6 +55,10 @@ const MovementRow = Schema.Struct({
   name: TrimmedNonEmptyString,
   category: MovementCategory,
   variationOf: Schema.NullOr(MovementId),
+  levelFamily: Schema.NullOr(LevelFamilyId),
+  accessory: Schema.Number,
+  complements: Schema.fromJsonString(Schema.Array(Complement)),
+  supports: Schema.fromJsonString(Schema.Array(LevelFamilyId)),
 });
 type MovementRow = typeof MovementRow.Type;
 
@@ -95,6 +103,11 @@ export class CatalogStore extends Context.Service<
       CatalogMovement,
       CatalogNotFoundError | VariationInvalidError | CatalogPersistenceError
     >;
+    /** The sheet row a movement is graded on, and whether it is an accessory and for what. */
+    readonly setLevels: (
+      id: MovementId,
+      input: SetMovementLevelsInput,
+    ) => Effect.Effect<CatalogMovement, CatalogNotFoundError | CatalogPersistenceError>;
   }
 >()("chalk/catalog/CatalogStore") {}
 
@@ -105,7 +118,11 @@ const make = Effect.gen(function* () {
     Request: Schema.Void,
     Result: MovementRow,
     execute: () =>
-      sql`SELECT id, name, category, variation_of AS "variationOf" FROM movements ORDER BY category, name`,
+      sql`
+        SELECT id, name, category, variation_of AS "variationOf", level_family AS "levelFamily",
+               accessory, complements, supports
+        FROM movements ORDER BY category, name
+      `,
   });
 
   const selectAliases = SqlSchema.findAll({
@@ -125,11 +142,17 @@ const make = Effect.gen(function* () {
     movements: ReadonlyArray<MovementRow>,
     aliases: ReadonlyArray<typeof AliasRow.Type>,
   ): ReadonlyArray<CatalogMovement> =>
-    movements.map(({ variationOf, ...movement }) => ({
-      ...movement,
-      aliases: aliases.filter((row) => row.movementId === movement.id).map((row) => row.alias),
-      ...(variationOf === null ? {} : { variationOf }),
-    }));
+    movements.map(
+      ({ variationOf, levelFamily, accessory, complements, supports, ...movement }) => ({
+        ...movement,
+        aliases: aliases.filter((row) => row.movementId === movement.id).map((row) => row.alias),
+        ...(variationOf === null ? {} : { variationOf }),
+        ...(levelFamily === null ? {} : { levelFamily }),
+        ...(accessory === 1 ? { accessory: true } : {}),
+        ...(complements.length === 0 ? {} : { complements }),
+        ...(supports.length === 0 ? {} : { supports }),
+      }),
+    );
 
   /** Fails unless `variationOf` is a core movement that `id` can hang under. */
   const checkVariation = Effect.fn("CatalogStore.checkVariation")(function* (
@@ -258,7 +281,32 @@ const make = Effect.gen(function* () {
     }),
   );
 
-  return CatalogStore.of({ list, create, addAlias, setVariationOf });
+  const setLevels = Effect.fn("CatalogStore.setLevels")(
+    function* (id: MovementId, input: SetMovementLevelsInput) {
+      const entry = yield* Effect.gen(function* () {
+        const result = yield* sql`
+          UPDATE movements
+          SET level_family = ${input.levelFamily}, accessory = ${input.accessory ? 1 : 0},
+              complements = ${JSON.stringify([...new Set(input.complements)])},
+              supports = ${JSON.stringify([...new Set(input.supports)])}
+          WHERE id = ${id}
+          RETURNING id
+        `;
+        if (result.length === 0) return undefined;
+        return yield* catalogEntry(id);
+      }).pipe(sql.withTransaction);
+      if (!entry) return yield* new CatalogNotFoundError({ id });
+      return entry;
+    },
+    Effect.catchTags({
+      SqlError: (cause) =>
+        Effect.fail(new CatalogPersistenceError({ operation: "set a movement's levels", cause })),
+      SchemaError: (cause) =>
+        Effect.fail(new CatalogPersistenceError({ operation: "set a movement's levels", cause })),
+    }),
+  );
+
+  return CatalogStore.of({ list, create, addAlias, setVariationOf, setLevels });
 });
 
 export const layer = Layer.effect(CatalogStore, make);

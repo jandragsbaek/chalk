@@ -31,6 +31,11 @@ colors:
   lamp-good: "oklch(0.99 0.003 255)"
   lamp-fail: "oklch(0.6 0.22 27)"
   lamp-off: "oklch(0.34 0.025 262)"
+  level-f: "oklch(0.87 0.018 262)"
+  level-s: "oklch(0.76 0.03 262)"
+  level-i: "oklch(0.62 0.05 262)"
+  level-rx: "oklch(0.44 0.06 262)"
+  level-e: "oklch(0.26 0.035 262)"
 typography:
   display:
     fontFamily: "Archivo Variable, ui-sans-serif, system-ui, sans-serif"
@@ -221,6 +226,11 @@ Carbonless copies. Each tint is a pair: a pale fill and the ink that edges it.
 - **Header Band** (oklch(0.22 0.03 262), `band`, with `band-foreground` and `band-muted` oklch(0.74 0.025 262)): the printed title block across the top; darker carbon (oklch(0.11 0.012 262)) in dark mode.
 - **Lamp Off** (oklch(0.34 0.025 262)) and **Lamp White** (oklch(0.99 0.003 255)): referee lamp states.
 
+- **Level Ramp** (`level-f` oklch(0.87 0.018 262) to `level-e` oklch(0.26 0.035 262)): one ink
+  hue, light to dark, Fundamentals, Scaled, Intermediate, RX, Elite. Each step has its text
+  token (`level-*-ink`): ink on F, S and I, paper on RX and E. On the carbon side the ramp runs
+  the other way (Elite lightest), so the highest level is always the most ink.
+
 ### Named Rules
 
 **The One Red Rule.** Red means no-lift: a failed check, a flagged line, an unresolved row, a destructive action. It is never a brand accent, a highlight or a decoration.
@@ -348,6 +358,21 @@ it. The session RPE row is a ladder: boxes under the answer take the canary tint
 colour of every RPE. Limiters are printed check boxes (16px, box-edge stroke, ink fill with a
 paper tick when checked) with a pencil-grey hint. "What the coach reads" echoes the answers as
 sentences on a copy-grey fill with its ink underline, like other notes.
+
+### Level Ruler
+
+One row of GymDanmark's level sheet as a ruler (`LevelRuler` in `packages/ui`, styled by data
+attributes in `theme.css`): five rungs at equal steps, F to E, each with its condensed caps
+letter above and its load or variation below. Zones between rungs take the level ramp; a rung
+the sheet leaves out is hatched; Elite, which Chalk writes itself, has a dashed tick. Markers
+carry state by form: a solid ink square for what was done, a diamond for what the athlete can
+do (copy green for reps, copy canary for an estimated 1RM), a dashed bracket with a faint ink
+wash for what the box programmed. Labels truncate to their fifth of the ruler (container query),
+and a labelled marker on a rung prints its number in place of the rung's. Under a variant
+family, a share bar splits the reps by level in the ramp's fills. Level badges are square
+condensed caps on the ramp, solid when done and dashed when asked for. Used on the web
+`/levels` page (one row per family, tabs by group) and on importer protocol rows (small, no
+labels) and in the inspector.
 
 ### Source Line Gutter
 
