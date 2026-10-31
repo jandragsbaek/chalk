@@ -117,3 +117,61 @@
   box-shadow: inset 0 -2px 0 var(--copy-grey-ink);
   white-space: nowrap;
 }
+
+/*
+ * Benchmarks: rows ruled like the levels sheet; prescription chips in the importer's carbonless
+ * colours (reps green, loads canary, time and distance pink, scores goldenrod).
+ */
+[data-benchmark-row] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+[data-benchmark-row][data-head] {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  background: var(--background);
+}
+@media (width >= 64rem) {
+  [data-benchmark-row] {
+    grid-template-columns: 13rem minmax(0, 1fr) 6rem 12rem;
+    gap: 2rem;
+  }
+}
+@media (width < 64rem) {
+  [data-benchmark-row][data-head] {
+    display: none;
+  }
+}
+
+[data-chip] {
+  --chip: var(--copy-grey);
+  --chip-ink: var(--copy-grey-ink);
+  background: var(--chip);
+  box-shadow: inset 0 -0.125rem 0 var(--chip-ink);
+}
+[data-chip][data-measure="reps"],
+[data-chip][data-measure="sets"] {
+  --chip: var(--copy-green);
+  --chip-ink: var(--copy-green-ink);
+}
+[data-chip][data-measure="load_kg"],
+[data-chip][data-measure="percent_1rm"],
+[data-chip][data-measure="rpe"] {
+  --chip: var(--copy-canary);
+  --chip-ink: var(--copy-canary-ink);
+}
+[data-chip][data-measure="seconds"],
+[data-chip][data-measure="distance_m"],
+[data-chip][data-measure="calories"] {
+  --chip: var(--copy-pink);
+  --chip-ink: var(--copy-pink-ink);
+}
+[data-chip][data-measure="score"] {
+  --chip: var(--copy-goldenrod);
+  --chip-ink: var(--copy-goldenrod-ink);
+}

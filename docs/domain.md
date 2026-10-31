@@ -150,12 +150,43 @@ Total reps per item are derived from the part: a 21-15-9 for-time item done in f
 an AMRAP item is `rounds × reps per round` plus the partial round; an EMOM item is
 `minutes × reps per minute`. Storing the derived total keeps the volume grid a plain `SUM`.
 
-**Templates.** Benchmarks (Fran, Grace, Murph, ...) and box programming are templates: a part
-with prescribed items and no performance. Logging Fran copies the template and asks only for
-what differs. The free-text datalist in the log form today is a placeholder for this.
+**Templates.** Benchmarks are built (below); box programming as templates is not.
 
 Existing `workouts` rows migrate as a session with one part and no items; their free-form score
 and `rx` flag stay as they are.
+
+### Benchmarks (built)
+
+Named workouts as reference data in `packages/contracts/src/benchmarks/`, like the level sheet:
+versioned with the code, never edited in the database. 280 of them: CrossFit's 33 Girls (the
+FAQ list, New Girls of 2021 included), the 244 Hero workouts of the official list (revision
+20260504R1KW, May 2026), and Filthy Fifty, Fight Gone Bad and Nasty Girls.
+
+- **Shape**: `Benchmark { id (slug), name, aliases, category, scoring, posted, blocks, ... }`.
+  `posted` is the prescription as CrossFit wrote it (pounds, inches); `blocks` are the same
+  shapes an import derives: format, params, intents, and items with quantities for one set.
+  Loads are male/female kg, converted the way a kilo box loads them: barbells to the nearest
+  kilo (95/65 lb is 43/29 kg), dumbbells to 2.5 kg, kettlebells, balls and plates to the
+  implement that exists. Box heights, targets and "right arm" are an item `note`; bodyweight
+  loads are a note too, since Chalk does not know the athlete's weight.
+- **Authoring**: `dsl.ts` (`hero({...})`, `mv("thruster", reps(21), bb(95, 65))`, `rounds`,
+  `ladder`, `amrap`, ...). `movementIds.ts` types every id a benchmark may use; a server test
+  checks each exists after migrations. Migration `008_Benchmarks` adds what the Heroes need
+  (burpee and HSPU variations, carries, sled, DB and KB lifts, swim, shuttle runs) with cores,
+  sheet rows and whiteboard aliases, and makes push and split jerks variations of Jerk.
+- **Scoring**: `time` (lower wins), `rounds_reps`, `reps` or `load`. `parseBenchmarkScore`
+  reads "4:32", "18+7", "320", "102 kg"; the best attempt is the record, the earliest on a tie.
+- **Link**: `workout_parts.benchmark_id`. Logging a benchmark writes its part, blocks and items
+  (performance `{}`, as prescribed, when logged Rx; unknown when scaled), so levels grade it
+  like an import. In the importer a `benchmark` span marks a line or heading that names one
+  ("Fran", "**** Murph"): right under a part heading it names that part, after movements it
+  opens a new part; a part with only the name gets the benchmark's blocks, and "Fran: 4:32" in
+  the notes is its score. A workout with no parts whose name is a benchmark (logged before
+  this) counts too. `benchmarks.results` lists every attempt.
+- **Rx level**: the GymDanmark division of the Rx prescription (the lowest rung every graded
+  movement reaches); Fran's 43 kg thrusters are Scaled.
+- Web: `/benchmarks` (search by name or movement, Girls / Heroes / Classics / Done, your best)
+  and `/benchmarks/$id` (board, as posted, Rx levels, attempts, log form).
 
 ### Lift set and rep maxes (built)
 

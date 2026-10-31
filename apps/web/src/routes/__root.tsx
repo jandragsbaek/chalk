@@ -7,10 +7,12 @@ const NAV_LINK_CLASS =
   "rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground";
 
 /** Pages that lay out wide tables and rulers get the desk's full width. */
-const WIDE_PATHS = new Set(["/levels"]);
+const WIDE_PREFIXES = ["/levels", "/benchmarks"];
 
 function RootLayout() {
-  const wide = useRouterState({ select: (state) => WIDE_PATHS.has(state.location.pathname) });
+  const wide = useRouterState({
+    select: (state) => WIDE_PREFIXES.some((prefix) => state.location.pathname.startsWith(prefix)),
+  });
   return (
     <div
       className={
@@ -39,6 +41,13 @@ function RootLayout() {
             activeProps={{ className: "bg-muted text-foreground" }}
           >
             Strength
+          </Link>
+          <Link
+            to="/benchmarks"
+            className={NAV_LINK_CLASS}
+            activeProps={{ className: "bg-muted text-foreground" }}
+          >
+            Benchmarks
           </Link>
           <Link
             to="/levels"
