@@ -8,9 +8,9 @@ import { useState } from "react";
 import { localIsoDate } from "../lib/utils.ts";
 import { SCORE_PLACEHOLDERS, WORKOUT_KIND_LABELS, WORKOUT_KINDS } from "../lib/workoutKinds.ts";
 import { logWorkoutAtom, WORKOUTS_REACTIVITY_KEY } from "../state/workouts.ts";
-import { Button } from "./ui/button.tsx";
-import { Input, Label, NativeSelect, Textarea } from "./ui/field.tsx";
-import { Switch } from "./ui/switch.tsx";
+import { Button } from "@chalk/ui/components/button.tsx";
+import { Input, Label, NativeSelect, Textarea } from "@chalk/ui/components/field.tsx";
+import { Switch } from "@chalk/ui/components/switch.tsx";
 
 const decodeLogWorkoutInput = Schema.decodeUnknownOption(LogWorkoutInput);
 

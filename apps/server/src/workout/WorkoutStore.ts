@@ -1,4 +1,11 @@
-import { LogWorkoutInput, Workout, WorkoutId, WorkoutNotFoundError } from "@chalk/contracts";
+import {
+  LogWorkoutInput,
+  Workout,
+  WorkoutId,
+  WorkoutKind,
+  WorkoutNotFoundError,
+  type WorkoutStats,
+} from "@chalk/contracts";
 import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as DateTime from "effect/DateTime";
@@ -11,7 +18,13 @@ import * as SqlSchema from "effect/sql/SqlSchema";
 export class WorkoutPersistenceError extends Schema.TaggedError<WorkoutPersistenceError>()(
   "WorkoutPersistenceError",
   {
-    operation: Schema.Literals(["list workouts", "log workout", "delete workout"]),
+    operation: Schema.Literals([
+      "list workouts",
+      "search workouts",
+      "count workouts",
+      "log workout",
+      "delete workout",
+    ]),
     cause: Schema.Defect(),
   },
 ) {
@@ -31,6 +44,12 @@ const WorkoutRow = Schema.Struct({
   createdAt: Workout.fields.createdAt,
 });
 
+const KindCountRow = Schema.Struct({
+  kind: WorkoutKind,
+  count: Schema.Number,
+  rxCount: Schema.Number,
+});
+
 const toWorkout = (row: typeof WorkoutRow.Type): Workout => ({ ...row, rx: row.rx === 1 });
 
 export class WorkoutStore extends Context.Service<
@@ -38,6 +57,11 @@ export class WorkoutStore extends Context.Service<
   {
     /** Newest first. */
     readonly list: () => Effect.Effect<ReadonlyArray<Workout>, WorkoutPersistenceError>;
+    /** Case-insensitive match on name, score or notes; newest first. */
+    readonly search: (
+      query: string,
+    ) => Effect.Effect<ReadonlyArray<Workout>, WorkoutPersistenceError>;
+    readonly stats: () => Effect.Effect<WorkoutStats, WorkoutPersistenceError>;
     readonly log: (input: LogWorkoutInput) => Effect.Effect<Workout, WorkoutPersistenceError>;
     readonly remove: (
       id: WorkoutId,
@@ -57,6 +81,52 @@ const make = Effect.gen(function* () {
       FROM workouts
       ORDER BY performed_on DESC, id DESC
     `,
+  });
+
+  const selectMatching = SqlSchema.findAll({
+    Request: Schema.String,
+    Result: WorkoutRow,
+    execute: (pattern) => sql`
+      SELECT id, performed_on AS "performedOn", name, kind, score, rx, notes, created_at AS "createdAt"
+      FROM workouts
+      WHERE name LIKE ${pattern} ESCAPE '!' OR score LIKE ${pattern} ESCAPE '!'
+         OR notes LIKE ${pattern} ESCAPE '!'
+      ORDER BY performed_on DESC, id DESC
+    `,
+  });
+
+  const selectKindCounts = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: KindCountRow,
+    execute: () => sql`
+      SELECT kind, COUNT(*) AS count, SUM(rx) AS "rxCount"
+      FROM workouts
+      GROUP BY kind
+      ORDER BY count DESC, kind
+    `,
+  });
+
+  const search = Effect.fn("WorkoutStore.search")(function* (query: string) {
+    const escaped = query.trim().replace(/[!%_]/g, (char) => `!${char}`);
+    const rows = yield* selectMatching(`%${escaped}%`).pipe(
+      Effect.mapError(
+        (cause) => new WorkoutPersistenceError({ operation: "search workouts", cause }),
+      ),
+    );
+    return rows.map(toWorkout);
+  });
+
+  const stats = Effect.fn("WorkoutStore.stats")(function* () {
+    const rows = yield* selectKindCounts(undefined).pipe(
+      Effect.mapError(
+        (cause) => new WorkoutPersistenceError({ operation: "count workouts", cause }),
+      ),
+    );
+    return {
+      total: rows.reduce((sum, row) => sum + row.count, 0),
+      rxCount: rows.reduce((sum, row) => sum + row.rxCount, 0),
+      byKind: rows.map(({ kind, count }) => ({ kind, count })),
+    } satisfies WorkoutStats;
   });
 
   const list = Effect.fn("WorkoutStore.list")(function* () {
@@ -95,7 +165,7 @@ const make = Effect.gen(function* () {
     if (deleted.length === 0) return yield* new WorkoutNotFoundError({ id });
   });
 
-  return WorkoutStore.of({ list, log, remove });
+  return WorkoutStore.of({ list, search, stats, log, remove });
 });
 
 export const layer = Layer.effect(WorkoutStore, make);

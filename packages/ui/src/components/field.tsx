@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-import { cn } from "../../lib/utils.ts";
+import { cn } from "../lib/utils.ts";
 
 const controlClassName =
   "w-full rounded-md border border-input bg-card px-3 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring sm:text-sm";

@@ -5,13 +5,16 @@
   "scripts": {
     "prepare": "vp config --no-agent",
     "dev": "vp run --parallel --filter @chalk/server --filter @chalk/web dev",
-    "build": "vp run --filter @chalk/web build",
+    "dev:admin": "vp run --parallel --filter @chalk/server --filter @chalk/backoffice dev:admin",
+    "build": "vp run --filter @chalk/web --filter @chalk/backoffice build",
     "start": "vp run --filter @chalk/server start",
+    "start:admin": "vp run --filter @chalk/server start:admin",
     "typecheck": "vp run -r --cache typecheck",
     "test": "vp run -r test",
     "lint": "vp lint --report-unused-disable-directives",
     "fmt": "vp fmt",
     "fmt:check": "vp fmt --check",
+    "openapi": "vp run --filter @chalk/contracts openapi",
     "check": "vp fmt --check && vp lint --report-unused-disable-directives && vp run -r --cache typecheck && vp run -r test"
   },
   "devDependencies": {

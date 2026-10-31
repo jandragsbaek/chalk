@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/bin.ts",
+    "dev:admin": "CHALK_MODE=admin node --watch src/bin.ts",
     "start": "NODE_ENV=production CHALK_WEB_DIST=../web/dist node src/bin.ts",
+    "start:admin": "NODE_ENV=production CHALK_MODE=admin CHALK_WEB_DIST=../backoffice/dist node src/bin.ts",
     "typecheck": "tsc --noEmit",
     "test": "vp test run --config ../../vite.config.ts --dir ."
   },

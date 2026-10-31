@@ -17,6 +17,7 @@ Tool versions (Node, pnpm) are pinned in `mise.toml`. With [mise](https://mise.j
 mise install
 pnpm install
 pnpm dev          # server on :4300, web on http://localhost:5173
+pnpm dev:admin    # admin server on :4301, backoffice on http://localhost:5174
 ```
 
 Production: one process serves the API and the built web app from a single origin.
@@ -24,33 +25,41 @@ Production: one process serves the API and the built web app from a single origi
 ```bash
 pnpm build
 pnpm start        # http://127.0.0.1:4300
+pnpm start:admin  # http://127.0.0.1:4301 (backoffice + admin API)
 ```
 
-| Variable         | Default             | Purpose                                      |
-| ---------------- | ------------------- | -------------------------------------------- |
-| `CHALK_HOST`     | `127.0.0.1`         | Interface the server listens on              |
-| `CHALK_PORT`     | `4300`              | Server port (the web dev proxy reads it too) |
-| `CHALK_DB_PATH`  | `data/chalk.sqlite` | SQLite database file                         |
-| `CHALK_WEB_DIST` | unset               | Built web app to serve; `start` sets it      |
+| Variable         | Default             | Purpose                                     |
+| ---------------- | ------------------- | ------------------------------------------- |
+| `CHALK_MODE`     | `api`               | `api` (app RPC) or `admin` (admin HttpApi)  |
+| `CHALK_HOST`     | `127.0.0.1`         | Interface the server listens on             |
+| `CHALK_PORT`     | `4300` / `4301`     | Server port, by mode (dev proxies read it)  |
+| `CHALK_DB_PATH`  | `data/chalk.sqlite` | SQLite database file                        |
+| `CHALK_WEB_DIST` | unset               | Built SPA to serve; `start*` scripts set it |
 
-Other commands: `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm fmt`, and `pnpm check` (everything CI runs). The toolchain is [Vite+](https://viteplus.dev) (`vp`): one root `vite.config.ts` configures tests, Oxlint (with the local `oxlint-plugin-chalk/` rules and `@shadcn/lint`), Oxfmt, and the pre-commit hook, which formats and lints staged files with `vp staged`. `@effect/vitest` is patched (`patches/`) to import `vite-plus/test` instead of `vitest`. The lint setup and the rules in `oxlint-plugin-chalk/` are adapted from [T3 Code](https://github.com/pingdotgg/t3code) under its MIT license (`oxlint-plugin-chalk/LICENSE`).
+Other commands: `pnpm openapi` (regenerate `packages/contracts/openapi/admin.json`; a test fails when it is stale), `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm fmt`, and `pnpm check` (everything CI runs). The toolchain is [Vite+](https://viteplus.dev) (`vp`): one root `vite.config.ts` configures tests, Oxlint (with the local `oxlint-plugin-chalk/` rules and `@shadcn/lint`), Oxfmt, and the pre-commit hook, which formats and lints staged files with `vp staged`. `@effect/vitest` is patched (`patches/`) to import `vite-plus/test` instead of `vitest`. The lint setup and the rules in `oxlint-plugin-chalk/` are adapted from [T3 Code](https://github.com/pingdotgg/t3code) under its MIT license (`oxlint-plugin-chalk/LICENSE`).
 
 ## How it fits together
 
 ```
-packages/contracts   Effect Schema domain types, branded ids, tagged errors, one RpcGroup
-        │  (imported as TypeScript source by both sides, no build step)
-        ├────────────────────────────────────────────┐
-apps/server                                      apps/web
-  bin.ts      NodeRuntime + Layer.launch           main.tsx    RegistryProvider + TanStack Router
-  server.ts   Layer graph: HttpRouter, RPC route,  rpc/        AtomRpc client over HTTP (/rpc)
-              static web app, services             state/      query atoms + mutation atoms
-  rpc.ts      thin handlers: call one service      components/ shadcn-style UI on Base UI
-              method, map errors                   routes/     file-based routes
+packages/contracts   Effect Schema domain types, branded ids, tagged errors,
+                     RpcGroup (app) + ChalkAdminApi HttpApi (admin) + checked-in OpenAPI
+packages/ui          shadcn components on Base UI, theme tokens (theme.css)
+        │  (both imported as TypeScript source, no build step)
+        ├──────────────────────────────────┬─────────────────────────────────┐
+apps/server                            apps/web (:5173)                  apps/backoffice (:5174)
+  bin.ts      NodeRuntime + Layer.launch   rpc/    AtomRpc client (/rpc)     api/    AtomHttpApi client
+  server.ts   Layer graph; CHALK_MODE      state/  query + mutation atoms    state/  query atoms (Atom.family
+              picks RPC (api) or           routes/ file-based routes                 per search term)
+              HttpApi (admin) routes                                         routes/ search state in the URL
+  rpc.ts      thin RPC handlers
+  adminApi.ts thin HttpApi handlers
   workout/    WorkoutStore service (SQL)
   persistence/ SQLite (node:sqlite) + migrations
 ```
 
+- **One server, two modes.** `api` serves the app over Effect RPC; `admin` serves only the admin
+  `HttpApi` (with OpenAPI at `/api/admin/openapi.json`) and the backoffice. The backoffice has no
+  database access and shares only `packages/contracts` and `packages/ui`.
 - **Contracts first.** Every request, response and error crossing the wire is an Effect Schema in
   `packages/contracts`. Both the server and the client validate against it.
 - **Services, thin transports.** Features are `Context.Service` classes with a `make` and a

@@ -7,12 +7,20 @@ const GENERATED_AND_BUILD_OUTPUT = [
   "pnpm-lock.yaml",
   "*.tsbuildinfo",
   "**/routeTree.gen.ts",
+  "packages/contracts/openapi",
 ];
 
 const TEST_FILES = [
   "**/*.{test,spec,testkit}.{ts,tsx}",
   "**/{test,tests,testkit,testing,fixtures,integration}/**",
 ];
+
+/** React SPAs: compiled by the React Compiler and held to the shadcn design-system rules. */
+const REACT_APP_SOURCES = ["apps/web/src/**", "apps/backoffice/src/**"];
+/** Shared shadcn (Base UI) kit; it owns the class recipes the apps must not restyle. */
+const UI_KIT_SOURCES = "packages/ui/src/**";
+const REACT_SOURCES = [...REACT_APP_SOURCES, UI_KIT_SOURCES];
+const tsx = (globs: ReadonlyArray<string>) => globs.map((glob) => `${glob}/*.{ts,tsx}`);
 
 export default defineConfig({
   test: {
@@ -53,8 +61,8 @@ export default defineConfig({
     plugins: ["eslint", "oxc", "react", "unicorn", "typescript"],
     jsPlugins: ["./oxlint-plugin-chalk/index.ts", "@shadcn/lint"],
     settings: {
-      // Components are imported relatively, so match the directory rather than an alias.
-      shadcn: { componentImports: ["(^|/)components/ui/", "^\\./ui/"] },
+      // Apps import the kit by package path.
+      shadcn: { componentImports: ["^@chalk/ui/components/"] },
     },
     categories: {
       correctness: "warn",
@@ -133,15 +141,14 @@ export default defineConfig({
         rules: { "chalk/no-em-dash-copy": "error" },
       },
       {
-        files: ["apps/web/src/**"],
-        excludeFiles: ["apps/web/src/components/ui/**"],
+        files: REACT_APP_SOURCES,
         rules: {
           "eslint/no-restricted-imports": [
             "error",
             {
               patterns: [
                 {
-                  group: ["**/components/ui/*", "**/ui/*", "./ui/*"],
+                  group: ["@chalk/ui/components/*"],
                   importNames: ["buttonVariants", "badgeVariants"],
                   message:
                     "Render the components/ui export instead of borrowing its class recipe (render={<Button …/>}).",
@@ -155,7 +162,7 @@ export default defineConfig({
         },
       },
       {
-        files: ["apps/web/src/**"],
+        files: REACT_SOURCES,
         rules: {
           "shadcn/no-unknown-classes": "error",
           "shadcn/no-raw-colors": "error",
@@ -163,7 +170,7 @@ export default defineConfig({
       },
       {
         // React Compiler owns memoization; upstream rules do not ban redundant useMemo/useCallback.
-        files: ["apps/web/src/**/*.{ts,tsx}"],
+        files: tsx(REACT_SOURCES),
         rules: {
           "react/exhaustive-effect-dependencies": "error",
           "react/globals": "error",
@@ -183,12 +190,12 @@ export default defineConfig({
         },
       },
       {
-        files: ["apps/web/src/**", "packages/*/src/**"],
+        files: [...REACT_APP_SOURCES, "packages/*/src/**"],
         rules: { "chalk/no-unreasoned-state-sync": "error" },
       },
       {
         // React Compiler caches use* functions only if they call a hook.
-        files: ["apps/web/src/**/*.{ts,tsx}"],
+        files: tsx(REACT_SOURCES),
         excludeFiles: ["**/*.test.ts", "**/*.test.tsx"],
         rules: { "chalk/no-hookless-use-function": "error" },
       },

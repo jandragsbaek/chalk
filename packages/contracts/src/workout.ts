@@ -15,7 +15,7 @@ export const Workout = Schema.Struct({
   rx: Schema.Boolean,
   notes: Schema.String,
   createdAt: IsoDateTime,
-});
+}).annotate({ identifier: "Workout" });
 export type Workout = typeof Workout.Type;
 
 export const LogWorkoutInput = Schema.Struct({
@@ -31,6 +31,7 @@ export type LogWorkoutInput = typeof LogWorkoutInput.Type;
 export class WorkoutNotFoundError extends Schema.TaggedError<WorkoutNotFoundError>()(
   "WorkoutNotFoundError",
   { id: WorkoutId },
+  { httpApiStatus: 404 },
 ) {
   override get message(): string {
     return `Workout ${this.id} was not found.`;
@@ -41,6 +42,7 @@ export class WorkoutNotFoundError extends Schema.TaggedError<WorkoutNotFoundErro
 export class WorkoutStorageError extends Schema.TaggedError<WorkoutStorageError>()(
   "WorkoutStorageError",
   { operation: Schema.String },
+  { httpApiStatus: 500 },
 ) {
   override get message(): string {
     return `Could not ${this.operation}.`;
