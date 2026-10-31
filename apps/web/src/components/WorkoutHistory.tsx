@@ -5,8 +5,8 @@ import { Trash2 } from "lucide-react";
 
 import { WORKOUT_KIND_LABELS } from "../lib/workoutKinds.ts";
 import { deleteWorkoutAtom, workoutsAtom, WORKOUTS_REACTIVITY_KEY } from "../state/workouts.ts";
-import { Badge } from "./ui/badge.tsx";
-import { Button } from "./ui/button.tsx";
+import { Badge } from "@chalk/ui/components/badge.tsx";
+import { Button } from "@chalk/ui/components/button.tsx";
 
 function groupByDay(workouts: ReadonlyArray<Workout>) {
   const days = new Map<string, Workout[]>();

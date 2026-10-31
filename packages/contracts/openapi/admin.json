@@ -1,0 +1,284 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Chalk Admin API",
+    "version": "0.0.0"
+  },
+  "paths": {
+    "/api/admin/workouts": {
+      "get": {
+        "tags": [
+          "workouts"
+        ],
+        "operationId": "workouts.search",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Workout"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "WorkoutStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/workouts/stats": {
+      "get": {
+        "tags": [
+          "workouts"
+        ],
+        "operationId": "workouts.stats",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "WorkoutStats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutStats"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "WorkoutStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/workouts/{id}": {
+      "delete": {
+        "tags": [
+          "workouts"
+        ],
+        "operationId": "workouts.remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "<No Content>"
+          },
+          "404": {
+            "description": "WorkoutNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutNotFoundErrorEncoded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "WorkoutStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "WorkoutStorageErrorEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "WorkoutStorageError"
+            ]
+          },
+          "operation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "operation"
+        ],
+        "additionalProperties": false
+      },
+      "WorkoutNotFoundErrorEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "WorkoutNotFoundError"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "_tag",
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "WorkoutStats": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "rxCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "byKind": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "for_time",
+                    "amrap",
+                    "emom",
+                    "strength",
+                    "other"
+                  ]
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "kind",
+                "count"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "total",
+          "rxCount",
+          "byKind"
+        ],
+        "additionalProperties": false
+      },
+      "Workout": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "performedOn": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "for_time",
+              "amrap",
+              "emom",
+              "strength",
+              "other"
+            ]
+          },
+          "score": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "rx": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "performedOn",
+          "name",
+          "kind",
+          "score",
+          "rx",
+          "notes",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {}
+  },
+  "security": [],
+  "tags": [
+    {
+      "name": "workouts"
+    }
+  ]
+}
