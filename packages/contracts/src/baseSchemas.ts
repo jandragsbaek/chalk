@@ -8,6 +8,13 @@ const makeEntityId = <Brand extends string>(brand: Parameters<typeof Schema.bran
 export const WorkoutId = makeEntityId("WorkoutId");
 export type WorkoutId = typeof WorkoutId.Type;
 
+/** Stable slug from the movement catalog, e.g. "back-squat". */
+export const MovementId = makeEntityId("MovementId");
+export type MovementId = typeof MovementId.Type;
+
+export const LiftSetId = makeEntityId("LiftSetId");
+export type LiftSetId = typeof LiftSetId.Type;
+
 /** Calendar day in the athlete's local time, e.g. "2026-10-29". */
 export const IsoDate = Schema.String.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/));
 export type IsoDate = typeof IsoDate.Type;

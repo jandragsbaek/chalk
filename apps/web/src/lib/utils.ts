@@ -4,3 +4,26 @@ export function localIsoDate(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
   return `${date.getFullYear()}-${month}-${day}`;
 }
+
+/** "Thu, Oct 29, 2026" for an IsoDate, read as a local calendar day. */
+export function formatDay(isoDate: string): string {
+  return new Date(`${isoDate}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/** Entries grouped by their `performedOn` day, keeping input order. */
+export function groupByDay<T extends { readonly performedOn: string }>(
+  entries: ReadonlyArray<T>,
+): Array<[day: string, entries: T[]]> {
+  const days = new Map<string, T[]>();
+  for (const entry of entries) {
+    const day = days.get(entry.performedOn);
+    if (day) day.push(entry);
+    else days.set(entry.performedOn, [entry]);
+  }
+  return [...days];
+}

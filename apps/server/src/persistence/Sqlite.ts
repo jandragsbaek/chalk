@@ -8,10 +8,12 @@ import * as NodePath from "node:path";
 
 import * as ServerConfig from "../config.ts";
 import Migration001 from "./Migrations/001_Workouts.ts";
+import Migration002 from "./Migrations/002_Strength.ts";
 
 // Explicit list: Migrator skips every id at or below the highest one recorded, so ids must only grow.
 const migrations = Migrator.fromRecord({
   "1_Workouts": Migration001,
+  "2_Strength": Migration002,
 });
 
 const layerMigrations = SqliteMigrator.layer({ loader: migrations });
