@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StrengthRouteImport } from './routes/strength'
+import { Route as MockupsStrengthRouteImport } from './routes/mockups.strength'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const StrengthRoute = StrengthRouteImport.update({
   path: '/strength',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MockupsStrengthRoute = MockupsStrengthRouteImport.update({
+  id: '/mockups/strength',
+  path: '/mockups/strength',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/strength': typeof StrengthRoute
+  '/mockups/strength': typeof MockupsStrengthRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/strength': typeof StrengthRoute
+  '/mockups/strength': typeof MockupsStrengthRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/strength': typeof StrengthRoute
+  '/mockups/strength': typeof MockupsStrengthRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/strength'
+  fullPaths: '/' | '/strength' | '/mockups/strength'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/strength'
-  id: '__root__' | '/' | '/strength'
+  to: '/' | '/strength' | '/mockups/strength'
+  id: '__root__' | '/' | '/strength' | '/mockups/strength'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   StrengthRoute: typeof StrengthRoute
+  MockupsStrengthRoute: typeof MockupsStrengthRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StrengthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mockups/strength': {
+      id: '/mockups/strength'
+      path: '/mockups/strength'
+      fullPath: '/mockups/strength'
+      preLoaderRoute: typeof MockupsStrengthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   StrengthRoute: StrengthRoute,
+  MockupsStrengthRoute: MockupsStrengthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
