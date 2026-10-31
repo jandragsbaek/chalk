@@ -3,7 +3,7 @@ import type * as SqlClient from "effect/sql/SqlClient";
 
 /**
  * Deletes a workout and everything hanging off it: imported parts, blocks and items, lift sets
- * logged from its notes or entered as results, and the import document. Returns the deleted workout ids (empty when it
+ * logged from its notes or entered as results, the debrief, and the import document. Returns the deleted workout ids (empty when it
  * did not exist). Run it inside a transaction.
  */
 export const deleteWorkoutRows = Effect.fn("deleteWorkoutRows")(function* (
@@ -23,6 +23,7 @@ export const deleteWorkoutRows = Effect.fn("deleteWorkoutRows")(function* (
     WHERE part_id IN (SELECT id FROM workout_parts WHERE workout_id = ${id})
   `;
   yield* sql`DELETE FROM workout_parts WHERE workout_id = ${id}`;
+  yield* sql`DELETE FROM workout_debriefs WHERE workout_id = ${id}`;
   yield* sql`DELETE FROM session_imports WHERE workout_id = ${id}`;
   return yield* sql<{ id: string }>`DELETE FROM workouts WHERE id = ${id} RETURNING id`;
 });

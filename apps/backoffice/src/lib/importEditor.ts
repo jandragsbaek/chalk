@@ -1,10 +1,13 @@
 import {
+  isEmptyDebrief,
   lineIndexAt,
+  normalizeDebrief,
   makeMovementMatcher,
   parseBlockFormat,
   splitLines,
   quantityFromText,
   suggestAttachment,
+  type Debrief,
   type ImportDocument,
   type IsoDate,
   type Measure,
@@ -21,6 +24,8 @@ export interface EditorState {
   readonly text: string;
   readonly spans: ReadonlyArray<Span>;
   readonly performedOn: IsoDate | undefined;
+  /** As typed; trimmed and emptied fields dropped only on the way out. */
+  readonly debrief: Debrief;
   readonly selectedId: SpanId | undefined;
   readonly picking: PickMode | undefined;
   readonly nextId: number;
@@ -44,6 +49,7 @@ export type EditorAction =
   | { readonly type: "pick"; readonly mode: PickMode | undefined }
   | { readonly type: "target"; readonly id: SpanId }
   | { readonly type: "setDate"; readonly date: IsoDate | undefined }
+  | { readonly type: "setDebrief"; readonly debrief: Debrief }
   | { readonly type: "tagPhrase"; readonly phrase: string; readonly movementId: MovementId }
   | { readonly type: "replaceAll"; readonly spans: ReadonlyArray<Span> };
 
@@ -54,6 +60,7 @@ export const initialEditorState = (document: ImportDocument): EditorState => ({
   text: document.text,
   spans: byStart(document.spans),
   performedOn: document.performedOn,
+  debrief: document.debrief ?? {},
   selectedId: undefined,
   picking: undefined,
   // Fresh ids never collide with loaded ones ("s12", "e3", ...).
@@ -64,6 +71,7 @@ export const toDocument = (state: EditorState): ImportDocument => ({
   text: state.text,
   spans: state.spans,
   ...(state.performedOn === undefined ? {} : { performedOn: state.performedOn }),
+  ...(isEmptyDebrief(state.debrief) ? {} : { debrief: normalizeDebrief(state.debrief) }),
 });
 
 /** Drops references to removed spans; a replaced movement hands its links to `heir`. */
@@ -291,6 +299,8 @@ export const editorReducer = (state: EditorState, action: EditorAction): EditorS
     }
     case "setDate":
       return { ...state, performedOn: action.date };
+    case "setDebrief":
+      return { ...state, debrief: action.debrief };
     case "replaceAll":
       return { ...state, spans: byStart(action.spans), selectedId: undefined, picking: undefined };
     case "tagPhrase": {

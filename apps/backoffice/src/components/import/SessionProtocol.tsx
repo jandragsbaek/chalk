@@ -207,7 +207,7 @@ export function SessionProtocol({
   readonly handlers: ProtocolHandlers;
 }) {
   return (
-    <div className="grid content-start pb-10">
+    <div className="grid content-start">
       {session.issues.length > 0 ? (
         <Issues issues={session.issues} lineOf={lineOf} onSelect={handlers.onSelect} />
       ) : null}
