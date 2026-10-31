@@ -1495,6 +1495,44 @@
                     "end"
                   ],
                   "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "_tag": {
+                      "type": "string",
+                      "enum": [
+                        "benchmark"
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                      "minLength": 1
+                    },
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "benchmarkId": {
+                      "type": "string",
+                      "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "_tag",
+                    "id",
+                    "start",
+                    "end"
+                  ],
+                  "additionalProperties": false
                 }
               ]
             }
@@ -2037,6 +2075,11 @@
           },
           "notes": {
             "type": "string"
+          },
+          "benchmarkId": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
           },
           "createdAt": {
             "type": "string"

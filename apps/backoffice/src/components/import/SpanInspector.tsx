@@ -1,4 +1,8 @@
 import {
+  BENCHMARK_CATEGORY_NAMES,
+  BENCHMARKS,
+  benchmarkById,
+  BenchmarkId,
   BlockFormat,
   formatQuantity,
   Measure,
@@ -37,7 +41,13 @@ const TAG_TITLES: Record<Span["_tag"], string> = {
   date: "Date",
   session: "Session number",
   score: "Score",
+  benchmark: "Benchmark",
 };
+
+const BENCHMARK_GROUPS = (["girl", "hero", "notable"] as const).map((category) => ({
+  category,
+  benchmarks: BENCHMARKS.filter((benchmark) => benchmark.category === category),
+}));
 
 const toNumber = (raw: string) => {
   const value = Number(raw.replace(",", "."));
@@ -206,7 +216,9 @@ export function SpanInspector({
     const name =
       target._tag === "movement" && target.movementId
         ? catalog.find((movement) => movement.id === target.movementId)?.name
-        : undefined;
+        : target._tag === "benchmark" && target.benchmarkId
+          ? benchmarkById(target.benchmarkId)?.name
+          : undefined;
     return name ?? text.slice(target.start, target.end);
   };
 
@@ -328,7 +340,7 @@ export function SpanInspector({
 
       {span._tag === "score" ? (
         <LinkRow
-          label="Scores block"
+          label="Scores"
           target={textOf(span.attachedTo)}
           picking={picking === "attach"}
           onPick={() => onPick(picking === "attach" ? undefined : "attach")}
@@ -451,6 +463,10 @@ export function SpanInspector({
         </div>
       ) : null}
 
+      {span._tag === "benchmark" ? (
+        <BenchmarkField key={span.id} span={span} catalog={catalog} onUpdate={onUpdate} />
+      ) : null}
+
       {span._tag === "part" || span._tag === "notes" ? (
         <p className="text-sm text-muted-foreground">
           {span._tag === "part"
@@ -459,5 +475,66 @@ export function SpanInspector({
         </p>
       ) : null}
     </section>
+  );
+}
+
+/** Which named workout the mark is, and what the part gets from it. */
+function BenchmarkField({
+  span,
+  catalog,
+  onUpdate,
+}: {
+  readonly span: SpanOf<"benchmark">;
+  readonly catalog: ReadonlyArray<CatalogMovement>;
+  readonly onUpdate: (span: Span) => void;
+}) {
+  const benchmark = span.benchmarkId === undefined ? undefined : benchmarkById(span.benchmarkId);
+  const nameOf = (id: MovementId) => catalog.find((movement) => movement.id === id)?.name ?? id;
+  return (
+    <div className="grid gap-3 text-sm">
+      <label className="grid gap-1">
+        <span className="form-label text-muted-foreground">Workout</span>
+        <NativeSelect
+          value={span.benchmarkId ?? ""}
+          onChange={(event) => {
+            const { benchmarkId: _old, ...rest } = span;
+            const picked = benchmarkById(event.target.value);
+            onUpdate(picked ? { ...rest, benchmarkId: BenchmarkId.make(picked.id) } : rest);
+          }}
+        >
+          <option value="">Pick a benchmark</option>
+          {BENCHMARK_GROUPS.map((group) => (
+            <optgroup key={group.category} label={BENCHMARK_CATEGORY_NAMES[group.category]}>
+              {group.benchmarks.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </NativeSelect>
+      </label>
+      {benchmark ? (
+        <div className="grid gap-1">
+          {benchmark.blocks
+            .map((block, index) => ({ ...block, key: `${benchmark.id}-${index}` }))
+            .map((block) => (
+              <p key={block.key}>
+                <span className="font-semibold">{block.title}</span>
+                {block.items.length > 0 ? ": " : ""}
+                {block.items
+                  .map((item) =>
+                    [nameOf(item.movementId), ...item.quantities.map(formatQuantity)].join(" "),
+                  )
+                  .join(", ")}
+              </p>
+            ))}
+        </div>
+      ) : null}
+      <p className="text-muted-foreground">
+        The part it sits in is this benchmark. Without movements of its own, the part gets the
+        benchmark's blocks and movements; attach a score to it to count the attempt.
+      </p>
+    </div>
   );
 }

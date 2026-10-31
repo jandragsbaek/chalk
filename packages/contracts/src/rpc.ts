@@ -13,7 +13,13 @@ import {
   MovementRecords,
   StrengthStorageError,
 } from "./strength.ts";
-import { LogWorkoutInput, Workout, WorkoutNotFoundError, WorkoutStorageError } from "./workout.ts";
+import {
+  BenchmarkResult,
+  LogWorkoutInput,
+  Workout,
+  WorkoutNotFoundError,
+  WorkoutStorageError,
+} from "./workout.ts";
 
 export const RPC_METHODS = {
   workoutsList: "workouts.list",
@@ -25,6 +31,7 @@ export const RPC_METHODS = {
   liftsDelete: "lifts.delete",
   liftsRecords: "lifts.records",
   levelsList: "levels.list",
+  benchmarksResults: "benchmarks.results",
 } as const;
 
 /** Mount point for the RPC endpoint on the server, and the web dev proxy. */
@@ -77,6 +84,12 @@ const LevelsListRpc = Rpc.make(RPC_METHODS.levelsList, {
   error: LevelStorageError,
 });
 
+/** Every attempt at a named workout, newest first; the benchmarks themselves are contracts data. */
+const BenchmarksResultsRpc = Rpc.make(RPC_METHODS.benchmarksResults, {
+  success: Schema.Array(BenchmarkResult),
+  error: WorkoutStorageError,
+});
+
 export const ChalkRpcGroup = RpcGroup.make(
   WorkoutsListRpc,
   WorkoutsLogRpc,
@@ -87,4 +100,5 @@ export const ChalkRpcGroup = RpcGroup.make(
   LiftsDeleteRpc,
   LiftsRecordsRpc,
   LevelsListRpc,
+  BenchmarksResultsRpc,
 );

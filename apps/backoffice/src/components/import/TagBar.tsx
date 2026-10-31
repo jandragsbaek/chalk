@@ -19,6 +19,7 @@ export const TAG_ACTIONS: ReadonlyArray<TagAction> = [
   { key: "c", label: "Calories", choice: { tag: "quantity", measure: "calories" } },
   { key: "b", label: "Block", choice: { tag: "block" } },
   { key: "h", label: "Part", choice: { tag: "part" } },
+  { key: "w", label: "Benchmark", choice: { tag: "benchmark" } },
   { key: "i", label: "Intent (line)", choice: { tag: "intent" } },
   { key: "o", label: "Score", choice: { tag: "score" } },
   { key: "n", label: "Notes", choice: { tag: "notes" } },

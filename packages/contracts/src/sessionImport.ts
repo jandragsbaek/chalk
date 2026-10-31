@@ -1,6 +1,7 @@
 import * as Schema from "effect/Schema";
 
 import {
+  BenchmarkId,
   IsoDate,
   IsoDateTime,
   MovementId,
@@ -98,10 +99,9 @@ const spanFields = {
 };
 
 /**
- * One highlighted range of the pasted text. Spans never overlap. Structure follows from them:
- * `part` and `block` spans open a part and a block, a `movement` is an item, `quantity` spans
- * hang off a movement, an `intent` is the coach's instruction for its block, and movements
- * after a `notes` span are results whose loads become lift sets.
+ * One highlighted range of the pasted text; spans never overlap. `part`/`block` open a part
+ * and a block, `movement` is an item with `quantity` spans hanging off it, `intent` instructs its
+ * block, `benchmark` names the part's workout, and after `notes` movements become lift sets.
  */
 export const Span = Schema.TaggedUnion({
   date: { ...spanFields, date: IsoDate },
@@ -122,8 +122,10 @@ export const Span = Schema.TaggedUnion({
     performance: Schema.optionalKey(Performance),
   },
   quantity: { ...spanFields, ...Quantity.fields, attachedTo: Schema.optionalKey(SpanId) },
-  /** A score as written ("12+5", "8:32"); attached to the block it scores. */
+  /** A score as written ("12+5", "8:32"); attached to the block or benchmark it scores. */
   score: { ...spanFields, attachedTo: Schema.optionalKey(SpanId) },
+  /** "Fran", "Murph": absent until the athlete picks one; saving needs it resolved. */
+  benchmark: { ...spanFields, benchmarkId: Schema.optionalKey(BenchmarkId) },
 });
 export type Span = typeof Span.Type;
 export type SpanTag = Span["_tag"];

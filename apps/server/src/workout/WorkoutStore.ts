@@ -1,9 +1,13 @@
 import {
+  BenchmarkId,
+  benchmarkById,
+  findBenchmark,
   LogWorkoutInput,
   Workout,
   WorkoutId,
   WorkoutKind,
   WorkoutNotFoundError,
+  type BenchmarkResult,
   type WorkoutStats,
 } from "@chalk/contracts";
 import * as Context from "effect/Context";
@@ -16,6 +20,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 
 import { deleteWorkoutRows } from "./deleteWorkoutRows.ts";
+import { insertBenchmarkPart } from "./insertBenchmarkPart.ts";
 
 export class WorkoutPersistenceError extends Schema.TaggedError<WorkoutPersistenceError>()(
   "WorkoutPersistenceError",
@@ -26,6 +31,7 @@ export class WorkoutPersistenceError extends Schema.TaggedError<WorkoutPersisten
       "count workouts",
       "log workout",
       "delete workout",
+      "list benchmark results",
     ]),
     cause: Schema.Defect(),
   },
@@ -43,7 +49,26 @@ const WorkoutRow = Schema.Struct({
   score: Workout.fields.score,
   rx: Schema.Number,
   notes: Schema.String,
+  benchmarkId: Schema.NullOr(BenchmarkId),
   createdAt: Workout.fields.createdAt,
+});
+
+const ResultRow = Schema.Struct({
+  benchmarkId: BenchmarkId,
+  workoutId: WorkoutId,
+  performedOn: Workout.fields.performedOn,
+  score: Schema.String,
+  rx: Schema.Number,
+  imported: Schema.Number,
+});
+
+/** Workouts logged before benchmarks existed: no parts, so only the name says which one. */
+const UnlinkedRow = Schema.Struct({
+  workoutId: WorkoutId,
+  performedOn: Workout.fields.performedOn,
+  name: Schema.String,
+  score: Schema.String,
+  rx: Schema.Number,
 });
 
 const KindCountRow = Schema.Struct({
@@ -52,7 +77,20 @@ const KindCountRow = Schema.Struct({
   rxCount: Schema.Number,
 });
 
-const toWorkout = (row: typeof WorkoutRow.Type): Workout => ({ ...row, rx: row.rx === 1 });
+const toWorkout = ({ benchmarkId, ...row }: typeof WorkoutRow.Type): Workout => ({
+  ...row,
+  rx: row.rx === 1,
+  ...(benchmarkId === null ? {} : { benchmarkId }),
+});
+
+// The first benchmark part names the session's benchmark.
+const WORKOUT_COLUMNS = `
+  w.id, w.performed_on AS "performedOn", w.name, w.kind, w.score, w.rx, w.notes,
+  (SELECT p.benchmark_id FROM workout_parts p
+   WHERE p.workout_id = w.id AND p.benchmark_id IS NOT NULL
+   ORDER BY p.position LIMIT 1) AS "benchmarkId",
+  w.created_at AS "createdAt"
+`;
 
 export class WorkoutStore extends Context.Service<
   WorkoutStore,
@@ -64,7 +102,10 @@ export class WorkoutStore extends Context.Service<
       query: string,
     ) => Effect.Effect<ReadonlyArray<Workout>, WorkoutPersistenceError>;
     readonly stats: () => Effect.Effect<WorkoutStats, WorkoutPersistenceError>;
+    /** With a benchmark, the session also gets its part, blocks and prescribed movements. */
     readonly log: (input: LogWorkoutInput) => Effect.Effect<Workout, WorkoutPersistenceError>;
+    /** Every attempt at a benchmark, newest first, logged or imported. */
+    readonly results: () => Effect.Effect<ReadonlyArray<BenchmarkResult>, WorkoutPersistenceError>;
     readonly remove: (
       id: WorkoutId,
     ) => Effect.Effect<void, WorkoutNotFoundError | WorkoutPersistenceError>;
@@ -79,9 +120,8 @@ const make = Effect.gen(function* () {
     Request: Schema.Void,
     Result: WorkoutRow,
     execute: () => sql`
-      SELECT id, performed_on AS "performedOn", name, kind, score, rx, notes, created_at AS "createdAt"
-      FROM workouts
-      ORDER BY performed_on DESC, id DESC
+      SELECT ${sql.unsafe(WORKOUT_COLUMNS)} FROM workouts w
+      ORDER BY w.performed_on DESC, w.id DESC
     `,
   });
 
@@ -89,11 +129,10 @@ const make = Effect.gen(function* () {
     Request: Schema.String,
     Result: WorkoutRow,
     execute: (pattern) => sql`
-      SELECT id, performed_on AS "performedOn", name, kind, score, rx, notes, created_at AS "createdAt"
-      FROM workouts
-      WHERE name LIKE ${pattern} ESCAPE '!' OR score LIKE ${pattern} ESCAPE '!'
-         OR notes LIKE ${pattern} ESCAPE '!'
-      ORDER BY performed_on DESC, id DESC
+      SELECT ${sql.unsafe(WORKOUT_COLUMNS)} FROM workouts w
+      WHERE w.name LIKE ${pattern} ESCAPE '!' OR w.score LIKE ${pattern} ESCAPE '!'
+         OR w.notes LIKE ${pattern} ESCAPE '!'
+      ORDER BY w.performed_on DESC, w.id DESC
     `,
   });
 
@@ -105,6 +144,33 @@ const make = Effect.gen(function* () {
       FROM workouts
       GROUP BY kind
       ORDER BY count DESC, kind
+    `,
+  });
+
+  // A part's own block score wins; else the session's (the debrief result of an import).
+  const selectResults = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: ResultRow,
+    execute: () => sql`
+      SELECT p.benchmark_id AS "benchmarkId", w.id AS "workoutId", w.performed_on AS "performedOn",
+             COALESCE((SELECT b.score FROM workout_blocks b
+                       WHERE b.part_id = p.id AND b.score <> ''
+                       ORDER BY b.position LIMIT 1), w.score) AS score,
+             w.rx, EXISTS (SELECT 1 FROM session_imports si WHERE si.workout_id = w.id) AS imported
+      FROM workout_parts p JOIN workouts w ON w.id = p.workout_id
+      WHERE p.benchmark_id IS NOT NULL
+      ORDER BY w.performed_on DESC, w.id DESC, p.position
+    `,
+  });
+
+  const selectUnlinked = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: UnlinkedRow,
+    execute: () => sql`
+      SELECT w.id AS "workoutId", w.performed_on AS "performedOn", w.name, w.score, w.rx
+      FROM workouts w
+      WHERE NOT EXISTS (SELECT 1 FROM workout_parts p WHERE p.workout_id = w.id)
+      ORDER BY w.performed_on DESC, w.id DESC
     `,
   });
 
@@ -146,14 +212,51 @@ const make = Effect.gen(function* () {
       id: WorkoutId.make(yield* random.uuidV7()),
       createdAt: DateTime.formatIso(yield* DateTime.now),
     };
-    yield* sql`
-      INSERT INTO workouts (id, performed_on, name, kind, score, rx, notes, created_at)
-      VALUES (${workout.id}, ${workout.performedOn}, ${workout.name}, ${workout.kind},
-              ${workout.score}, ${workout.rx ? 1 : 0}, ${workout.notes}, ${workout.createdAt})
-    `.pipe(
+    const benchmark =
+      input.benchmarkId === undefined ? undefined : benchmarkById(input.benchmarkId);
+    yield* Effect.gen(function* () {
+      yield* sql`
+        INSERT INTO workouts (id, performed_on, name, kind, score, rx, notes, created_at)
+        VALUES (${workout.id}, ${workout.performedOn}, ${workout.name}, ${workout.kind},
+                ${workout.score}, ${workout.rx ? 1 : 0}, ${workout.notes}, ${workout.createdAt})
+      `;
+      if (benchmark)
+        yield* insertBenchmarkPart(sql, random.uuidV7(), {
+          workoutId: workout.id,
+          benchmark,
+          score: workout.score,
+          asPrescribed: workout.rx,
+        });
+    }).pipe(
+      sql.withTransaction,
       Effect.mapError((cause) => new WorkoutPersistenceError({ operation: "log workout", cause })),
     );
     return workout;
+  });
+
+  const results = Effect.fn("WorkoutStore.results")(function* () {
+    const { linked, unlinked } = yield* Effect.all({
+      linked: selectResults(undefined),
+      unlinked: selectUnlinked(undefined),
+    }).pipe(
+      Effect.mapError(
+        (cause) => new WorkoutPersistenceError({ operation: "list benchmark results", cause }),
+      ),
+    );
+    const fromParts = linked.map((row): BenchmarkResult => ({
+      ...row,
+      rx: row.imported === 1 ? null : row.rx === 1,
+      imported: row.imported === 1,
+    }));
+    const byName = unlinked.flatMap((row): ReadonlyArray<BenchmarkResult> => {
+      const benchmark = findBenchmark(row.name);
+      if (benchmark === undefined) return [];
+      const { name: _name, ...rest } = row;
+      return [{ ...rest, benchmarkId: benchmark.id, rx: row.rx === 1, imported: false }];
+    });
+    return [...fromParts, ...byName].sort((left, right) =>
+      right.performedOn.localeCompare(left.performedOn),
+    );
   });
 
   const remove = Effect.fn("WorkoutStore.remove")(function* (id: WorkoutId) {
@@ -167,7 +270,7 @@ const make = Effect.gen(function* () {
     if (deleted.length === 0) return yield* new WorkoutNotFoundError({ id });
   });
 
-  return WorkoutStore.of({ list, search, stats, log, remove });
+  return WorkoutStore.of({ list, search, stats, log, results, remove });
 });
 
 export const layer = Layer.effect(WorkoutStore, make);

@@ -1,4 +1,5 @@
 import {
+  findBenchmark,
   isEmptyDebrief,
   lineIndexAt,
   normalizeDebrief,
@@ -34,7 +35,17 @@ export interface EditorState {
 export type TagChoice =
   | { readonly tag: "movement"; readonly movementId: MovementId | undefined }
   | { readonly tag: "quantity"; readonly measure: Measure }
-  | { readonly tag: "block" | "part" | "notes" | "intent" | "date" | "session" | "score" };
+  | {
+      readonly tag:
+        | "block"
+        | "part"
+        | "notes"
+        | "intent"
+        | "date"
+        | "session"
+        | "score"
+        | "benchmark";
+    };
 
 export type EditorAction =
   | {
@@ -170,6 +181,16 @@ const makeSpan = (
         .at(-1);
       return { _tag: "score", id, start, end, ...(lastBlock ? { attachedTo: lastBlock.id } : {}) };
     }
+    case "benchmark": {
+      const benchmark = findBenchmark(text);
+      return {
+        _tag: "benchmark",
+        id,
+        start,
+        end,
+        ...(benchmark === undefined ? {} : { benchmarkId: benchmark.id }),
+      };
+    }
     case "part":
     case "notes":
     case "intent":
@@ -218,7 +239,7 @@ const canTarget = (picked: Span, target: Span, mode: PickMode) => {
   if (picked.id === target.id) return false;
   if (mode === "alternative") return picked._tag === "movement" && target._tag === "movement";
   if (picked._tag === "quantity") return target._tag === "movement";
-  if (picked._tag === "score") return target._tag === "block";
+  if (picked._tag === "score") return target._tag === "block" || target._tag === "benchmark";
   return false;
 };
 

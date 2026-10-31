@@ -1,4 +1,6 @@
-import type { BenchmarkId, MovementId } from "../baseSchemas.ts";
+import * as Schema from "effect/Schema";
+
+import { BenchmarkId, type MovementId } from "../baseSchemas.ts";
 import type { WorkoutKind } from "../workout.ts";
 import { GIRLS } from "./girls.ts";
 import { HEROES } from "./heroes/index.ts";
@@ -15,6 +17,11 @@ export const BENCHMARKS: ReadonlyArray<Benchmark> = [...GIRLS, ...HEROES, ...NOT
 const BY_ID = new Map<string, Benchmark>(BENCHMARKS.map((benchmark) => [benchmark.id, benchmark]));
 
 export const benchmarkById = (id: BenchmarkId | string): Benchmark | undefined => BY_ID.get(id);
+
+/** A benchmark id Chalk knows; for payloads, so a log never points at a missing workout. */
+export const KnownBenchmarkId = BenchmarkId.check(
+  Schema.makeFilter((id) => BY_ID.has(id) || `${id} is not a known benchmark`),
+);
 
 /** "Mr. Joshua", "mr joshua" and "MR JOSHUA:" are one name; "Jack’s Triangle" is "jacks triangle". */
 export const normalizeBenchmarkName = (name: string): string =>

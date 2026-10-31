@@ -117,11 +117,11 @@ describe("ChalkAdminApi imports", () => {
     Effect.gen(function* () {
       const client = yield* makeImportClient;
       yield* client.movements.create({
-        payload: { name: "Wall walk", category: "gymnastics", aliases: [] },
+        payload: { name: "Sandbag lunge", category: "other", aliases: [] },
       });
       const catalog = yield* client.movements.list();
 
-      const text = "** Session 12 <2026-02-03 ti>\n- Amrap 7\n- 4 Wall walks\n- 15 Wall balls";
+      const text = "** Session 12 <2026-02-03 ti>\n- Amrap 7\n- 4 Sandbag lunges\n- 15 Wall balls";
       let next = 0;
       const document = {
         text,
@@ -134,7 +134,7 @@ describe("ChalkAdminApi imports", () => {
       expect(conflict._tag).toBe("ImportConflictError");
 
       const invalid = yield* client.imports
-        .save({ payload: { document: { text: "- 4 Wall walks", spans: [] } } })
+        .save({ payload: { document: { text: "- 4 Sandbag lunges", spans: [] } } })
         .pipe(Effect.flip);
       expect(invalid._tag).toBe("ImportInvalidError");
 
