@@ -78,6 +78,45 @@ numbers, so they need no catalog entry.
 (same movement, no scaling option, load and reps at or above prescribed). The current
 `workouts.rx` column stays for workouts logged before parts existed.
 
+### Levels (built)
+
+Every movement can be graded on a row of GymDanmark's FF level sheet
+([Øvelses- og niveauoversigt, March 2026](https://gymdanmark.dk/wp-content/uploads/2026/03/Oevelses-og-niveauoversigt-i-FF-Open-Age-U19-20-U21-22-M30-34-M35-39-M40-44-M45-49.pdf)):
+Fundamentals, Scaled, Intermediate, RX, plus an **Elite** rung Chalk writes itself (the sheet
+stops at RX; loads are RX plus about 20 %, gymnastics a harder variation such as a strict ring
+muscle-up). The sheet is data in `packages/contracts/src/levels.ts` (`LEVEL_FAMILIES`).
+
+- **Family**: one row of the sheet. `kind: "load"` grades by kilograms per implement
+  (barbell, KB and DB rows; dual loads for two implements; American swings for RX);
+  `kind: "variant"` grades by the variation done (jumping pull-up, pull-up, chest-to-bar, ...).
+  The back squat row is the squat row plus the sheet's from-the-rack 10/5 kg (20/10 at RX).
+- **Movement**: `movements.level_family` names its row (seeded for the catalog; set in the
+  importer for the rest). A movement on no row is not graded.
+- **Grading**: a load meets the highest rung at or under it, and sits between rungs on the
+  ruler. A variation meets the rung it enters at and every rung above that asks for nothing new
+  (toes-to-bar enter at Intermediate and also meet RX). Rungs the sheet leaves out ("-") are
+  skipped. Loads use the athlete's side of M/F (`ATHLETE_SEX`, male until the setup wizard).
+- **Performance** (on the movement span, stored as `workout_items.performance`): how it was
+  done. Empty means as prescribed; `loadKg` per implement and `implements` (1 or 2); `variants`
+  splits the reps ("6 pull-ups, 44 jumping"); `unbroken` is the biggest unbroken set of the
+  hardest variation. A lift result's heaviest set counts as the load. A swap to another family
+  (dumbbell for barbell thrusters) is graded on the family it belongs to.
+- **Performed level** of a variant family: the highest rung more than half the reps reached.
+  **Capability**: the hardest variation done at all (with its unbroken set), or for loads the
+  estimated 1RM. Capability past the next rung means the gap is volume; under it, skill.
+- **Division** of a session: the lowest level every graded movement reaches, like a
+  competition division; programmed (the board) and performed (what was done) are separate.
+  The board's "Rx" is often a GymDanmark Scaled or Fundamentals.
+- **Accessory**: `movements.accessory`, with `complements` (a fixed vocabulary of patterns and
+  muscles: `horizontal_pull`, `single_leg`, `lats`, ...) and `supports` (the families it builds
+  toward). An accessory with a natural row (Bulgarian split squats on DB squats, lunges) is
+  graded too.
+- Not graded: wall walks (hand distance not recorded), D-ball and sandbag, endurance. Box
+  height is not recorded, so box jumps stop at Scaled.
+
+Later: standards from Competition Corner divisions (national and international) as more
+sources next to GymDanmark's; the athlete's sex from a setup wizard.
+
 ### Workout, parts and items
 
 **Built for imports** (`workout_parts`, `workout_blocks`, `workout_items`): a part holds ordered

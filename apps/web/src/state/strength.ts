@@ -18,3 +18,8 @@ export const liftRecordsAtom = ChalkClient.query(RPC_METHODS.liftsRecords, undef
 export const logLiftSetAtom = ChalkClient.mutation(RPC_METHODS.liftsLog);
 
 export const deleteLiftSetAtom = ChalkClient.mutation(RPC_METHODS.liftsDelete);
+
+/** The catalog with its sheet rows and every programmed movement, for the levels page. */
+export const levelsAtom = ChalkClient.query(RPC_METHODS.levelsList, undefined, {
+  reactivityKeys: [LIFTS_REACTIVITY_KEY],
+});

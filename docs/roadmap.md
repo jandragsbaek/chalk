@@ -33,8 +33,12 @@ coach.
 
 ## 4. Scaling
 
+- Levels after GymDanmark's FF sheet (done): every movement graded on a row of the sheet plus
+  Chalk's Elite rung; how a movement was done (load, reps by variation, biggest unbroken set)
+  recorded in the importer; programmed and performed level per movement and per session;
+  accessories tagged with what they complement. Web: `/levels`, a ruler per family.
+- Standards from Competition Corner divisions (national, international) as extra sources.
 - `scaling_options` catalog per movement, ranked.
-- Record scaling on performed items; Rx derived.
 - Per-movement scaling timeline ("banded → kipping → Rx").
 
 ## 5. Volume grid
@@ -51,5 +55,7 @@ coach.
 
 - Custom movements and aliases (done through the importer; no catalog screen yet).
 - kg / lb display preference.
+- Athlete sex (M/F) as a setting from a first-run setup wizard; picks which side of M/F loads
+  (prescriptions and level standards like GymDanmark's "20/12") applies. Assumed male until then.
 - Backoffice: catalog management (movements, scaling options, templates).
 - Import pasted session text (done: backoffice → Import, see domain.md). Whiteboard photos later.

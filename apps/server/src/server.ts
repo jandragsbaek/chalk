@@ -16,6 +16,7 @@ import * as CatalogStore from "./catalog/CatalogStore.ts";
 import * as ServerConfig from "./config.ts";
 import * as Sqlite from "./persistence/Sqlite.ts";
 import * as ImportStore from "./import/ImportStore.ts";
+import * as LevelStore from "./levels/LevelStore.ts";
 import * as Rpc from "./rpc.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
@@ -25,6 +26,7 @@ const layerServices = Layer.mergeAll(
   StrengthStore.layer,
   CatalogStore.layer,
   ImportStore.layer,
+  LevelStore.layer.pipe(Layer.provide(CatalogStore.layer)),
 ).pipe(Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)));
 
 /** `api` mode: the app's RPC endpoint. */

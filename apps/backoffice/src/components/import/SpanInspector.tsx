@@ -7,6 +7,7 @@ import {
   type BlockParams,
   type CatalogMovement,
   type DerivedItem,
+  type ItemGrade,
   type LiftResult,
   type MovementId,
   type Span,
@@ -21,7 +22,9 @@ import { BLOCK_FORMAT_LABELS, MEASURE_LABELS } from "../../lib/blockLabels.ts";
 import type { PickMode } from "../../lib/importEditor.ts";
 import type { ResultDefaults } from "../../lib/resultDraft.ts";
 import { CoreMovementField } from "./CoreMovementField.tsx";
+import { MovementLevelsField } from "./MovementLevelsField.tsx";
 import { MovementPicker } from "./MovementPicker.tsx";
+import { PerformanceEditor } from "./PerformanceEditor.tsx";
 import { ResultEditor } from "./ResultEditor.tsx";
 
 const TAG_TITLES: Record<Span["_tag"], string> = {
@@ -177,7 +180,11 @@ export function SpanInspector({
   readonly picking: PickMode | undefined;
   /** The derived item of a programmed movement (not one in the notes), which can take a result. */
   readonly programmed:
-    | { readonly item: DerivedItem; readonly defaults: ResultDefaults }
+    | {
+        readonly item: DerivedItem;
+        readonly defaults: ResultDefaults;
+        readonly grade: ItemGrade | undefined;
+      }
     | undefined;
   readonly onUpdate: (span: Span) => void;
   readonly onRemove: (id: SpanId) => void;
@@ -236,6 +243,7 @@ export function SpanInspector({
             onPick={(movementId, learned) => onMovementPicked(span, movementId, learned)}
           />
           {picked ? <CoreMovementField movement={picked} catalog={catalog} /> : null}
+          {picked ? <MovementLevelsField movement={picked} /> : null}
           <LinkRow
             label="Alternative of"
             target={textOf(span.alternativeOf)}
@@ -246,6 +254,18 @@ export function SpanInspector({
               onUpdate(rest);
             }}
           />
+          {programmed ? (
+            <PerformanceEditor
+              performance={span.performance}
+              item={programmed.item}
+              grade={programmed.grade}
+              catalog={catalog}
+              onChange={(performance) => {
+                const { performance: _old, ...rest } = span;
+                onUpdate(performance === undefined ? rest : { ...rest, performance });
+              }}
+            />
+          ) : null}
           {programmed ? (
             <ResultEditor
               result={span.result}

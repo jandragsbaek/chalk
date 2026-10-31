@@ -1,11 +1,13 @@
 import {
   ChalkRpcGroup,
+  LevelStorageError,
   RPC_METHODS,
   StrengthStorageError,
   WorkoutStorageError,
 } from "@chalk/contracts";
 import * as Effect from "effect/Effect";
 
+import * as LevelStore from "./levels/LevelStore.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
@@ -20,11 +22,17 @@ const reportStrengthStorageError = (error: StrengthStore.StrengthPersistenceErro
     Effect.andThen(Effect.fail(new StrengthStorageError({ operation: error.operation }))),
   );
 
+const reportLevelStorageError = (error: LevelStore.LevelPersistenceError) =>
+  Effect.logError(error.message, error.cause).pipe(
+    Effect.andThen(Effect.fail(new LevelStorageError({ operation: error.operation }))),
+  );
+
 /** Thin transport: RpcServer decodes the payload, the handler calls one service method and maps errors. */
 export const layer = ChalkRpcGroup.toLayer(
   Effect.gen(function* () {
     const store = yield* WorkoutStore.WorkoutStore;
     const strength = yield* StrengthStore.StrengthStore;
+    const levels = yield* LevelStore.LevelStore;
     const onStrengthError = { StrengthPersistenceError: reportStrengthStorageError };
     return ChalkRpcGroup.of({
       [RPC_METHODS.workoutsList]: () =>
@@ -41,6 +49,10 @@ export const layer = ChalkRpcGroup.toLayer(
       [RPC_METHODS.liftsDelete]: ({ id }) =>
         strength.remove(id).pipe(Effect.catchTags(onStrengthError)),
       [RPC_METHODS.liftsRecords]: () => strength.records().pipe(Effect.catchTags(onStrengthError)),
+      [RPC_METHODS.levelsList]: () =>
+        levels
+          .overview()
+          .pipe(Effect.catchTags({ LevelPersistenceError: reportLevelStorageError })),
     });
   }),
 );

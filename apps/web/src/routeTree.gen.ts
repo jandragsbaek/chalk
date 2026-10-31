@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LevelsRouteImport } from './routes/levels'
 import { Route as StrengthRouteImport } from './routes/strength'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LevelsRoute = LevelsRouteImport.update({
+  id: '/levels',
+  path: '/levels',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StrengthRoute = StrengthRouteImport.update({
@@ -25,27 +31,31 @@ const StrengthRoute = StrengthRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/levels': typeof LevelsRoute
   '/strength': typeof StrengthRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/levels': typeof LevelsRoute
   '/strength': typeof StrengthRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/levels': typeof LevelsRoute
   '/strength': typeof StrengthRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/strength'
+  fullPaths: '/' | '/levels' | '/strength'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/strength'
-  id: '__root__' | '/' | '/strength'
+  to: '/' | '/levels' | '/strength'
+  id: '__root__' | '/' | '/levels' | '/strength'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LevelsRoute: typeof LevelsRoute
   StrengthRoute: typeof StrengthRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/levels': {
+      id: '/levels'
+      path: '/levels'
+      fullPath: '/levels'
+      preLoaderRoute: typeof LevelsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/strength': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LevelsRoute: LevelsRoute,
   StrengthRoute: StrengthRoute,
 }
 export const routeTree = rootRouteImport

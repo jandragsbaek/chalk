@@ -8,6 +8,7 @@ import {
   ImportNotFoundError,
   ImportSummary,
   MovementId,
+  Performance,
   Quantity,
   WorkoutId,
   type DerivedIntent,
@@ -47,6 +48,9 @@ const SetsJson = Schema.fromJsonString(
   Schema.Array(Schema.Struct({ line: Schema.Int, quantities: Schema.Array(Schema.Unknown) })),
 );
 const encodeSets = Schema.encodeEffect(SetsJson);
+
+const PerformanceJson = Schema.fromJsonString(Performance);
+const encodePerformance = Schema.encodeEffect(PerformanceJson);
 
 const IntentsJson = Schema.fromJsonString(
   Schema.Array(Schema.Struct({ text: Schema.String, quantities: Schema.Array(Quantity) })),
@@ -171,9 +175,13 @@ const make = Effect.gen(function* () {
       if (current.movementId === undefined) continue;
       const id = yield* newId;
       const prescription = yield* encodeSets(current.sets as ReadonlyArray<DerivedSet>);
+      const performance =
+        current.performance === undefined ? null : yield* encodePerformance(current.performance);
       yield* sql`
-        INSERT INTO workout_items (id, block_id, position, movement_id, alternative_of, prescription)
-        VALUES (${id}, ${blockId}, ${position}, ${current.movementId}, ${alternativeOf}, ${prescription})
+        INSERT INTO workout_items (id, block_id, position, movement_id, alternative_of, prescription,
+                                   performance)
+        VALUES (${id}, ${blockId}, ${position}, ${current.movementId}, ${alternativeOf},
+                ${prescription}, ${performance})
       `;
       for (const [index, set] of current.performed.entries())
         yield* sql`

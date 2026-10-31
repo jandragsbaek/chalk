@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 
 import { MovementId } from "../baseSchemas.ts";
+import type { Performance } from "../levels.ts";
 import type { ImportDocument, LiftResult, Span } from "../sessionImport.ts";
 import {
   blockingIssues,
@@ -312,5 +313,51 @@ describe("lift results", () => {
     expect(messages({ _tag: "ramp", sets: 6, reps: 2, startKg: 10, stepKg: -5 })).toEqual([
       ["numbers", "Snatch: every load must be above 0 and at most 1000 kg."],
     ]);
+  });
+});
+
+describe("performance", () => {
+  const withPerformance = (movementId: string, performance: Performance): ImportDocument => {
+    const document = documentOf(SESSION_166);
+    return {
+      ...document,
+      spans: document.spans.map((span) =>
+        span._tag === "movement" && span.movementId === movementId
+          ? { ...span, performance }
+          : span,
+      ),
+    };
+  };
+  const pullUps = (session: ReturnType<typeof deriveSession>) =>
+    session.parts
+      .flatMap((part) => part.blocks.flatMap((block) => block.items))
+      .flatMap((item) => [item, ...item.alternatives])
+      .find((item) => item.movementId === "pull-up");
+
+  it("carries how a movement was done onto its item", () => {
+    const performance: Performance = {
+      variants: [{ movementId: MovementId.make("pull-up"), reps: 6 }],
+      unbroken: 2,
+    };
+    const session = deriveSession(withPerformance("pull-up", performance), nameOf);
+    expect(pullUps(session)?.performance).toEqual(performance);
+    expect(blockingIssues(session)).toEqual([]);
+  });
+
+  it("refuses a variation outside the catalog or an impossible number", () => {
+    const messages = (performance: Performance) =>
+      blockingIssues(deriveSession(withPerformance("pull-up", performance), nameOf)).map(
+        (issue) => issue.message,
+      );
+    expect(messages({ variants: [{ movementId: MovementId.make("nope"), reps: 4 }] })).toEqual([
+      'Pull-up: "nope" is not in the catalog.',
+    ]);
+    expect(messages({ loadKg: 2000 })).toEqual(["Pull-up: the load must be at most 1000 kg."]);
+    expect(messages({ unbroken: 5000 })).toEqual([
+      "Pull-up: the biggest unbroken set must be 0 to 1000.",
+    ]);
+    expect(
+      pullUps(deriveSession(withPerformance("pull-up", { loadKg: 2000 }), nameOf))?.performance,
+    ).toBeUndefined();
   });
 });
