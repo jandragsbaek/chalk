@@ -1,11 +1,11 @@
 import { cn } from "@chalk/ui/lib/utils.ts";
 import type { KeyboardEvent, ReactNode } from "react";
-import { useState } from "react";
 
-export const kgFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
-export const kg = (value: number) => `${kgFormat.format(value)} kg`;
+/** Estimates carry one decimal; more would be false precision. */
+const kgFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
+export const kg = (value: number) => `${kgFormat.format(value)}\u00a0kg`;
 export const signedKg = (value: number) =>
-  `${value >= 0 ? "+" : "−"}${kgFormat.format(Math.abs(value))} kg`;
+  `${value >= 0 ? "+" : "−"}${kgFormat.format(Math.abs(value))}\u00a0kg`;
 
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: "short" });
 const dayFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
@@ -15,13 +15,19 @@ const fullDayFormat = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
   year: "numeric",
 });
-export const formatMonth = (date: Date) => monthFormat.format(date);
-const monthYearFormat = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" });
-export const formatMonthYear = (date: Date) => monthYearFormat.format(date);
+/** Axis ticks: "Mar", and the year in place of January so long ranges stay readable. */
+export const formatMonthTick = (date: Date) =>
+  date.getMonth() === 0 ? String(date.getFullYear()) : monthFormat.format(date);
 export const formatShortDay = (date: Date) => dayFormat.format(date);
+const dayWithYearFormat = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+export const formatDayWithYear = (date: Date) => dayWithYearFormat.format(date);
 export const formatFullDay = (date: Date) => fullDayFormat.format(date);
 
-/** Axis and grid styling shared by every mockup: hairline, recessive, muted ink. */
+/** Axis and grid styling for every chart: hairline, recessive, muted ink. */
 export const AXIS = {
   stroke: "var(--viz-axis)",
   tickStroke: "var(--viz-axis)",
@@ -32,6 +38,19 @@ export const AXIS = {
     fontFamily: "inherit",
   },
 } as const;
+
+/** First-of-month ticks inside `[from, to]`, thinned to at most `max`. Calendar ticks keep a
+ * three-month range from repeating "Aug Aug Aug" the way weekly ticks would. */
+export function monthTicks(from: Date, to: Date, max: number): Date[] {
+  const months: Date[] = [];
+  const cursor = new Date(from.getFullYear(), from.getMonth() + (from.getDate() > 1 ? 1 : 0), 1);
+  while (cursor <= to) {
+    months.push(new Date(cursor));
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  const step = Math.max(1, Math.ceil(months.length / Math.max(1, max)));
+  return months.filter((_, index) => index % step === 0);
+}
 
 /** Index of the item whose x is closest to `x`. Items must be sorted by x. */
 export function nearestIndex(xs: ReadonlyArray<number>, x: number): number {
@@ -156,69 +175,7 @@ export function DataTable<Row>({
   );
 }
 
-/** A mockup card: title, summary slot, legend, and a Chart / Table switch (the table is the
- * accessible twin of every chart). */
-export function ChartFrame({
-  id,
-  title,
-  description,
-  summary,
-  legend,
-  controls,
-  table,
-  children,
-}: {
-  id: string;
-  title: string;
-  description: string;
-  summary?: ReactNode;
-  legend?: ReactNode;
-  controls?: ReactNode;
-  table: ReactNode;
-  children: ReactNode;
-}) {
-  const [view, setView] = useState<"chart" | "table">("chart");
-  return (
-    <figure
-      aria-labelledby={`${id}-title`}
-      data-viz
-      className="grid gap-4 rounded-lg border bg-card p-4 sm:p-5"
-    >
-      <header className="grid gap-1">
-        <div className="flex items-center justify-between gap-3">
-          <h3 id={`${id}-title`} className="text-base font-semibold text-balance">
-            {title}
-          </h3>
-          <Segmented
-            label={`${title} view`}
-            value={view}
-            onChange={setView}
-            options={[
-              { value: "chart", label: "Chart" },
-              { value: "table", label: "Table" },
-            ]}
-          />
-        </div>
-        <p className="max-w-prose text-sm text-muted-foreground">{description}</p>
-      </header>
-      {controls || summary ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {controls}
-          {summary}
-        </div>
-      ) : null}
-      {view === "chart" ? (
-        <>
-          {children}
-          {legend}
-        </>
-      ) : (
-        table
-      )}
-    </figure>
-  );
-}
-
+/** Small two-to-four option switch (Chart / Table, ranges). */
 export function Segmented<Value extends string>({
   label,
   value,

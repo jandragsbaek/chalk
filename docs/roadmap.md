@@ -14,7 +14,9 @@ coach.
 
 ## 2. Strength progress over time
 
-- Per-movement page: every set, rep maxes, and a chart of best set and estimated 1RM per week.
+- Estimated 1RM chart on `/strength` (done): per lift, best estimate to date with formula
+  spread, every session as a dot, singles marked.
+- Per-movement page: every set, rep maxes, and that chart in one place.
 - RPE per set; percentage helper off the current 1RM.
 - Optional "attempt" marker for true max-out days.
 
