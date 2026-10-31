@@ -3,3 +3,5 @@ export * from "./workout.ts";
 export * from "./strength.ts";
 export * from "./rpc.ts";
 export * from "./adminApi.ts";
+export * from "./sessionImport.ts";
+export * from "./sessionImport/index.ts";

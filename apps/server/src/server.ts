@@ -12,15 +12,20 @@ import * as RpcServer from "effect/rpc/RpcServer";
 import * as NodeHttp from "node:http";
 
 import * as AdminApi from "./adminApi.ts";
+import * as CatalogStore from "./catalog/CatalogStore.ts";
 import * as ServerConfig from "./config.ts";
 import * as Sqlite from "./persistence/Sqlite.ts";
+import * as ImportStore from "./import/ImportStore.ts";
 import * as Rpc from "./rpc.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
-const layerServices = Layer.mergeAll(WorkoutStore.layer, StrengthStore.layer).pipe(
-  Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)),
-);
+const layerServices = Layer.mergeAll(
+  WorkoutStore.layer,
+  StrengthStore.layer,
+  CatalogStore.layer,
+  ImportStore.layer,
+).pipe(Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)));
 
 /** `api` mode: the app's RPC endpoint. */
 const layerRpcRoute = RpcServer.layerHttp({
@@ -32,7 +37,11 @@ const layerRpcRoute = RpcServer.layerHttp({
 /** `admin` mode: only the admin HttpApi, plus its OpenAPI document. */
 const layerAdminApiRoute = HttpApiBuilder.layer(ChalkAdminApi, {
   openapiPath: `${ADMIN_API_PREFIX}/openapi.json`,
-}).pipe(Layer.provide(AdminApi.layerWorkouts));
+}).pipe(
+  Layer.provide(
+    Layer.mergeAll(AdminApi.layerWorkouts, AdminApi.layerMovements, AdminApi.layerImports),
+  ),
+);
 
 /** In production the server also serves the mode's built SPA, so one origin hosts everything. */
 const layerSpaRoute = Layer.unwrap(

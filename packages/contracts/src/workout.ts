@@ -10,8 +10,8 @@ export const Workout = Schema.Struct({
   performedOn: IsoDate,
   name: TrimmedNonEmptyString,
   kind: WorkoutKind,
-  /** Free-form so every format fits: "4:32", "12+5", "225 lb". */
-  score: TrimmedNonEmptyString,
+  /** Free-form so every format fits: "4:32", "12+5", "225 lb". Empty for imported sessions without one. */
+  score: Schema.String,
   rx: Schema.Boolean,
   notes: Schema.String,
   createdAt: IsoDateTime,

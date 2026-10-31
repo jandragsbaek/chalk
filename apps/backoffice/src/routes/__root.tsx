@@ -1,19 +1,33 @@
 import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
-import { ShieldCheck } from "lucide-react";
 
 export const Route = createRootRoute({ component: RootLayout });
 
+function NavTab({ to, label, exact }: { to: "/" | "/import"; label: string; exact?: boolean }) {
+  return (
+    <Link
+      to={to}
+      activeOptions={{ exact: exact ?? false }}
+      className="flex h-12 items-center border-b-2 border-transparent px-3 text-sm font-semibold uppercase tracking-wide text-band-muted font-stretch-semi-condensed hover:text-band-foreground data-[status=active]:border-band-foreground data-[status=active]:text-band-foreground"
+    >
+      {label}
+    </Link>
+  );
+}
+
 function RootLayout() {
   return (
-    <div className="mx-auto min-h-dvh max-w-5xl px-6 pb-16">
-      <header className="flex items-center justify-between border-b py-4">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-md bg-foreground text-background">
-            <ShieldCheck className="size-4" />
-          </span>
-          <span className="font-semibold tracking-tight">Chalk Backoffice</span>
-        </Link>
-        <span className="text-xs text-muted-foreground">Admin host</span>
+    <div className="flex min-h-dvh flex-col">
+      <header className="sticky top-0 z-30 bg-band text-band-foreground">
+        <div className="flex h-12 items-center gap-6 px-6">
+          <Link to="/" className="flex items-baseline gap-2.5">
+            <span className="protocol-title text-2xl">Chalk</span>
+            <span className="form-label text-band-muted">Backoffice</span>
+          </Link>
+          <nav aria-label="Sections" className="flex items-center">
+            <NavTab to="/" label="Workouts" exact />
+            <NavTab to="/import" label="Import" />
+          </nav>
+        </div>
       </header>
       <Outlet />
     </div>

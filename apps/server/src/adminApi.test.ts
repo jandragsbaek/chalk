@@ -1,4 +1,10 @@
-import { ChalkAdminApi, WorkoutId, type LogWorkoutInput } from "@chalk/contracts";
+import {
+  ChalkAdminApi,
+  makeMovementMatcher,
+  suggestSpans,
+  WorkoutId,
+  type LogWorkoutInput,
+} from "@chalk/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
@@ -7,7 +13,9 @@ import * as HttpServer from "effect/http/HttpServer";
 import * as Layer from "effect/Layer";
 
 import * as AdminApi from "./adminApi.ts";
+import * as CatalogStore from "./catalog/CatalogStore.ts";
 import * as ServerConfig from "./config.ts";
+import * as ImportStore from "./import/ImportStore.ts";
 import * as Sqlite from "./persistence/Sqlite.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
@@ -88,5 +96,53 @@ describe("ChalkAdminApi workouts", () => {
         .pipe(Effect.flip);
       expect(error._tag).toBe("WorkoutNotFoundError");
     }).pipe(Effect.scoped, Effect.provide(layer)),
+  );
+});
+
+const importLayer = Layer.mergeAll(
+  AdminApi.layerWorkouts,
+  AdminApi.layerMovements,
+  AdminApi.layerImports,
+).pipe(
+  Layer.provideMerge(Layer.mergeAll(WorkoutStore.layer, CatalogStore.layer, ImportStore.layer)),
+  Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)),
+  Layer.provide(ServerConfig.layerTest()),
+  Layer.merge(HttpServer.layerServices),
+);
+
+const makeImportClient = HttpApiTest.groups(ChalkAdminApi, ["workouts", "movements", "imports"]);
+
+describe("ChalkAdminApi imports", () => {
+  it.effect("teaches the catalog a movement, then imports a session that uses it", () =>
+    Effect.gen(function* () {
+      const client = yield* makeImportClient;
+      yield* client.movements.create({
+        payload: { name: "Wall walk", category: "gymnastics", aliases: [] },
+      });
+      const catalog = yield* client.movements.list();
+
+      const text = "** Session 12 <2026-02-03 ti>\n- Amrap 7\n- 4 Wall walks\n- 15 Wall balls";
+      let next = 0;
+      const document = {
+        text,
+        spans: suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`),
+      };
+      const saved = yield* client.imports.save({ payload: { document } });
+      expect(saved).toMatchObject({ sessionNumber: 12, itemCount: 2 });
+
+      const conflict = yield* client.imports.save({ payload: { document } }).pipe(Effect.flip);
+      expect(conflict._tag).toBe("ImportConflictError");
+
+      const invalid = yield* client.imports
+        .save({ payload: { document: { text: "- 4 Wall walks", spans: [] } } })
+        .pipe(Effect.flip);
+      expect(invalid._tag).toBe("ImportInvalidError");
+
+      const stored = yield* client.imports.get({ params: { workoutId: saved.workoutId } });
+      expect(stored.document.spans).toEqual(document.spans);
+      expect(yield* client.imports.list()).toEqual([saved]);
+      const [workout] = yield* client.workouts.search({ query: {} });
+      expect(workout).toMatchObject({ name: "Session 12", kind: "amrap" });
+    }).pipe(Effect.scoped, Effect.provide(importLayer)),
   );
 });

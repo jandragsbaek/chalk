@@ -16,7 +16,7 @@ export function WorkoutSearch({ query }: { readonly query: string }) {
   }
 
   return (
-    <form role="search" className="flex w-full max-w-sm gap-2" onSubmit={handleSubmit}>
+    <form role="search" className="flex w-full max-w-sm gap-1.5" onSubmit={handleSubmit}>
       <Input
         name="q"
         type="search"

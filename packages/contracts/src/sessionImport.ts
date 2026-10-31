@@ -1,0 +1,228 @@
+import * as Schema from "effect/Schema";
+
+import {
+  IsoDate,
+  IsoDateTime,
+  MovementId,
+  TrimmedNonEmptyString,
+  WorkoutId,
+} from "./baseSchemas.ts";
+import { MovementCategory } from "./strength.ts";
+
+/**
+ * Session import: the athlete pastes one session as text, Chalk suggests spans over it, the
+ * athlete corrects them, and the structure (parts, blocks, items, lift sets) is derived from the
+ * spans. The text and the spans are the source of truth; everything else is re-derivable.
+ */
+
+/** Client-made id of a span; unique within one document only. */
+export const SpanId = TrimmedNonEmptyString;
+export type SpanId = typeof SpanId.Type;
+
+/** What one number in the text counts. Loads are kilograms; pounds are converted on parse. */
+export const Measure = Schema.Literals([
+  "reps",
+  "sets",
+  "calories",
+  "distance_m",
+  "seconds",
+  "load_kg",
+  "percent_1rm",
+]);
+export type Measure = typeof Measure.Type;
+
+const NonNegative = Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0));
+
+/** `min === max` for an exact number; "8-10" is `{ min: 8, max: 10 }`. */
+export const Amount = Schema.Struct({ min: NonNegative, max: NonNegative });
+export type Amount = typeof Amount.Type;
+
+export const Quantity = Schema.Struct({
+  measure: Measure,
+  amount: Amount,
+  /** Second number of a male/female split such as "12/10 cal" or "@40/25". */
+  female: Schema.optionalKey(Amount),
+  /** Reps per round, e.g. 21-15-9; `amount` is then the total. */
+  scheme: Schema.optionalKey(Schema.Array(NonNegative)),
+}).annotate({ identifier: "Quantity" });
+export type Quantity = typeof Quantity.Type;
+
+export const BlockFormat = Schema.Literals([
+  "amrap",
+  "emom",
+  "every",
+  "intervals",
+  "for_time",
+  "strength",
+  "rest",
+  "other",
+]);
+export type BlockFormat = typeof BlockFormat.Type;
+
+export const BlockParams = Schema.Struct({
+  durationSeconds: Schema.optionalKey(NonNegative),
+  intervalSeconds: Schema.optionalKey(NonNegative),
+  workSeconds: Schema.optionalKey(NonNegative),
+  restSeconds: Schema.optionalKey(NonNegative),
+  rounds: Schema.optionalKey(Amount),
+  scheme: Schema.optionalKey(Schema.Array(NonNegative)),
+});
+export type BlockParams = typeof BlockParams.Type;
+
+const spanFields = {
+  id: SpanId,
+  start: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  end: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+};
+
+/**
+ * One highlighted range of the pasted text. Spans never overlap. Structure follows from them:
+ * a `part` span starts a part, a `block` span starts a block inside it, a `movement` span is an
+ * item, and `quantity` spans hang off a movement through `attachedTo`. Movements inside the
+ * region opened by a `notes` span are results: their loads become lift sets.
+ */
+export const Span = Schema.TaggedUnion({
+  date: { ...spanFields, date: IsoDate },
+  session: { ...spanFields, number: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)) },
+  part: { ...spanFields },
+  notes: { ...spanFields },
+  block: { ...spanFields, format: BlockFormat, params: BlockParams },
+  movement: {
+    ...spanFields,
+    /** Absent until the athlete picks one; saving needs every movement resolved. */
+    movementId: Schema.optionalKey(MovementId),
+    /** "60 double-unders or 90 single-unders": the single-under span points at the first. */
+    alternativeOf: Schema.optionalKey(SpanId),
+  },
+  quantity: { ...spanFields, ...Quantity.fields, attachedTo: Schema.optionalKey(SpanId) },
+  /** A score as written ("12+5", "8:32"); attached to the block it scores. */
+  score: { ...spanFields, attachedTo: Schema.optionalKey(SpanId) },
+});
+export type Span = typeof Span.Type;
+export type SpanTag = Span["_tag"];
+export type SpanOf<Tag extends SpanTag> = Extract<Span, { readonly _tag: Tag }>;
+
+export const ImportDocument = Schema.Struct({
+  text: Schema.String,
+  spans: Schema.Array(Span),
+  /** Used only when no `date` span exists (the paste had no session heading). */
+  performedOn: Schema.optionalKey(IsoDate),
+}).annotate({ identifier: "ImportDocument" });
+export type ImportDocument = typeof ImportDocument.Type;
+
+/** A movement with the phrases that also match it when parsing text ("DU", "Squat snatch"). */
+export const CatalogMovement = Schema.Struct({
+  id: MovementId,
+  name: TrimmedNonEmptyString,
+  category: MovementCategory,
+  aliases: Schema.Array(Schema.String),
+}).annotate({ identifier: "CatalogMovement" });
+export type CatalogMovement = typeof CatalogMovement.Type;
+
+export const CreateMovementInput = Schema.Struct({
+  name: TrimmedNonEmptyString,
+  category: MovementCategory,
+  aliases: Schema.Array(TrimmedNonEmptyString),
+});
+export type CreateMovementInput = typeof CreateMovementInput.Type;
+
+export const AddAliasInput = Schema.Struct({ alias: TrimmedNonEmptyString });
+export type AddAliasInput = typeof AddAliasInput.Type;
+
+export const SaveImportInput = Schema.Struct({
+  document: ImportDocument,
+  /** The imported session this save replaces (re-import or conflict resolution). */
+  replace: Schema.optionalKey(WorkoutId),
+});
+export type SaveImportInput = typeof SaveImportInput.Type;
+
+export const ImportSummary = Schema.Struct({
+  workoutId: WorkoutId,
+  performedOn: IsoDate,
+  sessionNumber: Schema.NullOr(Schema.Int),
+  name: TrimmedNonEmptyString,
+  partCount: Schema.Int,
+  itemCount: Schema.Int,
+  liftSetCount: Schema.Int,
+  importedAt: IsoDateTime,
+}).annotate({ identifier: "ImportSummary" });
+export type ImportSummary = typeof ImportSummary.Type;
+
+export const StoredImport = Schema.Struct({
+  summary: ImportSummary,
+  document: ImportDocument,
+}).annotate({ identifier: "StoredImport" });
+export type StoredImport = typeof StoredImport.Type;
+
+export class MovementExistsError extends Schema.TaggedError<MovementExistsError>()(
+  "MovementExistsError",
+  { id: MovementId, name: Schema.String },
+  { httpApiStatus: 409 },
+) {
+  override get message(): string {
+    return `A movement named ${this.name} already exists.`;
+  }
+}
+
+export class AliasTakenError extends Schema.TaggedError<AliasTakenError>()(
+  "AliasTakenError",
+  { alias: Schema.String, movementId: MovementId },
+  { httpApiStatus: 409 },
+) {
+  override get message(): string {
+    return `"${this.alias}" already means ${this.movementId}.`;
+  }
+}
+
+export class CatalogNotFoundError extends Schema.TaggedError<CatalogNotFoundError>()(
+  "CatalogNotFoundError",
+  { id: MovementId },
+  { httpApiStatus: 404 },
+) {
+  override get message(): string {
+    return `Movement ${this.id} is not in the catalog.`;
+  }
+}
+
+/** The document does not derive to a saveable session; `problems` are the blocking issues. */
+export class ImportInvalidError extends Schema.TaggedError<ImportInvalidError>()(
+  "ImportInvalidError",
+  { problems: Schema.Array(Schema.String) },
+  { httpApiStatus: 400 },
+) {
+  override get message(): string {
+    return `The session cannot be saved: ${this.problems.join(" ")}`;
+  }
+}
+
+/** Same session number (or same day, without one) is already imported. */
+export class ImportConflictError extends Schema.TaggedError<ImportConflictError>()(
+  "ImportConflictError",
+  { existing: ImportSummary },
+  { httpApiStatus: 409 },
+) {
+  override get message(): string {
+    return `${this.existing.name} on ${this.existing.performedOn} is already imported.`;
+  }
+}
+
+export class ImportNotFoundError extends Schema.TaggedError<ImportNotFoundError>()(
+  "ImportNotFoundError",
+  { workoutId: WorkoutId },
+  { httpApiStatus: 404 },
+) {
+  override get message(): string {
+    return `No imported session for workout ${this.workoutId}.`;
+  }
+}
+
+/** Server-side storage failed; the cause stays on the server. */
+export class ImportStorageError extends Schema.TaggedError<ImportStorageError>()(
+  "ImportStorageError",
+  { operation: Schema.String },
+  { httpApiStatus: 500 },
+) {
+  override get message(): string {
+    return `Could not ${this.operation}.`;
+  }
+}

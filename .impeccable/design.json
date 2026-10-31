@@ -1,0 +1,705 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-31T00:00:00Z",
+  "title": "Design System: Chalk",
+  "extensions": {
+    "colorMeta": {
+      "background": {
+        "role": "neutral",
+        "displayName": "Photocopy Paper",
+        "canonical": "oklch(0.975 0.005 255)",
+        "tonalRamp": [
+          "oklch(0.15 0.002 255)",
+          "oklch(0.25 0.003 255)",
+          "oklch(0.35 0.003 255)",
+          "oklch(0.45 0.004 255)",
+          "oklch(0.55 0.005 255)",
+          "oklch(0.65 0.004 255)",
+          "oklch(0.80 0.003 255)",
+          "oklch(0.95 0.002 255)"
+        ],
+        "dark": "oklch(0.17 0.014 262)"
+      },
+      "foreground": {
+        "role": "primary",
+        "displayName": "Blue-Black Ink",
+        "canonical": "oklch(0.22 0.03 262)",
+        "tonalRamp": [
+          "oklch(0.15 0.010 262)",
+          "oklch(0.25 0.015 262)",
+          "oklch(0.35 0.020 262)",
+          "oklch(0.45 0.025 262)",
+          "oklch(0.55 0.030 262)",
+          "oklch(0.65 0.025 262)",
+          "oklch(0.80 0.017 262)",
+          "oklch(0.95 0.010 262)"
+        ],
+        "dark": "oklch(0.93 0.01 255)"
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Fresh Sheet",
+        "canonical": "oklch(0.995 0.002 255)",
+        "tonalRamp": [
+          "oklch(0.15 0.001 255)",
+          "oklch(0.25 0.001 255)",
+          "oklch(0.35 0.001 255)",
+          "oklch(0.45 0.002 255)",
+          "oklch(0.55 0.002 255)",
+          "oklch(0.65 0.002 255)",
+          "oklch(0.80 0.001 255)",
+          "oklch(0.95 0.001 255)"
+        ],
+        "dark": "oklch(0.2 0.016 262)"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Ruled Tint",
+        "canonical": "oklch(0.945 0.008 255)",
+        "tonalRamp": [
+          "oklch(0.15 0.003 255)",
+          "oklch(0.25 0.004 255)",
+          "oklch(0.35 0.005 255)",
+          "oklch(0.45 0.007 255)",
+          "oklch(0.55 0.008 255)",
+          "oklch(0.65 0.007 255)",
+          "oklch(0.80 0.005 255)",
+          "oklch(0.95 0.003 255)"
+        ],
+        "dark": "oklch(0.24 0.018 262)"
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Pencil Grey",
+        "canonical": "oklch(0.46 0.022 262)",
+        "tonalRamp": [
+          "oklch(0.15 0.007 262)",
+          "oklch(0.25 0.011 262)",
+          "oklch(0.35 0.015 262)",
+          "oklch(0.45 0.018 262)",
+          "oklch(0.55 0.022 262)",
+          "oklch(0.65 0.018 262)",
+          "oklch(0.80 0.013 262)",
+          "oklch(0.95 0.007 262)"
+        ],
+        "dark": "oklch(0.72 0.018 262)"
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Form Rule",
+        "canonical": "oklch(0.86 0.012 262)",
+        "tonalRamp": [
+          "oklch(0.15 0.004 262)",
+          "oklch(0.25 0.006 262)",
+          "oklch(0.35 0.008 262)",
+          "oklch(0.45 0.010 262)",
+          "oklch(0.55 0.012 262)",
+          "oklch(0.65 0.010 262)",
+          "oklch(0.80 0.007 262)",
+          "oklch(0.95 0.004 262)"
+        ],
+        "dark": "oklch(0.32 0.018 262)"
+      },
+      "input": {
+        "role": "neutral",
+        "displayName": "Box Edge",
+        "canonical": "oklch(0.72 0.02 262)",
+        "tonalRamp": [
+          "oklch(0.15 0.007 262)",
+          "oklch(0.25 0.010 262)",
+          "oklch(0.35 0.013 262)",
+          "oklch(0.45 0.017 262)",
+          "oklch(0.55 0.020 262)",
+          "oklch(0.65 0.017 262)",
+          "oklch(0.80 0.012 262)",
+          "oklch(0.95 0.007 262)"
+        ],
+        "dark": "oklch(0.46 0.02 262)"
+      },
+      "ring": {
+        "role": "primary",
+        "displayName": "Ballpoint Blue",
+        "canonical": "oklch(0.5 0.16 262)",
+        "tonalRamp": [
+          "oklch(0.15 0.053 262)",
+          "oklch(0.25 0.080 262)",
+          "oklch(0.35 0.107 262)",
+          "oklch(0.45 0.133 262)",
+          "oklch(0.55 0.160 262)",
+          "oklch(0.65 0.133 262)",
+          "oklch(0.80 0.093 262)",
+          "oklch(0.95 0.053 262)"
+        ],
+        "dark": "oklch(0.72 0.12 262)"
+      },
+      "primary": {
+        "role": "primary",
+        "displayName": "Blue-Black Ink",
+        "canonical": "oklch(0.22 0.03 262)",
+        "tonalRamp": [
+          "oklch(0.15 0.010 262)",
+          "oklch(0.25 0.015 262)",
+          "oklch(0.35 0.020 262)",
+          "oklch(0.45 0.025 262)",
+          "oklch(0.55 0.030 262)",
+          "oklch(0.65 0.025 262)",
+          "oklch(0.80 0.017 262)",
+          "oklch(0.95 0.010 262)"
+        ],
+        "dark": "oklch(0.93 0.01 255)"
+      },
+      "primary-foreground": {
+        "role": "neutral",
+        "displayName": "Paper Ink",
+        "canonical": "oklch(0.985 0.004 255)",
+        "tonalRamp": [
+          "oklch(0.15 0.001 255)",
+          "oklch(0.25 0.002 255)",
+          "oklch(0.35 0.003 255)",
+          "oklch(0.45 0.003 255)",
+          "oklch(0.55 0.004 255)",
+          "oklch(0.65 0.003 255)",
+          "oklch(0.80 0.002 255)",
+          "oklch(0.95 0.001 255)"
+        ],
+        "dark": "oklch(0.2 0.02 262)"
+      },
+      "destructive": {
+        "role": "secondary",
+        "displayName": "Official Red",
+        "canonical": "oklch(0.53 0.2 27)",
+        "tonalRamp": [
+          "oklch(0.15 0.067 27)",
+          "oklch(0.25 0.100 27)",
+          "oklch(0.35 0.133 27)",
+          "oklch(0.45 0.167 27)",
+          "oklch(0.55 0.200 27)",
+          "oklch(0.65 0.167 27)",
+          "oklch(0.80 0.117 27)",
+          "oklch(0.95 0.067 27)"
+        ],
+        "dark": "oklch(0.68 0.18 27)"
+      },
+      "band": {
+        "role": "neutral",
+        "displayName": "Header Band",
+        "canonical": "oklch(0.22 0.03 262)",
+        "tonalRamp": [
+          "oklch(0.15 0.010 262)",
+          "oklch(0.25 0.015 262)",
+          "oklch(0.35 0.020 262)",
+          "oklch(0.45 0.025 262)",
+          "oklch(0.55 0.030 262)",
+          "oklch(0.65 0.025 262)",
+          "oklch(0.80 0.017 262)",
+          "oklch(0.95 0.010 262)"
+        ],
+        "dark": "oklch(0.11 0.012 262)"
+      },
+      "band-foreground": {
+        "role": "neutral",
+        "displayName": "Band Paper",
+        "canonical": "oklch(0.975 0.005 255)",
+        "tonalRamp": [
+          "oklch(0.15 0.002 255)",
+          "oklch(0.25 0.003 255)",
+          "oklch(0.35 0.003 255)",
+          "oklch(0.45 0.004 255)",
+          "oklch(0.55 0.005 255)",
+          "oklch(0.65 0.004 255)",
+          "oklch(0.80 0.003 255)",
+          "oklch(0.95 0.002 255)"
+        ],
+        "dark": "oklch(0.93 0.01 255)"
+      },
+      "band-muted": {
+        "role": "neutral",
+        "displayName": "Band Pencil",
+        "canonical": "oklch(0.74 0.025 262)",
+        "tonalRamp": [
+          "oklch(0.15 0.008 262)",
+          "oklch(0.25 0.013 262)",
+          "oklch(0.35 0.017 262)",
+          "oklch(0.45 0.021 262)",
+          "oklch(0.55 0.025 262)",
+          "oklch(0.65 0.021 262)",
+          "oklch(0.80 0.015 262)",
+          "oklch(0.95 0.008 262)"
+        ],
+        "dark": "oklch(0.66 0.02 262)"
+      },
+      "copy-blue": {
+        "role": "tertiary",
+        "displayName": "Copy Blue",
+        "canonical": "oklch(0.9 0.05 245)",
+        "tonalRamp": [
+          "oklch(0.15 0.017 245)",
+          "oklch(0.25 0.025 245)",
+          "oklch(0.35 0.033 245)",
+          "oklch(0.45 0.042 245)",
+          "oklch(0.55 0.050 245)",
+          "oklch(0.65 0.042 245)",
+          "oklch(0.80 0.029 245)",
+          "oklch(0.95 0.017 245)"
+        ],
+        "dark": "oklch(0.36 0.07 250)"
+      },
+      "copy-blue-ink": {
+        "role": "tertiary",
+        "displayName": "Copy Blue Ink",
+        "canonical": "oklch(0.5 0.13 255)",
+        "tonalRamp": [
+          "oklch(0.15 0.043 255)",
+          "oklch(0.25 0.065 255)",
+          "oklch(0.35 0.087 255)",
+          "oklch(0.45 0.108 255)",
+          "oklch(0.55 0.130 255)",
+          "oklch(0.65 0.108 255)",
+          "oklch(0.80 0.076 255)",
+          "oklch(0.95 0.043 255)"
+        ],
+        "dark": "oklch(0.74 0.12 250)"
+      },
+      "copy-green": {
+        "role": "tertiary",
+        "displayName": "Copy Green",
+        "canonical": "oklch(0.91 0.06 155)",
+        "tonalRamp": [
+          "oklch(0.15 0.020 155)",
+          "oklch(0.25 0.030 155)",
+          "oklch(0.35 0.040 155)",
+          "oklch(0.45 0.050 155)",
+          "oklch(0.55 0.060 155)",
+          "oklch(0.65 0.050 155)",
+          "oklch(0.80 0.035 155)",
+          "oklch(0.95 0.020 155)"
+        ],
+        "dark": "oklch(0.36 0.06 155)"
+      },
+      "copy-green-ink": {
+        "role": "tertiary",
+        "displayName": "Copy Green Ink",
+        "canonical": "oklch(0.5 0.11 155)",
+        "tonalRamp": [
+          "oklch(0.15 0.037 155)",
+          "oklch(0.25 0.055 155)",
+          "oklch(0.35 0.073 155)",
+          "oklch(0.45 0.092 155)",
+          "oklch(0.55 0.110 155)",
+          "oklch(0.65 0.092 155)",
+          "oklch(0.80 0.064 155)",
+          "oklch(0.95 0.037 155)"
+        ],
+        "dark": "oklch(0.76 0.12 155)"
+      },
+      "copy-canary": {
+        "role": "tertiary",
+        "displayName": "Copy Canary",
+        "canonical": "oklch(0.94 0.1 100)",
+        "tonalRamp": [
+          "oklch(0.15 0.033 100)",
+          "oklch(0.25 0.050 100)",
+          "oklch(0.35 0.067 100)",
+          "oklch(0.45 0.083 100)",
+          "oklch(0.55 0.100 100)",
+          "oklch(0.65 0.083 100)",
+          "oklch(0.80 0.058 100)",
+          "oklch(0.95 0.033 100)"
+        ],
+        "dark": "oklch(0.4 0.07 95)"
+      },
+      "copy-canary-ink": {
+        "role": "tertiary",
+        "displayName": "Copy Canary Ink",
+        "canonical": "oklch(0.58 0.12 85)",
+        "tonalRamp": [
+          "oklch(0.15 0.040 85)",
+          "oklch(0.25 0.060 85)",
+          "oklch(0.35 0.080 85)",
+          "oklch(0.45 0.100 85)",
+          "oklch(0.55 0.120 85)",
+          "oklch(0.65 0.100 85)",
+          "oklch(0.80 0.070 85)",
+          "oklch(0.95 0.040 85)"
+        ],
+        "dark": "oklch(0.84 0.13 95)"
+      },
+      "copy-pink": {
+        "role": "tertiary",
+        "displayName": "Copy Pink",
+        "canonical": "oklch(0.9 0.06 350)",
+        "tonalRamp": [
+          "oklch(0.15 0.020 350)",
+          "oklch(0.25 0.030 350)",
+          "oklch(0.35 0.040 350)",
+          "oklch(0.45 0.050 350)",
+          "oklch(0.55 0.060 350)",
+          "oklch(0.65 0.050 350)",
+          "oklch(0.80 0.035 350)",
+          "oklch(0.95 0.020 350)"
+        ],
+        "dark": "oklch(0.36 0.07 350)"
+      },
+      "copy-pink-ink": {
+        "role": "tertiary",
+        "displayName": "Copy Pink Ink",
+        "canonical": "oklch(0.53 0.15 350)",
+        "tonalRamp": [
+          "oklch(0.15 0.050 350)",
+          "oklch(0.25 0.075 350)",
+          "oklch(0.35 0.100 350)",
+          "oklch(0.45 0.125 350)",
+          "oklch(0.55 0.150 350)",
+          "oklch(0.65 0.125 350)",
+          "oklch(0.80 0.087 350)",
+          "oklch(0.95 0.050 350)"
+        ],
+        "dark": "oklch(0.76 0.13 350)"
+      },
+      "copy-goldenrod": {
+        "role": "tertiary",
+        "displayName": "Copy Goldenrod",
+        "canonical": "oklch(0.89 0.08 70)",
+        "tonalRamp": [
+          "oklch(0.15 0.027 70)",
+          "oklch(0.25 0.040 70)",
+          "oklch(0.35 0.053 70)",
+          "oklch(0.45 0.067 70)",
+          "oklch(0.55 0.080 70)",
+          "oklch(0.65 0.067 70)",
+          "oklch(0.80 0.047 70)",
+          "oklch(0.95 0.027 70)"
+        ],
+        "dark": "oklch(0.38 0.07 65)"
+      },
+      "copy-goldenrod-ink": {
+        "role": "tertiary",
+        "displayName": "Copy Goldenrod Ink",
+        "canonical": "oklch(0.56 0.12 60)",
+        "tonalRamp": [
+          "oklch(0.15 0.040 60)",
+          "oklch(0.25 0.060 60)",
+          "oklch(0.35 0.080 60)",
+          "oklch(0.45 0.100 60)",
+          "oklch(0.55 0.120 60)",
+          "oklch(0.65 0.100 60)",
+          "oklch(0.80 0.070 60)",
+          "oklch(0.95 0.040 60)"
+        ],
+        "dark": "oklch(0.8 0.12 70)"
+      },
+      "copy-grey": {
+        "role": "tertiary",
+        "displayName": "Copy Grey",
+        "canonical": "oklch(0.92 0.01 262)",
+        "tonalRamp": [
+          "oklch(0.15 0.003 262)",
+          "oklch(0.25 0.005 262)",
+          "oklch(0.35 0.007 262)",
+          "oklch(0.45 0.008 262)",
+          "oklch(0.55 0.010 262)",
+          "oklch(0.65 0.008 262)",
+          "oklch(0.80 0.006 262)",
+          "oklch(0.95 0.003 262)"
+        ],
+        "dark": "oklch(0.3 0.015 262)"
+      },
+      "copy-grey-ink": {
+        "role": "tertiary",
+        "displayName": "Copy Grey Ink",
+        "canonical": "oklch(0.5 0.02 262)",
+        "tonalRamp": [
+          "oklch(0.15 0.007 262)",
+          "oklch(0.25 0.010 262)",
+          "oklch(0.35 0.013 262)",
+          "oklch(0.45 0.017 262)",
+          "oklch(0.55 0.020 262)",
+          "oklch(0.65 0.017 262)",
+          "oklch(0.80 0.012 262)",
+          "oklch(0.95 0.007 262)"
+        ],
+        "dark": "oklch(0.72 0.02 262)"
+      },
+      "lamp-good": {
+        "role": "neutral",
+        "displayName": "Lamp White",
+        "canonical": "oklch(0.99 0.003 255)",
+        "tonalRamp": [
+          "oklch(0.15 0.001 255)",
+          "oklch(0.25 0.002 255)",
+          "oklch(0.35 0.002 255)",
+          "oklch(0.45 0.002 255)",
+          "oklch(0.55 0.003 255)",
+          "oklch(0.65 0.003 255)",
+          "oklch(0.80 0.002 255)",
+          "oklch(0.95 0.001 255)"
+        ]
+      },
+      "lamp-fail": {
+        "role": "secondary",
+        "displayName": "Referee Red",
+        "canonical": "oklch(0.6 0.22 27)",
+        "tonalRamp": [
+          "oklch(0.15 0.073 27)",
+          "oklch(0.25 0.110 27)",
+          "oklch(0.35 0.147 27)",
+          "oklch(0.45 0.183 27)",
+          "oklch(0.55 0.220 27)",
+          "oklch(0.65 0.183 27)",
+          "oklch(0.80 0.128 27)",
+          "oklch(0.95 0.073 27)"
+        ]
+      },
+      "lamp-off": {
+        "role": "neutral",
+        "displayName": "Lamp Off",
+        "canonical": "oklch(0.34 0.025 262)",
+        "tonalRamp": [
+          "oklch(0.15 0.008 262)",
+          "oklch(0.25 0.013 262)",
+          "oklch(0.35 0.017 262)",
+          "oklch(0.45 0.021 262)",
+          "oklch(0.55 0.025 262)",
+          "oklch(0.65 0.021 262)",
+          "oklch(0.80 0.015 262)",
+          "oklch(0.95 0.008 262)"
+        ],
+        "dark": "oklch(0.28 0.02 262)"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page titles in condensed heavy caps (protocol-title), always over a 2px ink rule."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Session title in the protocol header strip; wordmark at 1.5rem."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Protocol section headings over a 2px ink rule; 1rem for small sub-sections."
+      },
+      "field-entry": {
+        "displayName": "Field Entry",
+        "purpose": "The value inside a protocol header box."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Table cells, rows, controls; 600 on buttons; meta drops to 0.75rem pencil grey."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Printed condensed caps (form-label) in box corners, column heads, pane titles, meta."
+      },
+      "source": {
+        "displayName": "Source",
+        "purpose": "Courier Prime for pasted session text, its echoes, line numbers and key caps."
+      }
+    },
+    "shadows": [
+      {
+        "name": "overlay-lift",
+        "value": "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+        "purpose": "Alert dialog only, over a 35% ink scrim, with a 4px ink top edge."
+      },
+      {
+        "name": "ink-underline",
+        "value": "inset 0 -0.125rem 0 var(--tag-ink)",
+        "purpose": "Not elevation: the ink edge under every carbonless tint (marks, chips, key swatches, current picker option)."
+      },
+      {
+        "name": "result-underline",
+        "value": "inset 0 -0.1875rem 0 var(--copy-goldenrod)",
+        "purpose": "Goldenrod line under result boxes."
+      },
+      {
+        "name": "lamp-bulb",
+        "value": "inset 0 -0.125rem 0.1875rem oklch(0 0 0 / 0.35)",
+        "purpose": "Inner curvature of a referee lamp."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-fast",
+        "value": "150ms ease-out",
+        "purpose": "Colour, border and outline changes on buttons, fields, marks and protocol rows; dialog fade and 95% scale."
+      },
+      {
+        "name": "lamp",
+        "value": "200ms ease-out",
+        "purpose": "Referee lamp colour change."
+      },
+      {
+        "name": "protocol-flash",
+        "value": "900ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Canary flash fading from 0.9 opacity on a row an edit changed; off under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "40rem",
+        "purpose": "Fields drop from 1rem to 0.875rem text."
+      },
+      {
+        "name": "lg",
+        "value": "64rem",
+        "purpose": "Workbench takes the viewport and splits into three ruled columns; inspector 18rem."
+      },
+      {
+        "name": "xl",
+        "value": "80rem",
+        "purpose": "Inspector widens to 22rem; header actions show text labels."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ink-filled square button for the one primary action (Save session, Suggest).",
+      "html": "<button class=\"ds-btn-primary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z\"/><path d=\"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7\"/><path d=\"M7 3v4a1 1 0 0 0 1 1h7\"/></svg>Save session</button>",
+      "css": ".ds-btn-primary { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:36px; padding:0 14px; border:1px solid; border-radius:0; font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; font-size:0.875rem; font-weight:600; cursor:pointer; transition:background-color 150ms, border-color 150ms, color 150ms; background:var(--primary); border-color:var(--primary); color:var(--primary-foreground); } .ds-btn-primary:hover { background:color-mix(in oklch, var(--primary) 85%, transparent); } .ds-btn-primary:focus-visible { outline:none; box-shadow:0 0 0 2px var(--background), 0 0 0 4px var(--ring); } .ds-btn-primary:disabled { opacity:0.45; pointer-events:none; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Fresh-sheet button with a box-edge stroke for secondary actions.",
+      "html": "<button class=\"ds-btn-outline\">Cancel</button>",
+      "css": ".ds-btn-outline { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:36px; padding:0 14px; border:1px solid; border-radius:0; font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; font-size:0.875rem; font-weight:600; cursor:pointer; transition:background-color 150ms, border-color 150ms, color 150ms; background:var(--card); border-color:var(--input); color:var(--foreground); } .ds-btn-outline:hover { background:var(--muted); border-color:var(--foreground); } .ds-btn-outline:focus-visible { outline:none; box-shadow:0 0 0 2px var(--background), 0 0 0 4px var(--ring); }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Official red fill, only to confirm a delete.",
+      "html": "<button class=\"ds-btn-destructive\">Delete workout</button>",
+      "css": ".ds-btn-destructive { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:36px; padding:0 14px; border:1px solid; border-radius:0; font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; font-size:0.875rem; font-weight:600; cursor:pointer; transition:background-color 150ms, border-color 150ms, color 150ms; background:var(--destructive); border-color:var(--destructive); color:var(--primary-foreground); } .ds-btn-destructive:hover { background:color-mix(in oklch, var(--destructive) 90%, transparent); } .ds-btn-destructive:focus-visible { outline:none; box-shadow:0 0 0 2px var(--background), 0 0 0 4px var(--ring); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Square writing box: fresh sheet, box-edge stroke, ballpoint focus.",
+      "html": "<input class=\"ds-input\" placeholder=\"Search workouts\" />",
+      "css": ".ds-input { width:100%; height:36px; padding:0 10px; background:var(--card); color:var(--foreground); border:1px solid var(--input); border-radius:0; font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; font-size:0.875rem; outline:none; transition:border-color 150ms; } .ds-input::placeholder { color:var(--muted-foreground); } .ds-input:hover { border-color:var(--foreground); } .ds-input:focus-visible { border-color:var(--ring); box-shadow:0 0 0 2px color-mix(in oklch, var(--ring) 30%, transparent); }"
+    },
+    {
+      "name": "Header Band",
+      "kind": "nav",
+      "refersTo": "header-band",
+      "description": "48px ink title block with wordmark and uppercase tabs; active tab carries a 2px paper rule.",
+      "html": "<header class=\"ds-band\"><span class=\"ds-band-mark\">Chalk</span><span class=\"ds-band-sub\">Backoffice</span><nav class=\"ds-band-nav\"><a class=\"ds-tab\" href=\"#\">Workouts</a><a class=\"ds-tab ds-tab-active\" href=\"#\">Import</a></nav></header>",
+      "css": ".ds-band { display:flex; align-items:center; gap:10px; height:48px; padding:0 24px; background:var(--band); color:var(--band-foreground); font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; } .ds-band-mark { font-size:1.5rem; font-weight:750; font-stretch:70%; text-transform:uppercase; letter-spacing:0.01em; line-height:1; } .ds-band-sub { font-size:0.6875rem; font-weight:600; font-stretch:75%; letter-spacing:0.06em; text-transform:uppercase; color:var(--band-muted); margin-right:14px; } .ds-band-nav { display:flex; } .ds-tab { display:flex; align-items:center; height:48px; padding:0 12px; border-bottom:2px solid transparent; box-sizing:border-box; color:var(--band-muted); text-decoration:none; font-size:0.875rem; font-weight:600; font-stretch:87.5%; letter-spacing:0.025em; text-transform:uppercase; } .ds-tab:hover { color:var(--band-foreground); } .ds-tab:focus-visible { outline:2px solid var(--ring); outline-offset:-2px; } .ds-tab-active { color:var(--band-foreground); border-bottom-color:var(--band-foreground); }"
+    },
+    {
+      "name": "Protocol Field Boxes",
+      "kind": "card",
+      "refersTo": "field-box",
+      "description": "Header strip of ruled boxes, corner label over a tabular entry.",
+      "html": "<dl class=\"ds-boxes\"><div class=\"ds-box\"><dt>Date</dt><dd>2026-10-28</dd></div><div class=\"ds-box\"><dt>Kind</dt><dd>AMRAP</dd></div><div class=\"ds-box\"><dt>Movements</dt><dd>7</dd></div></dl>",
+      "css": ".ds-boxes { display:flex; margin:0; background:var(--card); border:1px solid var(--border); font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; font-feature-settings:'tnum' 1; } .ds-box { display:grid; align-content:start; padding:6px 12px; } .ds-box + .ds-box { border-left:1px solid var(--border); } .ds-box dt { font-size:0.6875rem; line-height:1rem; font-weight:600; font-stretch:75%; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted-foreground); } .ds-box dd { margin:0; font-size:1.125rem; line-height:1.75rem; font-weight:600; font-stretch:87.5%; color:var(--foreground); }"
+    },
+    {
+      "name": "Tag Marks",
+      "kind": "chip",
+      "refersTo": "chip-movement",
+      "description": "Carbonless tag marks in Courier source: resolved (solid ink edge), open (dashed), selected (double).",
+      "html": "<p class=\"ds-src\"><mark class=\"ds-mark ds-reps\">12</mark> <mark class=\"ds-mark ds-move\">Thrusters</mark> <mark class=\"ds-mark ds-load\">@40/25</mark> <mark class=\"ds-mark ds-move ds-open\">Thruster</mark> <mark class=\"ds-mark ds-move ds-selected\">Thruster</mark></p>",
+      "css": ".ds-src { font-family:'Courier Prime', ui-monospace, Menlo, monospace; font-size:1rem; line-height:1.75rem; color:var(--foreground); } .ds-mark { color:inherit; padding:1px; background:var(--tag); box-shadow:inset 0 -2px 0 var(--tag-ink); cursor:pointer; transition:background-color 150ms ease-out, box-shadow 150ms ease-out, outline-color 150ms ease-out; } .ds-move { --tag:var(--copy-blue); --tag-ink:var(--copy-blue-ink); } .ds-reps { --tag:var(--copy-green); --tag-ink:var(--copy-green-ink); } .ds-load { --tag:var(--copy-canary); --tag-ink:var(--copy-canary-ink); } .ds-mark:hover { background:color-mix(in oklch, var(--tag-ink) 26%, var(--tag)); } .ds-open { background:transparent; box-shadow:none; outline:1.5px dashed var(--tag-ink); outline-offset:-1px; } .ds-selected { outline:3px double var(--tag-ink); outline-offset:1px; }"
+    },
+    {
+      "name": "Attempt Box",
+      "kind": "custom",
+      "refersTo": "attempt-box",
+      "description": "Prescription cell in a protocol row: box-edge stroke holding one tagged chip per set.",
+      "html": "<span class=\"ds-attempt\"><span class=\"ds-chip ds-c-reps\">12 reps</span><span class=\"ds-chip ds-c-load\">40/25 kg</span></span>",
+      "css": ".ds-attempt { display:inline-flex; gap:2px; padding:2px; border:1px solid var(--input); background:var(--card); font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; font-feature-settings:'tnum' 1; } .ds-chip { padding:0 6px; font-size:0.875rem; font-weight:500; line-height:1.5rem; color:var(--foreground); background:var(--tag); box-shadow:inset 0 -2px 0 var(--tag-ink); } .ds-c-reps { --tag:var(--copy-green); --tag-ink:var(--copy-green-ink); } .ds-c-load { --tag:var(--copy-canary); --tag-ink:var(--copy-canary-ink); }"
+    },
+    {
+      "name": "Referee Lamps",
+      "kind": "custom",
+      "refersTo": "lamp",
+      "description": "Signature: three lamps in an ink housing, white good, red no-lift; all white enables Save.",
+      "html": "<div class=\"ds-ref\"><div class=\"ds-lamps\"><span class=\"ds-l\"><i class=\"ds-lamp ds-good\"></i>D</span><span class=\"ds-l\"><i class=\"ds-lamp ds-fail\"></i>M</span><span class=\"ds-l\"><i class=\"ds-lamp ds-good\"></i>N</span></div><div class=\"ds-verdict\"><b>No lift</b><small>Check movements</small></div></div>",
+      "css": ".ds-ref { display:flex; align-items:center; gap:12px; font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; } .ds-lamps { display:flex; gap:8px; padding:6px 10px 4px; background:var(--band); } .ds-l { display:grid; justify-items:center; gap:2px; font-size:0.6875rem; line-height:1; font-weight:600; font-stretch:75%; letter-spacing:0.06em; color:var(--band-muted); } .ds-lamp { width:14px; height:14px; border-radius:9999px; background:var(--lamp-off); box-shadow:inset 0 -2px 3px oklch(0 0 0 / 0.35); transition:background-color 200ms ease-out; } .ds-good { background:var(--lamp-good); } .ds-fail { background:var(--lamp-fail); } .ds-verdict { display:grid; line-height:1.2; } .ds-verdict b { font-size:1rem; font-weight:700; font-stretch:75%; text-transform:uppercase; color:var(--destructive); } .ds-verdict small { font-size:0.75rem; color:var(--muted-foreground); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Meet Protocol Sheet",
+    "overview": "Every Chalk screen is an official weightlifting meet protocol being filled in. Cool photocopy-white paper, blue-black ink, a single official red for no-lifts, and carbonless-copy tints (blue, green, canary, pink, goldenrod) that tag data the way the duplicate sheets of a form are colour-coded. Structure comes from ruled 1px form lines and square boxes, each with a small condensed caps label printed in its corner. Nothing floats, nothing is rounded, nothing glows. Dark mode is the carbon side of the same form: a dark carbon ground with paper-coloured ink, the copy tints deepened rather than inverted.\n\nThe density is a working form, not a brochure. Panes are separated by rules, not gutters. Tables run edge to edge with tight 6px cell padding. Numbers are tabular everywhere, so columns of reps and loads align like handwritten entries in printed boxes. State is carried by stroke form as well as hue (solid edge resolved, dashed open, double outline selected), so a photocopy in greyscale would still read.\n\nThe world refuses the category default of rounded white cards on grey with one bright accent button. Ink fill is reserved for things you press and for the structural rules of the form; colour is reserved for tagged data and for the official no-lift red.",
+    "keyCharacteristics": [
+      "Cool paper ground, blue-black ink, hue 255 to 262 across every neutral.",
+      "One red (destructive) for no-lifts, flagged lines and destructive actions only.",
+      "Carbonless-copy tint pairs: a pale fill edged by a 2px ink underline of the same hue.",
+      "Square corners (0px) on every box, button, field and badge; only referee lamps are round.",
+      "Archivo on its width axis: condensed heavy caps for titles, condensed caps for labels.",
+      "Courier Prime for typed source text and its echoes.",
+      "Stroke form carries state: solid, dashed, double.",
+      "Flat paper; depth from rule weight and tone, not shadow."
+    ],
+    "rules": [
+      {
+        "name": "The One Red Rule",
+        "body": "Red means no-lift: a failed check, a flagged line, an unresolved row, a destructive action. It is never a brand accent, a highlight or a decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Carbon Copy Rule",
+        "body": "A tint never appears alone. Every tagged fill is edged by its own ink (a 2px inset underline, a 1px outline, or a dotted underline), and tints are spent only on tagged data, never on panels or decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink Pressable Rule",
+        "body": "Solid ink fill on the page means \"press this\" (primary button, primary badge) or a structural element of the form (header band, part marks, lamp housing). It is never used as a decorative panel.",
+        "section": "colors"
+      },
+      {
+        "name": "The Printed Label Rule",
+        "body": "Condensed caps labels belong to a box, a column or a pane: in a box's corner, heading a table column, titling a pane, or as right-hand meta. They never float above a heading as a decorative eyebrow.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Everywhere Rule",
+        "body": "Tabular numerals are on at the body (`tnum`), so every count, load and date aligns in its column.",
+        "section": "typography"
+      },
+      {
+        "name": "The Typed Source Rule",
+        "body": "Courier Prime is only for text the user typed or pasted, its echoes elsewhere, line numbers and key caps. Interface copy is never set in it.",
+        "section": "typography"
+      },
+      {
+        "name": "The Paper Flat Rule",
+        "body": "Surfaces at rest cast no shadow. A box is distinguished by its stroke and its tone, not by hovering. Only a modal dialog lifts.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Stroke State Rule",
+        "body": "Solid means resolved, dashed means open, double means selected. Hue may reinforce state but never carries it alone.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "**Do** keep every box, button, field and badge square (0px).",
+      "**Do** pair every tint with its own ink edge (2px inset underline, outline or dotted underline).",
+      "**Do** carry state in stroke form: solid resolved, dashed open (1.5px), double selected (3px).",
+      "**Do** head sections with condensed heavy caps on a 2px ink rule.",
+      "**Do** put condensed caps labels in a box corner, a column head or a pane title strip.",
+      "**Do** print a short rule in empty cells instead of leaving them blank.",
+      "**Do** use Courier Prime for pasted text and its echoes, Archivo for everything else.",
+      "**Do** keep every neutral on the cool 255 to 262 hue so paper and ink stay one family."
+    ],
+    "donts": [
+      "**Don't** use red for anything but no-lifts, flagged lines, unresolved rows and destructive actions.",
+      "**Don't** spend copy tints on panels, backgrounds or decoration; they belong to tagged data.",
+      "**Don't** round corners or add soft drop shadows to surfaces at rest; only the modal dialog lifts.",
+      "**Don't** set a condensed caps label floating above a heading as an eyebrow.",
+      "**Don't** use solid ink fill for a decorative panel; ink fill marks pressables and the form's structure.",
+      "**Don't** let hue alone carry a state."
+    ]
+  }
+}

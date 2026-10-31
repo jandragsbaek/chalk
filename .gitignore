@@ -10,3 +10,7 @@ data/
 *.sqlite-*
 .DS_Store
 .vitest-*
+# Impeccable: local review captures, decision rounds and hook caches (design.json and surface briefs are tracked)
+.impeccable/review/
+.impeccable/questions/
+**/.impeccable/hook.cache.json
