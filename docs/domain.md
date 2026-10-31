@@ -26,11 +26,12 @@ Movement ──< ScalingOption
 
 One entry in the catalog. Everything else points at a movement id.
 
-| Field      | Notes                                                                      |
-| ---------- | -------------------------------------------------------------------------- |
-| `id`       | Stable slug, e.g. `back-squat`. Never renamed once referenced.             |
-| `name`     | Display name.                                                              |
-| `category` | `barbell`, `dumbbell_kettlebell`, `gymnastics`, `monostructural`, `other`. |
+| Field         | Notes                                                                      |
+| ------------- | -------------------------------------------------------------------------- |
+| `id`          | Stable slug, e.g. `back-squat`. Never renamed once referenced.             |
+| `name`        | Display name.                                                              |
+| `category`    | `barbell`, `dumbbell_kettlebell`, `gymnastics`, `monostructural`, `other`. |
+| `variationOf` | Core movement this is a variation of (`power-snatch` → `snatch`), or none. |
 
 Seeded by migration `002_Strength`. Seeded entries change only through new migrations, never
 edits to old ones. The importer can add movements (`user_added = 1`, id = slug of the name) and
@@ -41,6 +42,15 @@ aliases from the backoffice.
 (`normalizeMovementPhrase`: lower case, split on punctuation, trailing plural "s" dropped) and is
 unique, so one phrase means one movement. A movement's own name is never stored as an alias.
 Migration `003_SessionImports` seeds whiteboard shorthand.
+
+**Variations (built).** `movements.variation_of` points a variation at its **core** movement:
+Power snatch, Hang power snatch, High-hang snatch are variations of Snatch. One level only
+(`CatalogStore` refuses a core that is itself a variation, and a movement with variations cannot
+become one). Variations are full movements, so lift sets and rep maxes stay per variation (a
+hang power snatch PR is its own number); the family is a join away for rolling volume up to the
+core. Migration `004_VariationsAndIntent` links the seeded power and hang power snatch and clean.
+Creating a movement whose name was an alias ("Squat snatch" meant Snatch) moves the phrase to
+the new movement.
 
 Later fields:
 
@@ -155,12 +165,20 @@ re-derivable.
 
 - Span kinds: `date`, `session` (number), `part`, `block` (format + params), `movement`
   (catalog id, optional `alternativeOf`), `quantity` (measure, amount, optional female amount and
-  scheme, `attachedTo` a movement), `score` (attached to a block), `notes`. Spans never overlap.
+  scheme, `attachedTo` a movement), `score` (attached to a block), `notes`, `intent` (the coach's
+  instruction for the block it sits in). Spans never overlap.
+- Measures include `rpe` ("@RPE 8", "RPE 7-8", "@8 RPE"), written after its movement like loads.
+- **Intent** marks whole lines ("Build to a heavy single", "70-80% of the above", "RPE 7-8"). It
+  belongs to the block it sits in and is stored on `workout_blocks.intent` as JSON
+  `[{ text, quantities }]`, with any RPE, % or load in its text read into `quantities`.
 - `suggestSpans` (contracts) proposes spans: org headings (`** Session 167 <2026-10-28 on>`,
   `**** Workout #1`, `*** Notes`), format lines, catalog movements and aliases, quantities.
   Quantities attach to the movement in the same `+` / `or` segment of their line; a line of only
   numbers ("5 reps @40%") attaches to the last movement of the part. Coach comments (`- *...`)
-  and asides in parentheses are skipped.
+  and lines with a % or RPE but no movement become intent; asides in parentheses are skipped.
+  Variation words before a known movement ("High-hang", "Pause") widen its mark, and unless
+  the catalog knows the whole phrase it is left open: "High-hang power snatch" is never silently
+  logged as a hang power snatch.
 - `deriveSession` (contracts) turns a document into the session and its issues; both the editor
   preview and the server use it, so the server refuses what the editor would. Errors (no date,
   unresolved movement, a result without reps) block saving; warnings (an unattached number)

@@ -25,7 +25,8 @@
   --tag-ink: var(--copy-green-ink);
 }
 [data-measure="load_kg"],
-[data-measure="percent_1rm"] {
+[data-measure="percent_1rm"],
+[data-measure="rpe"] {
   --tag: var(--copy-canary);
   --tag-ink: var(--copy-canary-ink);
 }
@@ -173,6 +174,10 @@ kbd[data-key] {
 [data-protocol-row]:hover,
 [data-protocol-row][data-linked] {
   background: color-mix(in oklch, var(--tag) 55%, transparent);
+}
+[data-protocol-row][data-intent] {
+  --tag: var(--copy-grey);
+  --tag-ink: var(--copy-grey-ink);
 }
 [data-protocol-row][data-selected] {
   background: color-mix(in oklch, var(--tag) 70%, transparent);

@@ -20,6 +20,8 @@ export const createMovementAtom = AdminClient.mutation("movements", "create");
 
 export const addAliasAtom = AdminClient.mutation("movements", "addAlias");
 
+export const setVariationOfAtom = AdminClient.mutation("movements", "setVariationOf");
+
 export const importsAtom = AdminClient.query("imports", "list", {
   reactivityKeys: [IMPORTS_REACTIVITY_KEY],
 });

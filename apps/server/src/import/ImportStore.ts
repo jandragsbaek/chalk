@@ -7,7 +7,9 @@ import {
   ImportNotFoundError,
   ImportSummary,
   MovementId,
+  Quantity,
   WorkoutId,
+  type DerivedIntent,
   type DerivedItem,
   type DerivedSet,
   type SaveImportInput,
@@ -44,6 +46,13 @@ const SetsJson = Schema.fromJsonString(
   Schema.Array(Schema.Struct({ line: Schema.Int, quantities: Schema.Array(Schema.Unknown) })),
 );
 const encodeSets = Schema.encodeEffect(SetsJson);
+
+const IntentsJson = Schema.fromJsonString(
+  Schema.Array(Schema.Struct({ text: Schema.String, quantities: Schema.Array(Quantity) })),
+);
+const encodeIntentsJson = Schema.encodeEffect(IntentsJson);
+const encodeIntents = (intents: ReadonlyArray<DerivedIntent>) =>
+  encodeIntentsJson(intents.map(({ text, quantities }) => ({ text, quantities })));
 
 const MovementNameRow = Schema.Struct({ id: MovementId, name: Schema.String });
 
@@ -210,9 +219,10 @@ const make = Effect.gen(function* () {
         for (const [blockPosition, block] of part.blocks.entries()) {
           const blockId = yield* newId;
           yield* sql`
-            INSERT INTO workout_blocks (id, part_id, position, title, format, params, score)
+            INSERT INTO workout_blocks (id, part_id, position, title, format, params, score, intent)
             VALUES (${blockId}, ${partId}, ${blockPosition}, ${block.title}, ${block.format ?? null},
-                    ${JSON.stringify(block.params)}, ${block.scores.join(" · ")})
+                    ${JSON.stringify(block.params)}, ${block.scores.join(" · ")},
+                    ${yield* encodeIntents(block.intents)})
           `;
           for (const [itemPosition, item] of block.items.entries())
             yield* insertItem(blockId, itemPosition, item);

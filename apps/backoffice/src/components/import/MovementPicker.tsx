@@ -28,6 +28,40 @@ const sentenceCase = (phrase: string) => {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
 };
 
+/** Core movements first, each followed by its variations: Snatch, Hang power snatch, Power snatch. */
+export const byFamily = (catalog: ReadonlyArray<CatalogMovement>) => {
+  const names = new Map(catalog.map((movement) => [movement.id, movement.name]));
+  const familyOf = (movement: CatalogMovement) =>
+    (movement.variationOf === undefined ? undefined : names.get(movement.variationOf)) ??
+    movement.name;
+  return [...catalog].sort(
+    (left, right) =>
+      familyOf(left).localeCompare(familyOf(right)) ||
+      Number(left.variationOf !== undefined) - Number(right.variationOf !== undefined) ||
+      left.name.localeCompare(right.name),
+  );
+};
+
+/** Core movements a new movement can be a variation of. */
+export const coreMovements = (catalog: ReadonlyArray<CatalogMovement>) =>
+  catalog
+    .filter((movement) => movement.variationOf === undefined)
+    .sort((left, right) => left.name.localeCompare(right.name));
+
+/** The core whose name the phrase ends in or contains, longest first: "High-hang power snatch" → Snatch. */
+export const guessCore = (
+  phrase: string,
+  catalog: ReadonlyArray<CatalogMovement>,
+): CatalogMovement | undefined => {
+  const words = ` ${normalizeMovementPhrase(phrase)} `;
+  return coreMovements(catalog)
+    .filter((movement) => {
+      const name = normalizeMovementPhrase(movement.name);
+      return words.includes(` ${name} `) && words.trim() !== name;
+    })
+    .sort((left, right) => right.name.length - left.name.length)[0];
+};
+
 const matches = (movement: CatalogMovement, query: string) => {
   const key = normalizeMovementPhrase(query);
   if (key === "") return true;
@@ -56,7 +90,10 @@ export function MovementPicker({
   const [remember, setRemember] = useState(true);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState(() => sentenceCase(phrase));
-  const [category, setCategory] = useState<MovementCategory>("other");
+  const [variationOf, setVariationOf] = useState(() => guessCore(phrase, catalog)?.id);
+  const [category, setCategory] = useState<MovementCategory>(
+    () => guessCore(phrase, catalog)?.category ?? "other",
+  );
   const [error, setError] = useState<string | undefined>();
   const createMovement = useAtomSet(createMovementAtom, { mode: "promiseExit" });
   const addAlias = useAtomSet(addAliasAtom, { mode: "promiseExit" });
@@ -66,7 +103,10 @@ export function MovementPicker({
     [movement.name, ...movement.aliases].some(
       (known) => normalizeMovementPhrase(known) === phraseKey,
     );
-  const candidates = catalog.filter((movement) => matches(movement, query)).slice(0, 8);
+  const nameOf = (id: MovementId | undefined) =>
+    id === undefined ? undefined : catalog.find((movement) => movement.id === id)?.name;
+  const candidates = byFamily(catalog.filter((movement) => matches(movement, query))).slice(0, 8);
+  const shown = new Set(candidates.map((movement) => movement.id));
 
   async function handlePick(movement: CatalogMovement) {
     setError(undefined);
@@ -102,7 +142,12 @@ export function MovementPicker({
     if (trimmed === "") return;
     const aliases = normalizeMovementPhrase(trimmed) === phraseKey ? [] : [phrase.trim()];
     const exit = await createMovement({
-      payload: { name: trimmed, category, aliases },
+      payload: {
+        name: trimmed,
+        category,
+        aliases,
+        ...(variationOf === undefined ? {} : { variationOf }),
+      },
       reactivityKeys: [CATALOG_REACTIVITY_KEY],
     });
     if (Exit.isSuccess(exit)) {
@@ -116,7 +161,9 @@ export function MovementPicker({
         ? `${failure.value.name} already exists. Pick it from the list.`
         : Option.isSome(failure) && failure.value._tag === "AliasTakenError"
           ? `"${failure.value.alias}" already means ${failure.value.movementId}.`
-          : "Could not create the movement.",
+          : Option.isSome(failure) && failure.value._tag === "VariationInvalidError"
+            ? failure.value.message
+            : "Could not create the movement.",
     );
   }
 
@@ -139,14 +186,23 @@ export function MovementPicker({
               type="button"
               data-current={movement.id === value ? "" : undefined}
               data-picker-option
-              className="flex w-full cursor-pointer items-baseline justify-between gap-3 px-2.5 py-1.5 text-left text-sm hover:bg-muted"
+              className={
+                movement.variationOf !== undefined && shown.has(movement.variationOf)
+                  ? "flex w-full cursor-pointer items-baseline justify-between gap-3 py-1.5 pl-6 pr-2.5 text-left text-sm hover:bg-muted"
+                  : "flex w-full cursor-pointer items-baseline justify-between gap-3 px-2.5 py-1.5 text-left text-sm hover:bg-muted"
+              }
               onClick={() => void handlePick(movement)}
             >
               <span className="font-semibold">{movement.name}</span>
               <span className="truncate text-xs text-muted-foreground">
-                {movement.aliases.length > 0
-                  ? movement.aliases.join(", ")
-                  : CATEGORY_LABELS[movement.category]}
+                {[
+                  movement.variationOf === undefined
+                    ? undefined
+                    : `${nameOf(movement.variationOf)} variation`,
+                  movement.aliases.length > 0 ? movement.aliases.join(", ") : undefined,
+                ]
+                  .filter((part) => part !== undefined)
+                  .join(" · ") || CATEGORY_LABELS[movement.category]}
               </span>
             </button>
           </li>
@@ -177,6 +233,22 @@ export function MovementPicker({
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
+          <NativeSelect
+            value={variationOf ?? ""}
+            aria-label="Variation of"
+            onChange={(event) => {
+              const core = catalog.find((movement) => movement.id === event.target.value);
+              setVariationOf(core?.id);
+              if (core) setCategory(core.category);
+            }}
+          >
+            <option value="">Core movement (no variation)</option>
+            {coreMovements(catalog).map((core) => (
+              <option key={core.id} value={core.id}>
+                Variation of {core.name}
+              </option>
+            ))}
+          </NativeSelect>
           <NativeSelect
             value={category}
             aria-label="Category"

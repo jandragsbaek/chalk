@@ -9,7 +9,7 @@ import type {
   SpanOf,
 } from "../sessionImport.ts";
 import type { WorkoutKind } from "../workout.ts";
-import { lineIndexAt, splitLines, type Line } from "./parse.ts";
+import { lineIndexAt, parseQuantities, splitLines, type Line } from "./parse.ts";
 
 /** Quantities written on one line for one movement: one set of the prescription. */
 export interface DerivedSet {
@@ -25,6 +25,13 @@ export interface DerivedItem {
   readonly alternatives: ReadonlyArray<DerivedItem>;
 }
 
+/** A coach's instruction for a block, with any intensity it names (RPE, %, load). */
+export interface DerivedIntent {
+  readonly spanId: SpanId;
+  readonly text: string;
+  readonly quantities: ReadonlyArray<Quantity>;
+}
+
 export interface DerivedBlock {
   /** Absent for the implicit block holding movements written before any format line. */
   readonly spanId: SpanId | undefined;
@@ -32,6 +39,7 @@ export interface DerivedBlock {
   readonly format: BlockFormat | undefined;
   readonly params: BlockParams;
   readonly items: ReadonlyArray<DerivedItem>;
+  readonly intents: ReadonlyArray<DerivedIntent>;
   readonly scores: ReadonlyArray<string>;
 }
 
@@ -83,6 +91,7 @@ interface MutableBlock {
   format: BlockFormat | undefined;
   params: BlockParams;
   items: Array<SpanOf<"movement">>;
+  intents: Array<SpanOf<"intent">>;
 }
 
 interface MutablePart {
@@ -105,15 +114,17 @@ const MEASURE_LABELS: Record<Quantity["measure"], string> = {
   seconds: "sec",
   load_kg: "kg",
   percent_1rm: "%",
+  rpe: "RPE",
 };
 
 export const formatAmount = (amount: { min: number; max: number }) =>
   amount.min === amount.max ? `${amount.min}` : `${amount.min}-${amount.max}`;
 
-/** "12/10 cal", "21-15-9 reps", "@40/25 kg", "70-80 %". */
+/** "12/10 cal", "21-15-9 reps", "@40/25 kg", "70-80 %", "RPE 8". */
 export const formatQuantity = (quantity: Quantity): string => {
   const value = quantity.scheme ? quantity.scheme.join("-") : formatAmount(quantity.amount);
   const female = quantity.female ? `/${formatAmount(quantity.female)}` : "";
+  if (quantity.measure === "rpe") return `RPE ${value}${female}`;
   const single = quantity.measure === "reps" && !quantity.female && quantity.amount.max === 1;
   return `${value}${female} ${single ? "rep" : MEASURE_LABELS[quantity.measure]}`;
 };
@@ -211,6 +222,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
       format: undefined,
       params: {},
       items: [],
+      intents: [],
     };
     part.blocks.push(implicit);
     return implicit;
@@ -229,7 +241,17 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
         format: span.format,
         params: span.params,
         items: [],
+        intents: [],
       });
+    } else if (span._tag === "intent") {
+      if (inNotes(span))
+        issues.push({
+          severity: "warning",
+          check: "numbers",
+          message: `Intent "${slice(span)}" is in the notes and is left out.`,
+          spanId: span.id,
+        });
+      else currentBlock(span.start).intents.push(span);
     } else if (span._tag === "movement") {
       if (span.movementId === undefined)
         issues.push({
@@ -311,6 +333,26 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     alternatives: (alternativesOf.get(movement.id) ?? []).map(toItem),
   });
 
+  const toIntent = (intent: SpanOf<"intent">): DerivedIntent => {
+    // An intent spanning lines reads as one sentence, without bullets or comment stars.
+    const intentText = slice(intent)
+      .split("\n")
+      .map((line) =>
+        stripBullet(line)
+          .replace(/^\*+|\*+$/g, "")
+          .trim(),
+      )
+      .filter((line) => line !== "")
+      .join(" ");
+    return {
+      spanId: intent.id,
+      text: intentText,
+      quantities: parseQuantities(intentText, 0, { bareReps: false }).map(
+        (match) => match.quantity,
+      ),
+    };
+  };
+
   const scoresOf = new Map<SpanId, Array<string>>();
   for (const score of spans.filter(isTag("score"))) {
     const block = score.attachedTo === undefined ? undefined : byId.get(score.attachedTo);
@@ -342,9 +384,14 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     // "Back squat / Max out! / 10 reps @20-30%": the movement comes before its format line.
     const [first, second] = blocks;
     if (first && second && first.spanId === undefined && second.items.length === 0) {
-      blocks = [{ ...second, items: first.items }, ...blocks.slice(2)];
+      blocks = [
+        { ...second, items: first.items, intents: [...first.intents, ...second.intents] },
+        ...blocks.slice(2),
+      ];
     }
-    blocks = blocks.filter((block) => block.spanId !== undefined || block.items.length > 0);
+    blocks = blocks.filter(
+      (block) => block.spanId !== undefined || block.items.length > 0 || block.intents.length > 0,
+    );
     if (blocks.every((block) => block.items.length === 0))
       issues.push({
         severity: "warning",
@@ -362,6 +409,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
         format: block.format,
         params: block.params,
         items: block.items.map(toItem),
+        intents: block.intents.map(toIntent),
         scores: block.spanId === undefined ? [] : (scoresOf.get(block.spanId) ?? []),
       })),
     };

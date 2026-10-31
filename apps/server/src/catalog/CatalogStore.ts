@@ -2,10 +2,12 @@ import {
   AliasTakenError,
   CatalogMovement,
   CatalogNotFoundError,
-  Movement,
+  MovementCategory,
   MovementExistsError,
   MovementId,
   normalizeMovementPhrase,
+  TrimmedNonEmptyString,
+  VariationInvalidError,
   type CreateMovementInput,
 } from "@chalk/contracts";
 import * as Context from "effect/Context";
@@ -18,7 +20,12 @@ import * as SqlSchema from "effect/sql/SqlSchema";
 export class CatalogPersistenceError extends Schema.TaggedError<CatalogPersistenceError>()(
   "CatalogPersistenceError",
   {
-    operation: Schema.Literals(["list the catalog", "create a movement", "add an alias"]),
+    operation: Schema.Literals([
+      "list the catalog",
+      "create a movement",
+      "add an alias",
+      "set a core movement",
+    ]),
     cause: Schema.Defect(),
   },
 ) {
@@ -39,6 +46,14 @@ export const slugify = (name: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "") || "movement";
 
+const MovementRow = Schema.Struct({
+  id: MovementId,
+  name: TrimmedNonEmptyString,
+  category: MovementCategory,
+  variationOf: Schema.NullOr(MovementId),
+});
+type MovementRow = typeof MovementRow.Type;
+
 const AliasRow = Schema.Struct({
   key: Schema.String,
   alias: Schema.String,
@@ -50,12 +65,19 @@ export class CatalogStore extends Context.Service<
   {
     /** Every movement with its aliases, by category then name. */
     readonly list: () => Effect.Effect<ReadonlyArray<CatalogMovement>, CatalogPersistenceError>;
-    /** A user-added movement; its id is the slug of its name. */
+    /**
+     * A user-added movement; its id is the slug of its name. Its name takes over the phrase
+     * from any alias that meant another movement ("Squat snatch" stops meaning Snatch).
+     */
     readonly create: (
       input: CreateMovementInput,
     ) => Effect.Effect<
       CatalogMovement,
-      MovementExistsError | AliasTakenError | CatalogPersistenceError
+      | MovementExistsError
+      | AliasTakenError
+      | CatalogNotFoundError
+      | VariationInvalidError
+      | CatalogPersistenceError
     >;
     /** Teaches the matcher another phrase for a movement; repeating one is a no-op. */
     readonly addAlias: (
@@ -65,6 +87,14 @@ export class CatalogStore extends Context.Service<
       CatalogMovement,
       CatalogNotFoundError | AliasTakenError | CatalogPersistenceError
     >;
+    /** Makes `id` a variation of the core `variationOf`, or a core again with `null`. */
+    readonly setVariationOf: (
+      id: MovementId,
+      variationOf: MovementId | null,
+    ) => Effect.Effect<
+      CatalogMovement,
+      CatalogNotFoundError | VariationInvalidError | CatalogPersistenceError
+    >;
   }
 >()("chalk/catalog/CatalogStore") {}
 
@@ -73,8 +103,9 @@ const make = Effect.gen(function* () {
 
   const selectMovements = SqlSchema.findAll({
     Request: Schema.Void,
-    Result: Movement,
-    execute: () => sql`SELECT id, name, category FROM movements ORDER BY category, name`,
+    Result: MovementRow,
+    execute: () =>
+      sql`SELECT id, name, category, variation_of AS "variationOf" FROM movements ORDER BY category, name`,
   });
 
   const selectAliases = SqlSchema.findAll({
@@ -91,17 +122,34 @@ const make = Effect.gen(function* () {
   });
 
   const toCatalog = (
-    movements: ReadonlyArray<Movement>,
+    movements: ReadonlyArray<MovementRow>,
     aliases: ReadonlyArray<typeof AliasRow.Type>,
   ): ReadonlyArray<CatalogMovement> =>
-    movements.map((movement) => ({
+    movements.map(({ variationOf, ...movement }) => ({
       ...movement,
       aliases: aliases.filter((row) => row.movementId === movement.id).map((row) => row.alias),
+      ...(variationOf === null ? {} : { variationOf }),
     }));
+
+  /** Fails unless `variationOf` is a core movement that `id` can hang under. */
+  const checkVariation = Effect.fn("CatalogStore.checkVariation")(function* (
+    movements: ReadonlyArray<MovementRow>,
+    id: MovementId,
+    variationOf: MovementId,
+  ) {
+    const core = movements.find((movement) => movement.id === variationOf);
+    if (!core) return yield* new CatalogNotFoundError({ id: variationOf });
+    const invalid = (reason: VariationInvalidError["reason"]) =>
+      new VariationInvalidError({ id, variationOf, reason });
+    if (variationOf === id) return yield* invalid("self");
+    if (core.variationOf !== null) return yield* invalid("core-is-variation");
+    if (movements.some((movement) => movement.variationOf === id))
+      return yield* invalid("has-variations");
+  });
 
   /** Inserts `alias` for `movement` unless it already means it; fails when it means another. */
   const insertAlias = Effect.fn("CatalogStore.insertAlias")(function* (
-    movement: Movement,
+    movement: { readonly id: MovementId; readonly name: string },
     alias: string,
   ) {
     const key = normalizeMovementPhrase(alias);
@@ -134,27 +182,33 @@ const make = Effect.gen(function* () {
 
   const create = Effect.fn("CatalogStore.create")(
     function* (input: CreateMovementInput) {
-      const movement: Movement = {
-        id: MovementId.make(slugify(input.name)),
-        name: input.name,
-        category: input.category,
-      };
+      const id = MovementId.make(slugify(input.name));
+      const nameKey = normalizeMovementPhrase(input.name);
       const created = yield* Effect.gen(function* () {
         const { movements } = yield* loadAll;
         const taken = movements.find(
-          (other) =>
-            other.id === movement.id ||
-            normalizeMovementPhrase(other.name) === normalizeMovementPhrase(movement.name),
+          (other) => other.id === id || normalizeMovementPhrase(other.name) === nameKey,
         );
         if (taken) return yield* new MovementExistsError({ id: taken.id, name: taken.name });
+        if (input.variationOf !== undefined)
+          yield* checkVariation(movements, id, input.variationOf);
+        yield* sql`DELETE FROM movement_aliases WHERE key = ${nameKey}`;
         yield* sql`
-        INSERT INTO movements (id, name, category, user_added)
-        VALUES (${movement.id}, ${movement.name}, ${movement.category}, 1)
-      `;
-        for (const alias of input.aliases) yield* insertAlias(movement, alias);
-        return yield* catalogEntry(movement.id);
+          INSERT INTO movements (id, name, category, user_added, variation_of)
+          VALUES (${id}, ${input.name}, ${input.category}, 1, ${input.variationOf ?? null})
+        `;
+        for (const alias of input.aliases) yield* insertAlias({ id, name: input.name }, alias);
+        return yield* catalogEntry(id);
       }).pipe(sql.withTransaction);
-      return created ?? { ...movement, aliases: [] };
+      return (
+        created ?? {
+          id,
+          name: input.name,
+          category: input.category,
+          aliases: [],
+          ...(input.variationOf === undefined ? {} : { variationOf: input.variationOf }),
+        }
+      );
     },
     Effect.catchTags({
       SqlError: (cause) =>
@@ -183,7 +237,28 @@ const make = Effect.gen(function* () {
     }),
   );
 
-  return CatalogStore.of({ list, create, addAlias });
+  const setVariationOf = Effect.fn("CatalogStore.setVariationOf")(
+    function* (id: MovementId, variationOf: MovementId | null) {
+      const entry = yield* Effect.gen(function* () {
+        const { movements } = yield* loadAll;
+        if (!movements.some((movement) => movement.id === id))
+          return yield* new CatalogNotFoundError({ id });
+        if (variationOf !== null) yield* checkVariation(movements, id, variationOf);
+        yield* sql`UPDATE movements SET variation_of = ${variationOf} WHERE id = ${id}`;
+        return yield* catalogEntry(id);
+      }).pipe(sql.withTransaction);
+      if (!entry) return yield* new CatalogNotFoundError({ id });
+      return entry;
+    },
+    Effect.catchTags({
+      SqlError: (cause) =>
+        Effect.fail(new CatalogPersistenceError({ operation: "set a core movement", cause })),
+      SchemaError: (cause) =>
+        Effect.fail(new CatalogPersistenceError({ operation: "set a core movement", cause })),
+    }),
+  );
+
+  return CatalogStore.of({ list, create, addAlias, setVariationOf });
 });
 
 export const layer = Layer.effect(CatalogStore, make);

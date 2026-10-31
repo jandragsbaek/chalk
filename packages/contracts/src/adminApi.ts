@@ -18,7 +18,9 @@ import {
   ImportSummary,
   MovementExistsError,
   SaveImportInput,
+  SetVariationOfInput,
   StoredImport,
+  VariationInvalidError,
 } from "./sessionImport.ts";
 import { Workout, WorkoutKind, WorkoutNotFoundError, WorkoutStorageError } from "./workout.ts";
 
@@ -63,13 +65,25 @@ export const AdminMovementsGroup = HttpApiGroup.make("movements")
     HttpApiEndpoint.post("create", "/", {
       payload: CreateMovementInput,
       success: CatalogMovement,
-      error: [MovementExistsError, AliasTakenError, ImportStorageError],
+      error: [
+        MovementExistsError,
+        AliasTakenError,
+        CatalogNotFoundError,
+        VariationInvalidError,
+        ImportStorageError,
+      ],
     }),
     HttpApiEndpoint.post("addAlias", "/:id/aliases", {
       params: { id: MovementId },
       payload: AddAliasInput,
       success: CatalogMovement,
       error: [CatalogNotFoundError, AliasTakenError, ImportStorageError],
+    }),
+    HttpApiEndpoint.put("setVariationOf", "/:id/variation-of", {
+      params: { id: MovementId },
+      payload: SetVariationOfInput,
+      success: CatalogMovement,
+      error: [CatalogNotFoundError, VariationInvalidError, ImportStorageError],
     }),
   )
   .prefix("/movements");

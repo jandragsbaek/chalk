@@ -32,6 +32,7 @@ const SESSION_160 = `** Session 160 <2026-10-13 ti>
 **** Workout #1
 - Back squat
 - Max out!
+- *Byg op til en tung single, RPE 9.
 - 5 Reps @40%
 - 1 rep @85%
 - Every 90 sec x 8-10
@@ -93,6 +94,22 @@ describe("ImportStore", () => {
         ["thruster", "wall-ball"],
       ]);
       expect(JSON.parse(items[0]!.prescription)).toHaveLength(2);
+
+      const blocks = yield* sql<{ format: string; intent: string }>`
+        SELECT format, intent FROM workout_blocks ORDER BY position
+      `;
+      expect(blocks.map((block) => [block.format, JSON.parse(block.intent)])).toEqual([
+        [
+          "strength",
+          [
+            {
+              text: "Byg op til en tung single, RPE 9.",
+              quantities: [{ measure: "rpe", amount: { min: 9, max: 9 } }],
+            },
+          ],
+        ],
+        ["every", []],
+      ]);
 
       const stored = yield* store.get(summary.workoutId);
       expect(stored.document).toEqual(document);
