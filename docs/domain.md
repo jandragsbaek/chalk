@@ -104,12 +104,17 @@ the UI marks implied maxes with `*`. On equal loads, the earliest set wins (that
 record was set). Chalk tracks 1, 2, 3, 5 and 10RM (`REP_MAX_TARGETS`); computed in
 `apps/server/src/strength/repMaxes.ts` from all sets, which is cheap at one athlete's scale.
 
+**Estimated 1RM** (built, web only): each set scores `load × (1 + reps / 30)` (Epley); a
+single is its own load. The spread across Epley, Brzycki and Lombardi is shown as uncertainty:
+none for a single, widest at high reps. Sets over 12 reps are left out. The `/strength` chart
+plots each session's best estimate and the best estimate to date, which moves even in weeks
+without a max attempt. Computed client-side in `apps/web/src/lib/progress.ts` from all sets.
+
 Later:
 
 - Link sets to a strength part (`workout_part_id`, nullable), so "5x5 back squat" logged as a
   workout also feeds rep maxes, instead of logging twice.
-- RPE / RIR per set, and estimated 1RM (Epley: `load × (1 + reps / 30)`) as a trend line that
-  moves even in weeks without a true max attempt.
+- RPE / RIR per set, to discount estimates from sets left far from failure.
 - Percentage helper: programs say "5x3 @ 80%"; Chalk knows the 1RM.
 - Bodyweight movements with load (weighted pull-up) use the same table with `loadKg` as the
   added weight.

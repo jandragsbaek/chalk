@@ -5,7 +5,7 @@
 Track your CrossFit workouts and strength numbers, and (soon) get coached on them.
 
 Today: log workouts with a free-form score, and log strength sets (reps × kg) against a movement
-catalog, with 1/2/3/5/10RM derived per movement. Where it is going:
+catalog, with 1/2/3/5/10RM derived per movement and an estimated 1RM chart over time. Where it is going:
 
 - [docs/domain.md](docs/domain.md): movements, scaling, workouts composed of movements, rep
   maxes, the weekly volume grid.
@@ -83,4 +83,4 @@ apps/server                            apps/web (:5173)                  apps/ba
 
 TypeScript (strict) · Effect 4 (`effect/rpc`, `effect/sql`, `effect/http`, `effect/reactivity`) ·
 SQLite via `node:sqlite` · React 19 + React Compiler · Vite · TanStack Router · Tailwind CSS 4 ·
-Base UI · Vitest + `@effect/vitest` · pnpm workspaces
+Base UI · visx · Vitest + `@effect/vitest` · pnpm workspaces

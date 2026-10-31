@@ -1,2 +1,29 @@
 @import "tailwindcss";
 @import "@chalk/ui/theme.css";
+
+/* Chart tokens. Marks use these; text keeps the theme's text tokens. */
+[data-viz] {
+  --viz-1: var(--primary);
+  --viz-quiet: #a3a3a3;
+  --viz-grid: #ededed;
+  --viz-axis: #d4d4d4;
+  --viz-ring: var(--card);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-viz] {
+    --viz-quiet: #5e5e5e;
+    --viz-grid: #222222;
+    --viz-axis: #333333;
+  }
+}
+
+[data-viz] svg text {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-viz] svg:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
