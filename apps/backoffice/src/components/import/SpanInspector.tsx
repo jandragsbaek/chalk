@@ -1,6 +1,8 @@
 import {
   BlockFormat,
+  formatQuantity,
   Measure,
+  parseQuantities,
   type Amount,
   type BlockParams,
   type CatalogMovement,
@@ -15,6 +17,7 @@ import { Link2, Trash2, X } from "lucide-react";
 
 import { BLOCK_FORMAT_LABELS, MEASURE_LABELS } from "../../lib/blockLabels.ts";
 import type { PickMode } from "../../lib/importEditor.ts";
+import { CoreMovementField } from "./CoreMovementField.tsx";
 import { MovementPicker } from "./MovementPicker.tsx";
 
 const TAG_TITLES: Record<Span["_tag"], string> = {
@@ -23,6 +26,7 @@ const TAG_TITLES: Record<Span["_tag"], string> = {
   block: "Block",
   part: "Part",
   notes: "Notes start",
+  intent: "Intent",
   date: "Date",
   session: "Session number",
   score: "Score",
@@ -176,6 +180,10 @@ export function SpanInspector({
   ) => void;
 }) {
   const phrase = text.slice(span.start, span.end);
+  const picked =
+    span._tag === "movement" && span.movementId !== undefined
+      ? catalog.find((movement) => movement.id === span.movementId)
+      : undefined;
   const textOf = (id: SpanId | undefined) => {
     const target = spans.find((candidate) => candidate.id === id);
     if (!target) return undefined;
@@ -218,6 +226,7 @@ export function SpanInspector({
             value={span.movementId}
             onPick={(movementId, learned) => onMovementPicked(span, movementId, learned)}
           />
+          {picked ? <CoreMovementField movement={picked} catalog={catalog} /> : null}
           <LinkRow
             label="Alternative of"
             target={textOf(span.alternativeOf)}
@@ -379,6 +388,27 @@ export function SpanInspector({
             if (number !== undefined && Number.isInteger(number)) onUpdate({ ...span, number });
           }}
         />
+      ) : null}
+
+      {span._tag === "intent" ? (
+        <div className="grid gap-2 text-sm">
+          <p className="text-muted-foreground">
+            The coach's instruction for the block it sits in: how heavy, how hard, what to focus on.
+            Saved with the block; intensity in it is read below.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {parseQuantities(phrase, 0, { bareReps: false }).map((match) => (
+              <span
+                key={match.start}
+                data-chip
+                data-measure={match.quantity.measure}
+                className="px-1.5 text-sm font-medium leading-6 tabular-nums"
+              >
+                {formatQuantity(match.quantity)}
+              </span>
+            ))}
+          </div>
+        </div>
       ) : null}
 
       {span._tag === "part" || span._tag === "notes" ? (

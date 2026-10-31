@@ -28,6 +28,8 @@ export const Measure = Schema.Literals([
   "seconds",
   "load_kg",
   "percent_1rm",
+  /** Rate of perceived exertion, 1 to 10: "@RPE 8", "RPE 7-8". */
+  "rpe",
 ]);
 export type Measure = typeof Measure.Type;
 
@@ -77,15 +79,16 @@ const spanFields = {
 
 /**
  * One highlighted range of the pasted text. Spans never overlap. Structure follows from them:
- * a `part` span starts a part, a `block` span starts a block inside it, a `movement` span is an
- * item, and `quantity` spans hang off a movement through `attachedTo`. Movements inside the
- * region opened by a `notes` span are results: their loads become lift sets.
+ * `part` and `block` spans open a part and a block, a `movement` is an item, `quantity` spans
+ * hang off a movement, an `intent` is the coach's instruction for its block, and movements
+ * after a `notes` span are results whose loads become lift sets.
  */
 export const Span = Schema.TaggedUnion({
   date: { ...spanFields, date: IsoDate },
   session: { ...spanFields, number: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)) },
   part: { ...spanFields },
   notes: { ...spanFields },
+  intent: { ...spanFields },
   block: { ...spanFields, format: BlockFormat, params: BlockParams },
   movement: {
     ...spanFields,
@@ -110,12 +113,17 @@ export const ImportDocument = Schema.Struct({
 }).annotate({ identifier: "ImportDocument" });
 export type ImportDocument = typeof ImportDocument.Type;
 
-/** A movement with the phrases that also match it when parsing text ("DU", "Squat snatch"). */
+/**
+ * A movement with the phrases that also match it when parsing text ("DU", "Squat snatch").
+ * `variationOf` names its core movement: "Hang power snatch" is a variation of "Snatch". One
+ * level only: a core is never itself a variation.
+ */
 export const CatalogMovement = Schema.Struct({
   id: MovementId,
   name: TrimmedNonEmptyString,
   category: MovementCategory,
   aliases: Schema.Array(Schema.String),
+  variationOf: Schema.optionalKey(MovementId),
 }).annotate({ identifier: "CatalogMovement" });
 export type CatalogMovement = typeof CatalogMovement.Type;
 
@@ -123,8 +131,13 @@ export const CreateMovementInput = Schema.Struct({
   name: TrimmedNonEmptyString,
   category: MovementCategory,
   aliases: Schema.Array(TrimmedNonEmptyString),
+  variationOf: Schema.optionalKey(MovementId),
 });
 export type CreateMovementInput = typeof CreateMovementInput.Type;
+
+/** `null` makes the movement a core movement again. */
+export const SetVariationOfInput = Schema.Struct({ variationOf: Schema.NullOr(MovementId) });
+export type SetVariationOfInput = typeof SetVariationOfInput.Type;
 
 export const AddAliasInput = Schema.Struct({ alias: TrimmedNonEmptyString });
 export type AddAliasInput = typeof AddAliasInput.Type;
@@ -171,6 +184,28 @@ export class AliasTakenError extends Schema.TaggedError<AliasTakenError>()(
 ) {
   override get message(): string {
     return `"${this.alias}" already means ${this.movementId}.`;
+  }
+}
+
+/** The core named in `variationOf` cannot take this movement as a variation. */
+export class VariationInvalidError extends Schema.TaggedError<VariationInvalidError>()(
+  "VariationInvalidError",
+  {
+    id: MovementId,
+    variationOf: MovementId,
+    reason: Schema.Literals(["self", "core-is-variation", "has-variations"]),
+  },
+  { httpApiStatus: 400 },
+) {
+  override get message(): string {
+    switch (this.reason) {
+      case "self":
+        return `${this.id} cannot be a variation of itself.`;
+      case "core-is-variation":
+        return `${this.variationOf} is itself a variation; pick its core movement.`;
+      case "has-variations":
+        return `${this.id} has variations of its own, so it stays a core movement.`;
+    }
   }
 }
 

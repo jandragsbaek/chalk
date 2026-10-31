@@ -34,6 +34,20 @@ const spanAt = (state: EditorState, phrase: string, nth = 0): Span | undefined =
 };
 
 describe("editorReducer", () => {
+  it("tags intent as whole lines, without the bullet or comment stars", () => {
+    const text = "- Back squat\n- *Build to a heavy single,\n- about RPE 9.*\n- 1 rep";
+    const state = initialEditorState({ text, spans: [] });
+    const tagged = editorReducer(state, {
+      type: "tag",
+      start: text.indexOf("heavy"),
+      end: text.indexOf("RPE"),
+      choice: { tag: "intent" },
+    });
+    const [intent] = tagged.spans;
+    expect(intent?._tag).toBe("intent");
+    expect(text.slice(intent!.start, intent!.end)).toBe("Build to a heavy single,\n- about RPE 9.");
+  });
+
   it("orders loaded spans by offset, as rendering needs", () => {
     const starts = start().spans.map((span) => span.start);
     expect(starts).toEqual([...starts].sort((left, right) => left - right));

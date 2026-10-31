@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 
+import { MovementId } from "../baseSchemas.ts";
 import type { Span } from "../sessionImport.ts";
 import { formatQuantity } from "./derive.ts";
 import {
@@ -61,11 +62,14 @@ describe("suggestSpans", () => {
       "movement hang power clean = hang-power-clean",
       "quantity 1 = 1 rep -> Power clean",
       "quantity 2 = 2 reps -> hang power clean",
+      // Starred lines are the coach's intent for the block above them.
+      "intent Byg til en udfordrende vægt over de 5 sæt.",
       'block EMOM 5 = emom {"durationSeconds":300,"intervalSeconds":60}',
       "movement Power clean = power-clean",
       "movement Hang power clean = hang-power-clean",
       "quantity 1 = 1 rep -> Power clean",
       "quantity 2 = 2 reps -> Hang power clean",
+      "intent 70-80% af ovenstående.",
       "part Workout #2",
       'block Amrap 15 = amrap {"durationSeconds":900}',
       "movement Double under = double-under",
@@ -146,6 +150,47 @@ describe("suggestSpans", () => {
     expect(rows).toContain("quantity 2 = 2 reps -> overhead squat");
     // The 50 second cap describes the station, not the row.
     expect(rows.some((row) => row.includes("50 sec"))).toBe(false);
+    expect(rows).toContain("intent Byg til en moderat vægt. Teknik frem for vægt.");
+    expect(rows).toContain("intent Inspiration fra Prepared programning");
+  });
+
+  it("leaves a variation the catalog does not know open instead of matching inside it", () => {
+    const withVariations = makeMovementMatcher([
+      ...CATALOG,
+      { id: MovementId.make("power-snatch"), name: "Power snatch", aliases: [] },
+      { id: MovementId.make("hang-power-snatch"), name: "Hang power snatch", aliases: ["HPS"] },
+    ]);
+    const text = "- 1 High-hang power snatch + 2 power snatch\n- 3 Pause back squat\n- 2 HPS";
+    let next = 0;
+    expect(
+      describeSpans(
+        text,
+        suggestSpans(text, withVariations, () => `s${++next}`),
+      ),
+    ).toEqual([
+      "movement High-hang power snatch = undefined",
+      "movement power snatch = power-snatch",
+      "quantity 1 = 1 rep -> High-hang power snatch",
+      "quantity 2 = 2 reps -> power snatch",
+      "movement Pause back squat = undefined",
+      "quantity 3 = 3 reps -> Pause back squat",
+      "movement HPS = hang-power-snatch",
+      "quantity 2 = 2 reps -> HPS",
+    ]);
+  });
+
+  it("reads RPE on a movement line, and a line of only intensity as intent", () => {
+    const text = "- Back squat 5x3 @RPE 8\n- Work up to RPE 9\n- 3 Deadlift @ 7-8 RPE";
+    expect(describeSpans(text, suggest(text))).toEqual([
+      "movement Back squat = back-squat",
+      "quantity 5 = 5 sets -> Back squat",
+      "quantity 3 = 3 reps -> Back squat",
+      "quantity @RPE 8 = RPE 8 -> Back squat",
+      "intent Work up to RPE 9",
+      "movement Deadlift = deadlift",
+      "quantity 3 = 3 reps -> Deadlift",
+      "quantity @ 7-8 RPE = RPE 7-8 -> Deadlift",
+    ]);
   });
 });
 

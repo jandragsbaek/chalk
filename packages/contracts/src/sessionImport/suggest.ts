@@ -1,5 +1,5 @@
 import type { Measure, Span, SpanId, SpanOf } from "../sessionImport.ts";
-import type { MovementMatcher } from "./movementMatcher.ts";
+import { tokenize, type MovementMatcher } from "./movementMatcher.ts";
 import {
   findScore,
   isQuantityOnly,
@@ -11,8 +11,8 @@ import {
   type QuantityMatch,
 } from "./parse.ts";
 
-/** Loads and percentages are written after their movement; counts before it. */
-const TRAILING_MEASURES: ReadonlySet<Measure> = new Set(["load_kg", "percent_1rm"]);
+/** Loads, percentages and RPE are written after their movement; counts before it. */
+const TRAILING_MEASURES: ReadonlySet<Measure> = new Set(["load_kg", "percent_1rm", "rpe"]);
 
 interface Segment {
   readonly start: number;
@@ -58,6 +58,29 @@ const SESSION = /\bsession\s*#?\s*(\d+)/i;
 const NOTES_HEADING = /^(?:notes?|noter|results?|resultater)\s*:?$/i;
 const CONTAINER_HEADING = /^(?:workouts?|wod|træning)\s*:?$/i;
 const FAILED = /\b(?:fail(?:ed)?|miss(?:ed)?|no[\s-]?rep)\b/i;
+/** Intensity a line can carry without naming a movement: "70-80% af ovenstående", "RPE 8". */
+const INTENSITY: ReadonlySet<Measure> = new Set(["percent_1rm", "rpe"]);
+
+/**
+ * Words that make a variation of the movement they precede: "High-hang power snatch",
+ * "Pause back squat". Normalized like matcher tokens (plural "s" dropped).
+ */
+const VARIATION_WORDS: ReadonlySet<string> = new Set([
+  "high",
+  "low",
+  "mid",
+  "hang",
+  "block",
+  "pause",
+  "paused",
+  "tempo",
+  "deficit",
+  "power",
+  "squat",
+  "split",
+  "muscle",
+  "tall",
+]);
 
 /**
  * First-pass spans for a pasted session: headings, block formats, movements from the catalog,
@@ -85,18 +108,43 @@ export const suggestSpans = (
     });
   };
 
-  const addMovements = (content: string, offset: number) =>
-    matcher.find(content, offset).map((match) => {
+  /**
+   * Catalog movements in `content`. Variation words right before a match widen it: "High-hang
+   * power snatch" is not a hang power snatch, so unless the catalog knows the whole phrase the
+   * movement is left open for the athlete to pick or create.
+   */
+  const addMovements = (content: string, offset: number) => {
+    const tokens = tokenize(content, offset);
+    let taken = offset;
+    return matcher.find(content, offset).map((match) => {
+      let start = match.start;
+      for (let index = tokens.findIndex((token) => token.start === match.start); index > 0;) {
+        const previous = tokens[--index]!;
+        const gap = content.slice(previous.end - offset, start - offset);
+        if (previous.start < taken || !VARIATION_WORDS.has(previous.key) || !/^[\s-]+$/.test(gap))
+          break;
+        start = previous.start;
+      }
+      taken = match.end;
+      const movementId =
+        start === match.start
+          ? match.movementId
+          : matcher.lookup(content.slice(start - offset, match.end - offset));
       const span: SpanOf<"movement"> = {
         _tag: "movement",
         id: makeId(),
-        start: match.start,
+        start,
         end: match.end,
-        movementId: match.movementId,
+        ...(movementId === undefined ? {} : { movementId }),
       };
       spans.push(span);
       return span;
     });
+  };
+
+  const addIntent = (start: number, end: number) => {
+    spans.push({ _tag: "intent", id: makeId(), start, end });
+  };
 
   const workoutLine = (content: string, offset: number) => {
     if (/^rest\b/i.test(content) && parseBlockFormat(content) === undefined) return;
@@ -147,6 +195,14 @@ export const suggestSpans = (
     }
 
     const quantityOnly = movements.length === 0 && isQuantityOnly(masked, offset, quantities);
+    if (
+      movements.length === 0 &&
+      !quantityOnly &&
+      quantities.some((match) => INTENSITY.has(match.quantity.measure))
+    ) {
+      addIntent(offset, offset + content.length);
+      return;
+    }
     for (const match of quantities) {
       const segment = segments.find((candidate) => inSegment(candidate, match));
       const own = segment ? movements.filter((movement) => inSegment(segment, movement)) : [];
@@ -242,8 +298,16 @@ export const suggestSpans = (
     const bullet = line.text.match(BULLET);
     const leading = bullet ? bullet[0].length : line.text.length - line.text.trimStart().length;
     const content = line.text.slice(leading).trimEnd();
-    // "*Byg til en moderat vægt": a coach's comment, not programming.
-    if (content === "" || content.startsWith("*") || content.startsWith("#")) continue;
+    if (content === "" || content.startsWith("#")) continue;
+    // "*Byg til en moderat vægt": the coach's intent for the block, not programming.
+    if (content.startsWith("*")) {
+      if (region === "workout") {
+        const inner = content.replace(/^\*+/, "").replace(/\*+$/, "");
+        const from = line.start + leading + content.indexOf(inner.trim());
+        if (inner.trim() !== "") addIntent(from, from + inner.trim().length);
+      }
+      continue;
+    }
 
     if (region === "notes") notesLine(content, line.start + leading);
     else workoutLine(content, line.start + leading);

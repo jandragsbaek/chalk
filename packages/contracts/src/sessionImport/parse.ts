@@ -94,6 +94,14 @@ const timeFactor = (unit: string) => (/^m/i.test(unit) ? 60 : 1);
 
 const RECOGNIZERS: ReadonlyArray<Recognizer> = [
   {
+    // "@RPE 8", "RPE 7-8", "@8 RPE". Before the loads, so "@8" is not read as 8 kg.
+    pattern: new RegExp(
+      String.raw`(?:@\s*)?(?:(?<!\p{L})RPE\s*:?\s*(${R})|(${R})\s*RPE)(?!\p{L})`,
+      "giu",
+    ),
+    read: (match) => whole(match, quantityOf("rpe", (match[1] ?? match[2])!)),
+  },
+  {
     // "5x5", "3 x 8-10": sets then reps, unless the second number carries a unit.
     pattern: new RegExp(
       String.raw`(?<![\p{L}\d])(\d+)\s*[x×]\s*(${R})(?![\d.,]|\s*(?:kg|lbs?|%|sec|s\b|min|m\b|cal))`,

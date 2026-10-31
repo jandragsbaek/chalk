@@ -3,7 +3,13 @@ import { describe, expect, it } from "@effect/vitest";
 import { MovementId } from "../baseSchemas.ts";
 import type { ImportDocument, Span } from "../sessionImport.ts";
 import { blockingIssues, deriveSession, formatQuantity, type DerivedItem } from "./derive.ts";
-import { BENCH_MAX_OUT, CATALOG, SESSION_160, SESSION_166 } from "./fixtures/sessions.ts";
+import {
+  BENCH_MAX_OUT,
+  CATALOG,
+  SESSION_160,
+  SESSION_166,
+  SESSION_167,
+} from "./fixtures/sessions.ts";
 import { makeMovementMatcher } from "./movementMatcher.ts";
 import { suggestSpans } from "./suggest.ts";
 
@@ -68,6 +74,47 @@ describe("deriveSession", () => {
       "back-squat[10 reps 20-30 %; 5 reps 40 %; 3 reps 55 %; 2 reps 65 %; 1 rep 75 %; 1 rep 85 %; 1 rep 92-95 %]",
     ]);
     expect(session.kind).toBe("strength");
+  });
+
+  it("hangs intent on the block it sits in, with the intensity it names", () => {
+    const session = deriveSession(documentOf(SESSION_167), nameOf);
+    const [every, emom] = session.parts[0]?.blocks ?? [];
+    expect(every?.intents.map((intent) => intent.text)).toEqual([
+      "Byg til en udfordrende vægt over de 5 sæt.",
+    ]);
+    expect(emom?.intents).toEqual([
+      {
+        spanId: expect.any(String),
+        text: "70-80% af ovenstående.",
+        quantities: [{ measure: "percent_1rm", amount: { min: 70, max: 80 } }],
+      },
+    ]);
+  });
+
+  it("keeps intent written between a movement and its format line, and drops it in the notes", () => {
+    const text = "- Back squat\n- Build to RPE 9\n- Max out!\n- 3 reps\n*** Notes\n- Felt RPE 10";
+    const at = (phrase: string) => ({
+      start: text.indexOf(phrase),
+      end: text.indexOf(phrase) + phrase.length,
+    });
+    const spans: ReadonlyArray<Span> = [
+      { _tag: "movement", id: "m", ...at("Back squat"), movementId: MovementId.make("back-squat") },
+      { _tag: "intent", id: "i1", ...at("Build to RPE 9") },
+      { _tag: "block", id: "b", ...at("Max out!"), format: "strength", params: {} },
+      { _tag: "notes", id: "n", ...at("Notes") },
+      { _tag: "intent", id: "i2", ...at("Felt RPE 10") },
+    ];
+    const session = deriveSession({ text, spans, performedOn: "2026-01-02" }, nameOf);
+    expect(session.parts[0]?.blocks).toMatchObject([
+      {
+        format: "strength",
+        items: [{ movementId: "back-squat" }],
+        intents: [{ text: "Build to RPE 9", quantities: [{ measure: "rpe" }] }],
+      },
+    ]);
+    expect(session.issues.map((issue) => issue.message)).toEqual([
+      'Intent "Felt RPE 10" is in the notes and is left out.',
+    ]);
   });
 
   it("logs results from the notes as lift sets and keeps the notes text", () => {

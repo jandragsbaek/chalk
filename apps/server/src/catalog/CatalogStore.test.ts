@@ -76,4 +76,64 @@ describe("CatalogStore", () => {
       expect(missing._tag).toBe("CatalogNotFoundError");
     }).pipe(Effect.provide(layer)),
   );
+  it.effect("keeps variations one level under a core movement", () =>
+    Effect.gen(function* () {
+      const store = yield* CatalogStore.CatalogStore;
+      const snatch = MovementId.make("snatch");
+      const variationsOf = (catalog: ReadonlyArray<{ id: string; variationOf?: string }>) =>
+        catalog
+          .filter((movement) => movement.variationOf === snatch)
+          .map((movement) => movement.id);
+      expect(variationsOf(yield* store.list())).toEqual(["hang-power-snatch", "power-snatch"]);
+
+      // "Squat snatch" was an alias of Snatch; the new movement's name takes the phrase over.
+      const squat = yield* store.create({
+        name: "Squat snatch",
+        category: "barbell",
+        aliases: [],
+        variationOf: snatch,
+      });
+      expect(squat).toMatchObject({ id: "squat-snatch", variationOf: "snatch" });
+      const catalog = yield* store.list();
+      expect(catalog.find((movement) => movement.id === snatch)?.aliases).toEqual([]);
+
+      const underVariation = yield* store
+        .create({
+          name: "High-hang power snatch",
+          category: "barbell",
+          aliases: [],
+          variationOf: MovementId.make("power-snatch"),
+        })
+        .pipe(Effect.flip);
+      expect(underVariation).toMatchObject({
+        _tag: "VariationInvalidError",
+        reason: "core-is-variation",
+      });
+      const unknownCore = yield* store
+        .create({
+          name: "Hang squat",
+          category: "barbell",
+          aliases: [],
+          variationOf: MovementId.make("squat"),
+        })
+        .pipe(Effect.flip);
+      expect(unknownCore._tag).toBe("CatalogNotFoundError");
+
+      const coreWithVariations = yield* store
+        .setVariationOf(snatch, MovementId.make("clean"))
+        .pipe(Effect.flip);
+      expect(coreWithVariations).toMatchObject({ reason: "has-variations" });
+      const self = yield* store.setVariationOf(snatch, snatch).pipe(Effect.flip);
+      expect(self).toMatchObject({ reason: "self" });
+
+      const promoted = yield* store.setVariationOf(MovementId.make("power-snatch"), null);
+      expect(promoted.variationOf).toBeUndefined();
+      const moved = yield* store.setVariationOf(
+        MovementId.make("thruster"),
+        MovementId.make("front-squat"),
+      );
+      expect(moved.variationOf).toBe("front-squat");
+      expect(variationsOf(yield* store.list())).toEqual(["hang-power-snatch", "squat-snatch"]);
+    }).pipe(Effect.provide(layer)),
+  );
 });

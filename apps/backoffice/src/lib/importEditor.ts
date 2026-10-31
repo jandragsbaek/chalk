@@ -29,7 +29,7 @@ export interface EditorState {
 export type TagChoice =
   | { readonly tag: "movement"; readonly movementId: MovementId | undefined }
   | { readonly tag: "quantity"; readonly measure: Measure }
-  | { readonly tag: "block" | "part" | "notes" | "date" | "session" | "score" };
+  | { readonly tag: "block" | "part" | "notes" | "intent" | "date" | "session" | "score" };
 
 export type EditorAction =
   | {
@@ -164,6 +164,7 @@ const makeSpan = (
     }
     case "part":
     case "notes":
+    case "intent":
       return { _tag: choice.tag, id, start, end };
   }
 };
@@ -175,6 +176,20 @@ export const trimRange = (text: string, start: number, end: number) => {
   while (from < to && /\s/.test(text[from]!)) from++;
   while (to > from && /\s/.test(text[to - 1]!)) to--;
   return { start: from, end: to };
+};
+
+/**
+ * Intent is a whole-line tag: the lines the selection touches, without the leading bullet or
+ * comment star and any closing star.
+ */
+export const lineRange = (text: string, start: number, end: number) => {
+  const lines = splitLines(text);
+  const first = lines[lineIndexAt(lines, start)]!;
+  const last = lines[lineIndexAt(lines, Math.max(start, end - 1))]!;
+  const prefix = first.text.match(/^\s*(?:[-+]\s+)?\**/)![0].length;
+  let to = last.end;
+  while (to > first.start + prefix && /[\s*]/.test(text[to - 1]!)) to--;
+  return trimRange(text, first.start + prefix, to);
 };
 
 /** Unattached numbers on a new movement's line attach to it when it is their natural owner. */
@@ -202,7 +217,11 @@ const canTarget = (picked: Span, target: Span, mode: PickMode) => {
 export const editorReducer = (state: EditorState, action: EditorAction): EditorState => {
   switch (action.type) {
     case "tag": {
-      const { start, end } = trimRange(state.text, action.start, action.end);
+      const { start, end } = (action.choice.tag === "intent" ? lineRange : trimRange)(
+        state.text,
+        action.start,
+        action.end,
+      );
       if (start >= end) return state;
       const id = `e${state.nextId}`;
       const overlapped = state.spans.filter((span) => span.start < end && span.end > start);

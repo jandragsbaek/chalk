@@ -88,6 +88,15 @@ export function ImportWorkbench({
   const matcher = makeMovementMatcher(catalog);
   const names = new Map(catalog.map((movement) => [movement.id, movement.name]));
   const nameOf = (id: MovementId) => names.get(id);
+  const cores = new Map(
+    catalog.flatMap((movement) =>
+      movement.variationOf === undefined ? [] : [[movement.id, movement.variationOf] as const],
+    ),
+  );
+  const coreOf = (id: MovementId) => {
+    const core = cores.get(id);
+    return core === undefined ? undefined : names.get(core);
+  };
   const document = toDocument(state);
   const session = deriveSession(document, nameOf);
   const errors = session.issues.filter((issue) => issue.severity === "error");
@@ -334,6 +343,7 @@ export function ImportWorkbench({
               lineOf={lineOf}
               handlers={{
                 nameOf,
+                coreOf,
                 selectedId: state.selectedId,
                 linked,
                 onSelect: handleClickSpan,

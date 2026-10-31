@@ -20,6 +20,7 @@ export const MEASURE_LABELS: Record<Measure, string> = {
   seconds: "Time (sec)",
   load_kg: "Load (kg)",
   percent_1rm: "% of 1RM",
+  rpe: "RPE",
 };
 
 /** 90 → "1:30", 120 → "2 min", 40 → "40 s". */

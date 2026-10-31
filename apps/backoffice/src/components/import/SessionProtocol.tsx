@@ -12,6 +12,8 @@ import { describeBlock } from "../../lib/blockLabels.ts";
 
 export interface ProtocolHandlers {
   readonly nameOf: (id: MovementId) => string | undefined;
+  /** Name of the core movement when `id` is a variation ("Snatch" for a power snatch). */
+  readonly coreOf: (id: MovementId) => string | undefined;
   readonly selectedId: SpanId | undefined;
   readonly linked: ReadonlySet<SpanId>;
   readonly onSelect: (id: SpanId) => void;
@@ -36,6 +38,7 @@ function ItemRow({
   readonly alternative?: boolean;
 }) {
   const name = item.movementId === undefined ? undefined : handlers.nameOf(item.movementId);
+  const core = item.movementId === undefined ? undefined : handlers.coreOf(item.movementId);
   // Re-keyed when the row's content changes, so an edit lights the rows it touched.
   const signature = JSON.stringify([item.movementId, item.sets]);
   return (
@@ -66,7 +69,12 @@ function ItemRow({
               <span className="form-label whitespace-nowrap text-destructive">Pick a movement</span>
             </span>
           ) : (
-            <span className="truncate font-semibold">{name}</span>
+            <span className="grid min-w-0 leading-5">
+              <span className="truncate font-semibold">{name}</span>
+              {core === undefined ? null : (
+                <span className="form-label truncate text-muted-foreground">{core} variation</span>
+              )}
+            </span>
           )}
         </span>
         <span className="relative flex flex-wrap gap-1.5">
@@ -232,6 +240,37 @@ export function SessionProtocol({
                   </span>
                 ))}
               </div>
+              {block.intents.length > 0 ? (
+                <ul className="divide-y border-b">
+                  {block.intents.map((intent) => (
+                    <li key={intent.spanId}>
+                      <button
+                        type="button"
+                        data-protocol-row
+                        data-intent
+                        data-selected={handlers.selectedId === intent.spanId ? "" : undefined}
+                        className="grid w-full grid-cols-[minmax(0,13rem)_minmax(0,1fr)] items-start gap-4 px-4 py-1 text-left"
+                        onClick={() => handlers.onSelect(intent.spanId)}
+                      >
+                        <span className="form-label leading-7 text-muted-foreground">Intent</span>
+                        <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm leading-7">
+                          <span className="font-mono">{intent.text}</span>
+                          {intent.quantities.map((quantity) => (
+                            <span
+                              key={`${quantity.measure}-${quantity.amount.min}-${quantity.amount.max}`}
+                              data-chip
+                              data-measure={quantity.measure}
+                              className="px-1.5 text-sm font-medium leading-6 tabular-nums"
+                            >
+                              {formatQuantity(quantity)}
+                            </span>
+                          ))}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               {block.items.length === 0 ? (
                 <p className="px-4 py-2 text-xs text-muted-foreground">
                   No movements in this block.
