@@ -17,7 +17,8 @@ coach.
 - Estimated 1RM chart on `/strength` (done): per lift, best estimate to date with formula
   spread, every session as a dot, singles marked.
 - Per-movement page: every set, rep maxes, and that chart in one place.
-- RPE per set (prescribed RPE and block intent are imported; performed RPE is not);
+- RPE per set (prescribed RPE and block intent are imported; performed RPE is not per set,
+  only per session in the debrief);
   percentage helper off the current 1RM.
 - Optional "attempt" marker for true max-out days.
 

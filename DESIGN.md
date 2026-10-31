@@ -339,6 +339,16 @@ Three 14px round lamps in an ink housing, each with its initial in condensed cap
 
 Movement rows take the copy-blue tint on hover (55%) and selection (70% with a double ink outline inset 3px). An unresolved row takes a red dashed outline and a red tinted wash. Prescriptions sit in attempt boxes: a fresh-sheet cell with a 1px box-edge stroke holding one tagged chip per set. Results sit in a box with a 1px ink stroke and a 3px goldenrod underline. A row changed by an edit flashes canary for 900ms (disabled under reduced motion).
 
+### Debrief
+
+The protocol closes on a Debrief section (`f` jumps to it): rows of boxes with corner labels,
+divided by rules. A scale is one joined row of square boxes on a box-edge stroke, the chosen one
+in ink (the same vocabulary as the result-mode switch); a pointer click on the chosen box clears
+it. The session RPE row is a ladder: boxes under the answer take the canary tint and ink, the
+colour of every RPE. Limiters are printed check boxes (16px, box-edge stroke, ink fill with a
+paper tick when checked) with a pencil-grey hint. "What the coach reads" echoes the answers as
+sentences on a copy-grey fill with its ink underline, like other notes.
+
 ### Source Line Gutter
 
 Courier source with printed line numbers in a right-aligned 2.25rem gutter behind a 1px rule. A flagged line turns its number cell solid red with a paper numeral, matching the L-number cited in the issue list.

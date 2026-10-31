@@ -1,5 +1,6 @@
 import {
   blockingIssues,
+  normalizeDebrief,
   deriveSession,
   ImportConflictError,
   ImportDocument,
@@ -79,9 +80,9 @@ export class ImportStore extends Context.Service<
       workoutId: WorkoutId,
     ) => Effect.Effect<StoredImport, ImportNotFoundError | ImportPersistenceError>;
     /**
-     * Derives the session from the document and stores it: workout, parts, blocks, items, and
-     * lift sets from the notes and from the items' results. The derivation runs here too, so the client cannot save
-     * something the editor would have refused.
+     * Derives the session from the document and stores it: workout, parts, blocks, items, lift
+     * sets from the notes and from the items' results, and the debrief. The derivation runs
+     * here too, so the client cannot save something the editor would have refused.
      */
     readonly save: (
       input: SaveImportInput,
@@ -211,15 +212,29 @@ const make = Effect.gen(function* () {
 
       const workoutId = WorkoutId.make(yield* newId);
       const now = DateTime.formatIso(yield* DateTime.now);
+      const debrief = normalizeDebrief(input.document.debrief ?? {});
+      const { debrief: _entered, ...rest } = input.document;
+      const stored: ImportDocument = Object.keys(debrief).length > 0 ? { ...rest, debrief } : rest;
+      // The athlete's headline result beats the block scores joined.
       yield* sql`
         INSERT INTO workouts (id, performed_on, name, kind, score, rx, notes, created_at)
-        VALUES (${workoutId}, ${performedOn}, ${session.name}, ${session.kind}, ${session.score},
-                0, ${session.notes}, ${now})
+        VALUES (${workoutId}, ${performedOn}, ${session.name}, ${session.kind},
+                ${debrief.result ?? session.score}, 0,
+                ${session.notes}, ${now})
       `;
+      if (Object.keys(debrief).length > 0)
+        yield* sql`
+          INSERT INTO workout_debriefs (workout_id, result, feel, effort, capacity,
+                                        minutes, limiters, pain, next_time, notes)
+          VALUES (${workoutId}, ${debrief.result ?? null},
+                  ${debrief.feel ?? null}, ${debrief.effort ?? null}, ${debrief.capacity ?? null},
+                  ${debrief.minutes ?? null}, ${JSON.stringify(debrief.limiters ?? [])},
+                  ${debrief.pain ?? null}, ${debrief.nextTime ?? null}, ${debrief.notes ?? null})
+        `;
       yield* sql`
         INSERT INTO session_imports (workout_id, session_number, performed_on, document, imported_at)
         VALUES (${workoutId}, ${session.sessionNumber ?? null}, ${performedOn},
-                ${yield* encodeDocument(input.document)}, ${now})
+                ${yield* encodeDocument(stored)}, ${now})
       `;
       for (const [partPosition, part] of session.parts.entries()) {
         const partId = yield* newId;

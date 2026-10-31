@@ -32,7 +32,7 @@ import * as Cause from "effect/Cause";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
 import { Highlighter, RotateCcw, Save } from "lucide-react";
-import { useEffect, useEffectEvent, useReducer, useState } from "react";
+import { useEffect, useEffectEvent, useReducer, useRef, useState, type ReactNode } from "react";
 
 import {
   editorReducer,
@@ -45,6 +45,7 @@ import { formatKg } from "../../lib/blockLabels.ts";
 import { resultDefaults } from "../../lib/resultDraft.ts";
 import { SAVE_REACTIVITY_KEYS, saveImportAtom } from "../../state/imports.ts";
 import { AnnotatedText, type TextRange } from "./AnnotatedText.tsx";
+import { DebriefSheet } from "./DebriefSheet.tsx";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { FieldBox } from "../FieldBox.tsx";
 import { countItems, SessionProtocol } from "./SessionProtocol.tsx";
@@ -123,6 +124,7 @@ export function ImportWorkbench({
   const [hovered, setHovered] = useState<SpanId | undefined>();
   const [status, setStatus] = useState<SaveStatus>({ type: "idle" });
   const saveImport = useAtomSet(saveImportAtom, { mode: "promiseExit" });
+  const debriefField = useRef<HTMLInputElement>(null);
 
   const matcher = makeMovementMatcher(catalog);
   const names = new Map(catalog.map((movement) => [movement.id, movement.name]));
@@ -180,6 +182,20 @@ export function ImportWorkbench({
     dispatch(state.picking ? { type: "target", id } : { type: "select", id });
   }
 
+  function openDebrief() {
+    const field = debriefField.current;
+    if (!field) return;
+    field.focus({ preventScroll: true });
+    // Scroll the protocol pane only: scrollIntoView would also move the page under the band.
+    const section = field.closest("section");
+    const pane = field.closest("[data-pane-scroll]");
+    if (!section || !pane) return;
+    pane.scrollTo({
+      top: pane.scrollTop + section.getBoundingClientRect().top - pane.getBoundingClientRect().top,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  }
+
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey) return;
     if (event.key === "Escape") {
@@ -194,6 +210,11 @@ export function ImportWorkbench({
         event.preventDefault();
         tag(action.choice);
       }
+      return;
+    }
+    if (event.key.toLowerCase() === "f" && !state.picking) {
+      event.preventDefault();
+      openDebrief();
       return;
     }
     if (!selected) return;
@@ -377,8 +398,22 @@ export function ImportWorkbench({
           </div>
         </section>
         <section aria-label="Protocol" className="flex min-h-0 flex-col border-b lg:border-r">
-          <PaneHeader title="Protocol" meta="What will be saved" />
-          <div className="min-h-0 flex-1 overflow-auto">
+          <PaneHeader
+            title="Protocol"
+            meta="What will be saved"
+            action={
+              <button
+                type="button"
+                aria-keyshortcuts="f"
+                className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
+                onClick={openDebrief}
+              >
+                Debrief
+                <kbd data-key>f</kbd>
+              </button>
+            }
+          />
+          <div data-pane-scroll className="min-h-0 flex-1 overflow-auto pb-10">
             <SessionProtocol
               session={session}
               lineOf={lineOf}
@@ -390,6 +425,12 @@ export function ImportWorkbench({
                 onSelect: handleClickSpan,
                 onHover: setHovered,
               }}
+            />
+            <DebriefSheet
+              debrief={state.debrief}
+              scores={session.parts.flatMap((part) => part.blocks.flatMap((block) => block.scores))}
+              firstFieldRef={debriefField}
+              onChange={(debrief) => dispatch({ type: "setDebrief", debrief })}
             />
           </div>
         </section>
@@ -451,11 +492,22 @@ export function ImportWorkbench({
   );
 }
 
-function PaneHeader({ title, meta }: { readonly title: string; readonly meta: string }) {
+function PaneHeader({
+  title,
+  meta,
+  action,
+}: {
+  readonly title: string;
+  readonly meta: string;
+  readonly action?: ReactNode;
+}) {
   return (
     <header className="flex h-9 shrink-0 items-center justify-between gap-3 border-b bg-background px-4">
       <h2 className="form-label text-foreground">{title}</h2>
-      <span className="truncate text-xs text-muted-foreground">{meta}</span>
+      <span className="flex min-w-0 items-center gap-4">
+        <span className="truncate text-xs text-muted-foreground">{meta}</span>
+        {action}
+      </span>
     </header>
   );
 }

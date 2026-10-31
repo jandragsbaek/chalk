@@ -7,6 +7,7 @@ import {
   TrimmedNonEmptyString,
   WorkoutId,
 } from "./baseSchemas.ts";
+import { Debrief } from "./debrief.ts";
 import { MovementCategory } from "./strength.ts";
 
 /**
@@ -130,6 +131,8 @@ export const ImportDocument = Schema.Struct({
   spans: Schema.Array(Span),
   /** Used only when no `date` span exists (the paste had no session heading). */
   performedOn: Schema.optionalKey(IsoDate),
+  /** The athlete's debrief, entered in the editor rather than read from the text. */
+  debrief: Schema.optionalKey(Debrief),
 }).annotate({ identifier: "ImportDocument" });
 export type ImportDocument = typeof ImportDocument.Type;
 

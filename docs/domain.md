@@ -196,6 +196,16 @@ re-derivable.
 - **Tonnage**: reps × load summed, per item, per block and per session (results plus notes lift
   sets; a movement in both is warned about, since it counts twice). `ImportSummary.tonnageKg`
   is the same sum over the workout's lift sets.
+- **Debrief (built).** The athlete's side of the session, entered in the editor and stored on
+  the document (`ImportDocument.debrief`, schema `Debrief`): the result in their words, minutes, how it felt (1 to 5), how hard they could push today (capacity,
+  1 to 5), session RPE (Foster CR-10, 1 to 10), what limited them (engine, muscle endurance,
+  strength, skill, grip, mobility, pacing, energy, head, pain, or nothing), where it hurt, what
+  to do next time, and free notes. Every field is optional; "not answered" is the absent key.
+  Effort under capacity was a choice; capacity under normal was the body. Session load is RPE ×
+  minutes. Saving writes one `workout_debriefs` row (typed columns, limiters as JSON) for coach
+  queries, and uses the result as `workouts.score` over the block scores. Rx and scaling are
+  not part of the debrief; they come from performed items (above).
+  `describeDebrief` renders the answers as the sentences a coach reads; the editor shows them.
 - One import per session number, or per day without one; saving the same session again needs an
   explicit replace. Deleting the workout deletes its import, structure and lift sets.
 

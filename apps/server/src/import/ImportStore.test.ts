@@ -183,6 +183,57 @@ describe("ImportStore", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect(
+    "stores the debrief for the coach, normalized, and its result as the workout score",
+    () =>
+      Effect.gen(function* () {
+        const store = yield* ImportStore.ImportStore;
+        const sql = yield* SqlClient.SqlClient;
+        const document = yield* suggestedDocument(SESSION_160);
+        const summary = yield* store.save({
+          document: {
+            ...document,
+            debrief: {
+              result: " 150 kg single, PR ",
+              effort: 9,
+              minutes: 75,
+              limiters: ["strength", "none"],
+              pain: "only kept with the pain limiter",
+              notes: "",
+            },
+          },
+        });
+
+        const [workout] = yield* sql<{ score: string }>`
+        SELECT score FROM workouts WHERE id = ${summary.workoutId}
+      `;
+        expect(workout).toEqual({ score: "150 kg single, PR" });
+        const [debrief] = yield* sql`
+        SELECT result, feel, effort, minutes, limiters, pain, notes
+        FROM workout_debriefs WHERE workout_id = ${summary.workoutId}
+      `;
+        expect(debrief).toEqual({
+          result: "150 kg single, PR",
+          feel: null,
+          effort: 9,
+          minutes: 75,
+          limiters: '["strength"]',
+          pain: null,
+          notes: null,
+        });
+        expect((yield* store.get(summary.workoutId)).document.debrief).toEqual({
+          result: "150 kg single, PR",
+          effort: 9,
+          minutes: 75,
+          limiters: ["strength"],
+        });
+
+        // Replacing without a debrief removes the old one.
+        yield* store.save({ document, replace: summary.workoutId });
+        expect(yield* sql`SELECT workout_id FROM workout_debriefs`).toEqual([]);
+      }).pipe(Effect.provide(layer)),
+  );
+
   it.effect("refuses a document with blocking issues", () =>
     Effect.gen(function* () {
       const store = yield* ImportStore.ImportStore;
