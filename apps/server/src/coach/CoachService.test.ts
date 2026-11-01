@@ -207,6 +207,30 @@ describe("CoachService", () => {
     }).pipe(Effect.provide(layerWith(readsThenAnswers.model))),
   );
 
+  const browsesCatalog = scriptedModel((options) =>
+    Effect.succeed(
+      options.prompt.content.at(-1)?.role === "tool"
+        ? text("Test Fran (R1).")
+        : toolCalls([{ name: "list_benchmarks", params: { category: "girl", query: "FRAN" } }]),
+    ),
+  );
+
+  it.effect("reads the benchmark catalog, prescriptions included", () =>
+    Effect.gen(function* () {
+      const events = yield* send({ text: "Which benchmark should I test?" });
+      const receipt = (events[2] as Extract<CoachEvent, { _tag: "ReadFinished" }>).receipt;
+      expect(receipt).toMatchObject({
+        tool: "list_benchmarks",
+        request: [{ tag: "text", text: 'Girls with "fran"' }],
+        summary: "1 benchmark",
+        rows: [["Fran", "Girls", "Time"]],
+      });
+      const shown = JSON.stringify(browsesCatalog.calls[1]?.prompt.content.at(-1));
+      expect(shown).toContain("21-15-9");
+      expect(shown).toContain("Thrusters");
+    }).pipe(Effect.provide(layerWith(browsesCatalog.model))),
+  );
+
   const picked = scriptedModel(() => Effect.succeed(text("Answered.")));
 
   it.effect("answers with the model the athlete picked, and refuses one it does not offer", () =>
@@ -270,6 +294,28 @@ describe("CoachService", () => {
       expect(reply.turn.text).toBe("That is all I could read.");
       expect(greedy.calls).toHaveLength(CoachService.MAX_STEPS);
     }).pipe(Effect.provide(layerWith(greedy.model))),
+  );
+
+  // Reads, then ends its turn empty after the tool result (as Claude sometimes does), and
+  // answers once asked again.
+  const silentAfterRead = scriptedModel((options) =>
+    Effect.succeed(
+      options.prompt.content.at(-1)?.role === "tool"
+        ? [{ type: "finish", reason: "stop", usage }]
+        : options.prompt.content.at(-1)?.role === "user" && silentAfterRead.calls.length > 1
+          ? text("Nothing logged yet (R1).")
+          : toolCalls([{ name: "list_workouts", params: {} }]),
+    ),
+  );
+
+  it.effect("asks again when the model ends its turn without an answer", () =>
+    Effect.gen(function* () {
+      const events = yield* send({ text: "Which benchmark should I test?" });
+      const reply = last(events) as Extract<CoachEvent, { _tag: "CoachTurn" }>;
+      expect(reply.turn.text).toBe("Nothing logged yet (R1).");
+      expect(reply.turn.stopped).toBeUndefined();
+      expect(silentAfterRead.calls).toHaveLength(3);
+    }).pipe(Effect.provide(layerWith(silentAfterRead.model))),
   );
 
   const failing = scriptedModel(() =>

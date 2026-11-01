@@ -1,11 +1,16 @@
 import {
+  BENCHMARK_CATEGORY_NAMES,
+  BenchmarkCategory,
   benchmarkById,
   BenchmarkId,
+  BENCHMARKS,
+  BenchmarkScoring,
   estimateOneRepMax,
   IsoDate,
   MAX_ESTIMATE_REPS,
   MovementCategory,
   MovementId,
+  normalizeBenchmarkName,
   WorkoutKind,
   type CoachReceipt,
   type CoachRequestPart,
@@ -137,11 +142,37 @@ const ListBenchmarkResults = Tool.make("list_benchmark_results", {
   ...common,
 });
 
+const ListBenchmarks = Tool.make("list_benchmarks", {
+  description:
+    "Chalk's catalog of named workouts the athlete can test against: the Girls, the Heroes " +
+    "and a few classics, each with how it is scored and its prescription as CrossFit posted it. " +
+    "The Heroes alone are over 200; filter by category or name when you can.",
+  parameters: Schema.Struct({
+    category: Schema.optionalKey(BenchmarkCategory).annotate({
+      description: "'girl', 'hero' or 'notable' (other classics); omit for all",
+    }),
+    query: Schema.optionalKey(Schema.String).annotate({
+      description: "Part of a name or alias, e.g. 'fran'; omit for every name",
+    }),
+  }),
+  success: Schema.Array(
+    Schema.Struct({
+      id: BenchmarkId,
+      name: Schema.String,
+      category: BenchmarkCategory,
+      scoring: BenchmarkScoring,
+      posted: Schema.String,
+    }),
+  ),
+  ...common,
+});
+
 export const CoachToolkit = Toolkit.make(
   ListMovements,
   ListWorkouts,
   ListLiftSets,
   GetRepMaxes,
+  ListBenchmarks,
   ListBenchmarkResults,
 );
 
@@ -196,6 +227,13 @@ const range = (dates: DayRange): CoachRequestPart => ({ tag: "range", text: rang
 const movement = (text: string): CoachRequestPart => ({ tag: "movement", text });
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
+const SCORED_BY: Record<BenchmarkScoring, string> = {
+  time: "Time",
+  rounds_reps: "Rounds + reps",
+  reps: "Reps",
+  load: "Load",
+};
 
 /** Handlers over the stores, reporting each call to `log`. */
 export const makeHandlers = (deps: {
@@ -440,6 +478,50 @@ export const makeHandlers = (deps: {
         },
       );
     }),
+
+    list_benchmarks: ({ category, query }) => {
+      const needle = normalizeBenchmarkName(query ?? "");
+      return read(
+        "list_benchmarks",
+        [
+          {
+            tag: "text",
+            text:
+              category === undefined
+                ? needle === ""
+                  ? "Every benchmark"
+                  : `Names with "${needle}"`
+                : needle === ""
+                  ? BENCHMARK_CATEGORY_NAMES[category]
+                  : `${BENCHMARK_CATEGORY_NAMES[category]} with "${needle}"`,
+          },
+        ],
+        Effect.succeed(
+          BENCHMARKS.filter(
+            (benchmark) =>
+              (category === undefined || benchmark.category === category) &&
+              [benchmark.name, ...benchmark.aliases].some((name) =>
+                normalizeBenchmarkName(name).includes(needle),
+              ),
+          ).map(({ id, name, category, scoring, posted }) => ({
+            id,
+            name,
+            category,
+            scoring,
+            posted,
+          })),
+        ),
+        (found) => ({
+          summary: plural(found.length, "benchmark"),
+          columns: ["Benchmark", "Category", "Scored by"],
+          rows: found.map((benchmark) => [
+            benchmark.name,
+            BENCHMARK_CATEGORY_NAMES[benchmark.category],
+            SCORED_BY[benchmark.scoring],
+          ]),
+        }),
+      );
+    },
 
     list_benchmark_results: ({ benchmarkId }) =>
       read(
