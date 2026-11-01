@@ -582,3 +582,34 @@ kbd[data-key] {
 [data-day-row][data-active] {
   background: var(--muted);
 }
+
+/*
+ * Coach. The conversation being read takes the selection double outline, on the ruled tint.
+ * Receipts carry their state in stroke form: a read still running is dashed in box edge, a read
+ * that failed is dashed in official red; a finished one keeps the plain rules of its box.
+ */
+[data-coach-thread][data-current] {
+  background: var(--muted);
+  outline: 3px double var(--foreground);
+  outline-offset: -4px;
+}
+[data-receipt][data-receipt-status="running"],
+[data-receipt][data-receipt-status="failed"] {
+  outline: 1.5px dashed var(--input);
+  outline-offset: -3px;
+}
+[data-receipt][data-receipt-status="failed"] {
+  outline-color: var(--destructive);
+}
+[data-coach-thread][data-unanswered] {
+  outline: 1.5px dashed var(--input);
+  outline-offset: -4px;
+}
+[data-coach-thread][data-unanswered][data-current] {
+  outline: 3px double var(--foreground);
+}
+/* A reply the model never gave: a no-lift, so it takes the red dashed stroke. */
+[data-coach-failed] {
+  outline: 1.5px dashed var(--destructive);
+  outline-offset: -1px;
+}

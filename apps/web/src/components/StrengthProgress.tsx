@@ -1,4 +1,4 @@
-import type { LiftSet, MovementId } from "@chalk/contracts";
+import { MAX_ESTIMATE_REPS, type LiftSet, type MovementId } from "@chalk/contracts";
 import { Label, NativeSelect } from "@chalk/ui/components/field.tsx";
 import { useAtomValue } from "@effect/atom-react";
 import { AxisBottom, AxisLeft } from "@visx/axis";
@@ -12,7 +12,6 @@ import { Area, LinePath } from "@visx/shape";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { useState } from "react";
 
-import { MAX_ESTIMATE_REPS } from "../lib/estimate.ts";
 import {
   bestToDate,
   clipSteps,

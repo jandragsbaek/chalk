@@ -350,7 +350,7 @@ Printed and decisive: square, semi-bold, no gradient.
 
 ### Navigation
 
-- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Log, Strength, Benchmarks, Levels, Workouts, Import); Today is the front page, Log the manual entry page and Workouts the session register. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
+- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Log, Strength, Benchmarks, Levels, Workouts, Import, Coach); Today is the front page, Log the manual entry page and Workouts the session register. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
 
 ### Protocol Field Box
 
@@ -413,6 +413,35 @@ outline; up and down walk the register. The sheet is the protocol read back: a t
 its actions, a strip of protocol field boxes, then the importer's protocol without its editing
 affordances (rows do not tint or select), the debrief as the coach reads it, and typed notes in
 Courier.
+
+### Coach Conversation
+
+`/coach` owns the viewport under the band: a 16rem fresh-sheet rail of conversations (pane
+header "Conversations" with an outline New button; the open one on the ruled tint with the 3px
+double ink outline inset 4px; one whose last message has no answer dashed in box edge), and a
+centred 46rem column that scrolls above a composer docked on a 1px rule. A thread opens on a
+strip of protocol field boxes (Started, Turns, Reads, Model) and its title in display caps on a
+2px ink rule. Each turn is a protocol section: its number as an ink part mark, "You" or "Coach"
+in condensed caps on a 2px ink rule, its time (and the coach's read count) as right-hand meta.
+No bubbles, no avatars, no left/right alignment.
+
+- **The athlete's words** are typed source: Courier Prime in a fresh-sheet box with a box-edge
+  stroke, in the turn and in the composer. The composer's hints are pencil-grey sentences.
+- **Receipts** (signature): every tool call the coach made, boxed under its heading as ruled
+  rows: the receipt number (R1, R2, numbered across the thread) in a Courier gutter, the tool in
+  semi-bold, what it asked for as carbon chips (movement in copy blue, benchmark in goldenrod,
+  date range in copy grey), the answer right-aligned in pencil grey, then a chevron. Open, a row
+  shows the rows the model saw as a label-headed table on the paper ground; implied rep maxes
+  keep their `*` with a footnote; empty cells print the short rule. A read still running is
+  dashed in box edge, a failed read dashed in official red (Stroke State Rule).
+- **Citations**: "(R2)" in a reply prints R2 in bold Courier with a dotted underline; following
+  it opens and scrolls to that receipt.
+- **Stopped replies**: a read or step limit ends on a dashed box-edge note in pencil grey; a
+  reply the model never gave is a no-lift, one red-dashed notice in official red.
+- **Starter prompts** on a new conversation sit right above the composer, three questions
+  grounded in the log.
+- **Not set up** (no key on the server): the composer is replaced by a dashed notice naming the
+  variable; saved threads stay readable and starter prompts dim to the disabled 45%.
 
 ### Source Line Gutter
 

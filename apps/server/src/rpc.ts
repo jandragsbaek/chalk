@@ -7,6 +7,7 @@ import {
 } from "@chalk/contracts";
 import * as Effect from "effect/Effect";
 
+import * as CoachService from "./coach/CoachService.ts";
 import * as LevelStore from "./levels/LevelStore.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
@@ -33,6 +34,7 @@ export const layer = ChalkRpcGroup.toLayer(
     const store = yield* WorkoutStore.WorkoutStore;
     const strength = yield* StrengthStore.StrengthStore;
     const levels = yield* LevelStore.LevelStore;
+    const coach = yield* CoachService.CoachService;
     const onStrengthError = { StrengthPersistenceError: reportStrengthStorageError };
     return ChalkRpcGroup.of({
       [RPC_METHODS.workoutsList]: () =>
@@ -55,6 +57,10 @@ export const layer = ChalkRpcGroup.toLayer(
         levels
           .overview()
           .pipe(Effect.catchTags({ LevelPersistenceError: reportLevelStorageError })),
+      [RPC_METHODS.coachStatus]: () => coach.status(),
+      [RPC_METHODS.coachThreads]: () => coach.threads(),
+      [RPC_METHODS.coachThread]: ({ id }) => coach.thread(id),
+      [RPC_METHODS.coachSend]: (input) => coach.send(input),
     });
   }),
 );

@@ -164,6 +164,9 @@ settings:
 
 catalogs:
   default:
+    '@effect/ai-openrouter':
+      specifier: 4.1.0
+      version: 4.1.0
     '@effect/atom-react':
       specifier: 4.1.0
       version: 4.1.0
@@ -215,6 +218,9 @@ importers:
       '@chalk/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@effect/ai-openrouter':
+        specifier: 'catalog:'
+        version: 4.1.0(effect@4.1.0)
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(redis@6.3.0)
@@ -506,6 +512,11 @@ packages:
 
   '@blazediff/core@1.10.0':
     resolution: {integrity: sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ==}
+
+  '@effect/ai-openrouter@4.1.0':
+    resolution: {integrity: sha512-nukERW2MOXbaEtQIBQPsEHlbEdSiDP8aOhx7IS+jBZiNofTj1sn9rrquW9PANbb1G6fLMN5bt1IQws/T3KjE3g==}
+    peerDependencies:
+      effect: ^4.1.0
 
   '@effect/atom-react@4.1.0':
     resolution: {integrity: sha512-PeaBDmwqG9BPQfaPHeWCB2NF4NQaFlI6poKxjlBHMrMjKqV+LVBdryhpDNqSZOhqGgT+qnh9gV+19MYjNOQ+bg==}
@@ -2672,6 +2683,10 @@ snapshots:
       '@types/react': 19.3.0
 
   '@blazediff/core@1.10.0': {}
+
+  '@effect/ai-openrouter@4.1.0(effect@4.1.0)':
+    dependencies:
+      effect: 4.1.0
 
   '@effect/atom-react@4.1.0(effect@4.1.0)(react@19.3.1)(scheduler@0.28.0)':
     dependencies:

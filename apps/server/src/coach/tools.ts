@@ -1,0 +1,476 @@
+import {
+  benchmarkById,
+  BenchmarkId,
+  estimateOneRepMax,
+  IsoDate,
+  MAX_ESTIMATE_REPS,
+  MovementCategory,
+  MovementId,
+  WorkoutKind,
+  type CoachReceipt,
+  type CoachRequestPart,
+  type LiftSet,
+  type Movement,
+} from "@chalk/contracts";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
+import * as Tool from "effect/ai/Tool";
+import * as Toolkit from "effect/ai/Toolkit";
+
+import type * as StrengthStore from "../strength/StrengthStore.ts";
+import type * as WorkoutStore from "../workout/WorkoutStore.ts";
+
+/**
+ * The coach's read-only tools over the athlete's log. Each call becomes a receipt: what was
+ * asked, a one-line answer, and the rows the model saw, so the athlete can check the numbers.
+ */
+
+/** What a tool returns to the model when it cannot answer; the model reads the message. */
+export const ToolFailure = Schema.Struct({ message: Schema.String });
+export type ToolFailure = typeof ToolFailure.Type;
+
+const Range = {
+  from: Schema.optionalKey(IsoDate).annotate({ description: "First day, inclusive, YYYY-MM-DD" }),
+  to: Schema.optionalKey(IsoDate).annotate({ description: "Last day, inclusive, YYYY-MM-DD" }),
+};
+
+const common = { failure: ToolFailure, failureMode: "return" } as const;
+
+const ListMovements = Tool.make("list_movements", {
+  description:
+    "Search the movement catalog. Returns ids (slugs like 'back-squat') that the other tools take.",
+  parameters: Schema.Struct({
+    query: Schema.optionalKey(Schema.String).annotate({
+      description: "Part of a movement name, e.g. 'squat'; omit for the whole catalog",
+    }),
+  }),
+  success: Schema.Array(
+    Schema.Struct({ id: MovementId, name: Schema.String, category: MovementCategory }),
+  ),
+  ...common,
+});
+
+const ListWorkouts = Tool.make("list_workouts", {
+  description:
+    "Logged training sessions, newest first: date, name, kind, score and whether it was Rx.",
+  parameters: Schema.Struct({
+    ...Range,
+    limit: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))),
+  }),
+  success: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      performedOn: IsoDate,
+      name: Schema.String,
+      kind: WorkoutKind,
+      score: Schema.String,
+      rx: Schema.Boolean,
+      benchmark: Schema.optionalKey(Schema.String),
+    }),
+  ),
+  ...common,
+});
+
+const ListLiftSets = Tool.make("list_lift_sets", {
+  description: "Every logged strength set of one movement (reps x kg), newest first.",
+  parameters: Schema.Struct({
+    movementId: MovementId.annotate({ description: "Catalog id, e.g. 'back-squat'" }),
+    ...Range,
+  }),
+  success: Schema.Array(
+    Schema.Struct({ performedOn: IsoDate, reps: Schema.Int, loadKg: Schema.Finite }),
+  ),
+  ...common,
+});
+
+const GetRepMaxes = Tool.make("get_rep_maxes", {
+  description:
+    "Rep maxes (1, 2, 3, 5, 10RM) derived from logged sets, and the best estimated 1RM " +
+    "(Epley, with the Brzycki/Lombardi spread). A rep max whose fromReps exceeds its reps is " +
+    "implied by a bigger set, not tested.",
+  parameters: Schema.Struct({
+    movementId: Schema.optionalKey(MovementId).annotate({
+      description: "Catalog id; omit for every movement with sets",
+    }),
+  }),
+  success: Schema.Array(
+    Schema.Struct({
+      movementId: MovementId,
+      movement: Schema.String,
+      repMaxes: Schema.Array(
+        Schema.Struct({
+          reps: Schema.Int,
+          loadKg: Schema.Finite,
+          fromReps: Schema.Int,
+          performedOn: IsoDate,
+        }),
+      ),
+      estimated1Rm: Schema.NullOr(
+        Schema.Struct({
+          kg: Schema.Finite,
+          lowKg: Schema.Finite,
+          highKg: Schema.Finite,
+          fromSet: Schema.String,
+          performedOn: IsoDate,
+        }),
+      ),
+    }),
+  ),
+  ...common,
+});
+
+const ListBenchmarkResults = Tool.make("list_benchmark_results", {
+  description: "Attempts at named workouts (Fran, Murph, ...), newest first.",
+  parameters: Schema.Struct({
+    benchmarkId: Schema.optionalKey(BenchmarkId).annotate({
+      description: "Slug like 'fran'; omit for every benchmark",
+    }),
+  }),
+  success: Schema.Array(
+    Schema.Struct({
+      benchmark: Schema.String,
+      performedOn: IsoDate,
+      score: Schema.String,
+      rx: Schema.NullOr(Schema.Boolean),
+    }),
+  ),
+  ...common,
+});
+
+export const CoachToolkit = Toolkit.make(
+  ListMovements,
+  ListWorkouts,
+  ListLiftSets,
+  GetRepMaxes,
+  ListBenchmarkResults,
+);
+
+/** Rows a receipt keeps; the model gets every row, the athlete's copy is capped. */
+const RECEIPT_ROWS = 60;
+
+/** The receipt's table and line for a successful read. */
+interface Readout {
+  readonly summary: string;
+  readonly columns: ReadonlyArray<string>;
+  readonly rows: ReadonlyArray<ReadonlyArray<string>>;
+}
+
+/** Called around every tool call, so the caller can stream and number the receipts. */
+export interface ReadLog {
+  /** Takes the next receipt number, or fails when the read budget is spent. */
+  readonly begin: (
+    tool: string,
+    request: ReadonlyArray<CoachRequestPart>,
+  ) => Effect.Effect<number, ToolFailure>;
+  readonly finish: (receipt: CoachReceipt) => Effect.Effect<void>;
+}
+
+const kg = (value: number) => `${Math.round(value * 10) / 10} kg`;
+
+interface DayRange {
+  readonly from?: string | undefined;
+  readonly to?: string | undefined;
+}
+
+const inRange = (day: string, range: DayRange) =>
+  (range.from === undefined || day >= range.from) && (range.to === undefined || day <= range.to);
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "2026-10-30" as "30 Oct 2026", the way the receipt prints it. */
+const day = (iso: string) => {
+  const [year, month, date] = iso.split("-");
+  return `${Number(date)} ${MONTHS[Number(month) - 1] ?? month} ${year}`;
+};
+
+const rangeWords = (range: DayRange) =>
+  range.from !== undefined && range.to !== undefined
+    ? `${day(range.from)} to ${day(range.to)}`
+    : range.from !== undefined
+      ? `Since ${day(range.from)}`
+      : range.to !== undefined
+        ? `Until ${day(range.to)}`
+        : "All time";
+
+const range = (dates: DayRange): CoachRequestPart => ({ tag: "range", text: rangeWords(dates) });
+const movement = (text: string): CoachRequestPart => ({ tag: "movement", text });
+
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
+/** Handlers over the stores, reporting each call to `log`. */
+export const makeHandlers = (deps: {
+  readonly workouts: WorkoutStore.WorkoutStore["Service"];
+  readonly strength: StrengthStore.StrengthStore["Service"];
+  readonly log: ReadLog;
+}) => {
+  const { workouts, strength, log } = deps;
+
+  const movementNames = strength
+    .movements()
+    .pipe(
+      Effect.map((movements) => new Map(movements.map((movement) => [movement.id, movement.name]))),
+    );
+
+  /** Runs one read: numbers it, turns storage failures into a message, and files the receipt. */
+  const read = Effect.fn("CoachTools.read")(function* <A>(
+    tool: string,
+    request: ReadonlyArray<CoachRequestPart>,
+    run: Effect.Effect<A, ToolFailure | { readonly _tag: string; readonly message: string }>,
+    readout: (value: A) => Readout,
+  ) {
+    const number = yield* log.begin(tool, request);
+    const failed = (message: string) =>
+      log
+        .finish({
+          number,
+          tool,
+          request,
+          summary: message,
+          status: "failed",
+          columns: [],
+          rows: [],
+          truncated: 0,
+        })
+        .pipe(Effect.andThen(Effect.fail<ToolFailure>({ message })));
+    const value = yield* run.pipe(
+      Effect.catch((error) =>
+        "_tag" in error
+          ? Effect.logError(error.message).pipe(
+              Effect.andThen(failed("Could not read the training log.")),
+            )
+          : failed(error.message),
+      ),
+    );
+    const { summary, columns, rows } = readout(value);
+    yield* log.finish({
+      number,
+      tool,
+      request,
+      summary,
+      status: "ok",
+      columns: [...columns],
+      rows: rows.slice(0, RECEIPT_ROWS).map((row) => [...row]),
+      truncated: Math.max(0, rows.length - RECEIPT_ROWS),
+    });
+    return value;
+  });
+
+  const requireMovement = (id: MovementId) =>
+    movementNames.pipe(
+      Effect.flatMap((names) => {
+        const name = names.get(id);
+        return name === undefined
+          ? Effect.fail<ToolFailure>({
+              message: `No movement '${id}' in the catalog. Use list_movements to find its id.`,
+            })
+          : Effect.succeed(name);
+      }),
+    );
+
+  return CoachToolkit.of({
+    list_movements: ({ query }) => {
+      const needle = query?.trim().toLowerCase() ?? "";
+      return read(
+        "list_movements",
+        [{ tag: "text", text: needle === "" ? "Whole catalog" : `Names with "${needle}"` }],
+        strength
+          .movements()
+          .pipe(
+            Effect.map((movements) =>
+              movements
+                .filter((movement: Movement) => movement.name.toLowerCase().includes(needle))
+                .map(({ id, name, category }) => ({ id, name, category })),
+            ),
+          ),
+        (found) => ({
+          summary: plural(found.length, "movement"),
+          columns: ["Movement", "Id", "Category"],
+          rows: found.map((movement) => [movement.name, movement.id, movement.category]),
+        }),
+      );
+    },
+
+    list_workouts: ({ from, to, limit }) =>
+      read(
+        "list_workouts",
+        [range({ from, to })],
+        workouts.list().pipe(
+          Effect.map((all) =>
+            all
+              .filter((workout) => inRange(workout.performedOn, { from, to }))
+              .slice(0, limit ?? 30)
+              .map((workout) => {
+                const benchmark =
+                  workout.benchmarkId === undefined
+                    ? undefined
+                    : benchmarkById(workout.benchmarkId)?.name;
+                return {
+                  id: workout.id,
+                  performedOn: workout.performedOn,
+                  name: workout.name,
+                  kind: workout.kind,
+                  score: workout.score,
+                  rx: workout.rx,
+                  ...(benchmark === undefined ? {} : { benchmark }),
+                };
+              }),
+          ),
+        ),
+        (found) => ({
+          summary: plural(found.length, "session"),
+          columns: ["Date", "Workout", "Kind", "Score"],
+          rows: found.map((workout) => [
+            day(workout.performedOn),
+            workout.name,
+            workout.kind,
+            workout.score === "" ? "" : `${workout.score}${workout.rx ? " Rx" : ""}`,
+          ]),
+        }),
+      ),
+
+    list_lift_sets: Effect.fn("CoachTools.list_lift_sets")(function* ({ movementId, from, to }) {
+      const names = yield* movementNames.pipe(
+        Effect.orElseSucceed(() => new Map<MovementId, string>()),
+      );
+      const name = names.get(movementId) ?? movementId;
+      return yield* read(
+        "list_lift_sets",
+        [movement(name), range({ from, to })],
+        requireMovement(movementId).pipe(
+          Effect.andThen(strength.list()),
+          Effect.map((sets) =>
+            sets
+              .filter(
+                (set: LiftSet) =>
+                  set.movementId === movementId && inRange(set.performedOn, { from, to }),
+              )
+              .map(({ performedOn, reps, loadKg }) => ({ performedOn, reps, loadKg })),
+          ),
+        ),
+        (sets) => {
+          const heaviest = Math.max(0, ...sets.map((set) => set.loadKg));
+          return {
+            summary:
+              sets.length === 0
+                ? "No sets"
+                : `${plural(sets.length, "set")}, heaviest ${kg(heaviest)}`,
+            columns: ["Date", "Reps", "Load"],
+            rows: sets.map((set) => [day(set.performedOn), String(set.reps), kg(set.loadKg)]),
+          };
+        },
+      );
+    }),
+
+    get_rep_maxes: Effect.fn("CoachTools.get_rep_maxes")(function* ({ movementId }) {
+      const names = yield* movementNames.pipe(
+        Effect.orElseSucceed(() => new Map<MovementId, string>()),
+      );
+      const label = (id: MovementId) => names.get(id) ?? id;
+      return yield* read(
+        "get_rep_maxes",
+        [
+          movementId === undefined
+            ? { tag: "text", text: "Every movement" }
+            : movement(label(movementId)),
+        ],
+        Effect.gen(function* () {
+          if (movementId !== undefined) yield* requireMovement(movementId);
+          const [records, sets] = yield* Effect.all([strength.records(), strength.list()]);
+          return records
+            .filter((record) => movementId === undefined || record.movementId === movementId)
+            .map((record) => {
+              let best: { set: LiftSet; kg: number; lowKg: number; highKg: number } | undefined;
+              for (const set of sets) {
+                if (set.movementId !== record.movementId || set.reps > MAX_ESTIMATE_REPS) continue;
+                const estimate = estimateOneRepMax(set.loadKg, set.reps);
+                if (best === undefined || estimate.epley > best.kg)
+                  best = { set, kg: estimate.epley, lowKg: estimate.low, highKg: estimate.high };
+              }
+              return {
+                movementId: record.movementId,
+                movement: label(record.movementId),
+                repMaxes: record.repMaxes.map(({ reps, loadKg, fromReps, performedOn }) => ({
+                  reps,
+                  loadKg,
+                  fromReps,
+                  performedOn,
+                })),
+                estimated1Rm:
+                  best === undefined
+                    ? null
+                    : {
+                        kg: Math.round(best.kg * 10) / 10,
+                        lowKg: Math.round(best.lowKg * 10) / 10,
+                        highKg: Math.round(best.highKg * 10) / 10,
+                        fromSet: `${best.set.reps} x ${kg(best.set.loadKg)}`,
+                        performedOn: best.set.performedOn,
+                      },
+              };
+            });
+        }),
+        (found) => {
+          const [only] = found;
+          return {
+            summary:
+              found.length === 1 && only !== undefined
+                ? only.estimated1Rm === null
+                  ? `${plural(only.repMaxes.length, "rep max")}`
+                  : `e1RM ${kg(only.estimated1Rm.kg)} (${kg(only.estimated1Rm.lowKg)} to ${kg(only.estimated1Rm.highKg)})`
+                : plural(found.length, "movement"),
+            columns: ["Movement", "RM", "Load", "Date"],
+            rows: found.flatMap((record) => [
+              ...record.repMaxes.map((max) => [
+                record.movement,
+                `${max.reps}RM`,
+                `${kg(max.loadKg)}${max.fromReps > max.reps ? "*" : ""}`,
+                day(max.performedOn),
+              ]),
+              ...(record.estimated1Rm === null
+                ? []
+                : [
+                    [
+                      record.movement,
+                      "e1RM",
+                      `${kg(record.estimated1Rm.kg)} (est.)`,
+                      day(record.estimated1Rm.performedOn),
+                    ],
+                  ]),
+            ]),
+          };
+        },
+      );
+    }),
+
+    list_benchmark_results: ({ benchmarkId }) =>
+      read(
+        "list_benchmark_results",
+        [
+          benchmarkId === undefined
+            ? { tag: "text", text: "Every benchmark" }
+            : { tag: "benchmark", text: benchmarkById(benchmarkId)?.name ?? benchmarkId },
+        ],
+        workouts.results().pipe(
+          Effect.map((results) =>
+            results
+              .filter((result) => benchmarkId === undefined || result.benchmarkId === benchmarkId)
+              .map((result) => ({
+                benchmark: benchmarkById(result.benchmarkId)?.name ?? result.benchmarkId,
+                performedOn: result.performedOn,
+                score: result.score,
+                rx: result.rx,
+              })),
+          ),
+        ),
+        (found) => ({
+          summary: plural(found.length, "attempt"),
+          columns: ["Date", "Benchmark", "Score", "Rx"],
+          rows: found.map((result) => [
+            day(result.performedOn),
+            result.benchmark,
+            result.score,
+            result.rx === null ? "" : result.rx ? "Rx" : "Scaled",
+          ]),
+        }),
+      ),
+  });
+};

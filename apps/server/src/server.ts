@@ -13,6 +13,8 @@ import * as NodeHttp from "node:http";
 
 import * as AdminApi from "./adminApi.ts";
 import * as CatalogStore from "./catalog/CatalogStore.ts";
+import * as CoachService from "./coach/CoachService.ts";
+import * as CoachStore from "./coach/CoachStore.ts";
 import * as ServerConfig from "./config.ts";
 import * as Sqlite from "./persistence/Sqlite.ts";
 import * as ImportStore from "./import/ImportStore.ts";
@@ -21,20 +23,30 @@ import * as Rpc from "./rpc.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
-const layerServices = Layer.mergeAll(
+const layerStores = Layer.mergeAll(
   WorkoutStore.layer,
   StrengthStore.layer,
   CatalogStore.layer,
   ImportStore.layer,
+  CoachStore.layer,
   LevelStore.layer.pipe(Layer.provide(CatalogStore.layer)),
 ).pipe(Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)));
 
-/** The app's RPC endpoint. */
+/** The stores, plus the coach that reads them through its tools. */
+const layerServices = CoachService.layer.pipe(
+  Layer.provide(CoachService.layerModel),
+  Layer.provideMerge(layerStores),
+);
+
+/**
+ * The app's RPC endpoint. Newline-delimited JSON, so a streamed reply (the coach's reads)
+ * reaches the client as it happens; plain JSON would hold it until the stream ends.
+ */
 const layerRpcRoute = RpcServer.layerHttp({
   group: ChalkRpcGroup,
   path: RPC_PATH,
   protocol: "http",
-}).pipe(Layer.provide(Rpc.layer), Layer.provide(RpcSerialization.layerJson));
+}).pipe(Layer.provide(Rpc.layer), Layer.provide(RpcSerialization.layerNdjson));
 
 /** The admin HttpApi (workout search, catalog edits, imports), plus its OpenAPI document. */
 const layerAdminApiRoute = HttpApiBuilder.layer(ChalkAdminApi, {

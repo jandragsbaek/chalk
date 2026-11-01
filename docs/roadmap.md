@@ -51,7 +51,8 @@ coach.
 
 ## 6. Coach
 
-- MCP server over Chalk data; short question loop through OpenRouter. Details in
+- Conversations with receipts on `/coach`, through OpenRouter (done).
+- Check-ins that fill a workout's debrief; MCP server over the same tools. Details in
   [coaching.md](coaching.md).
 
 ## Later, unordered

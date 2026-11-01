@@ -3,12 +3,14 @@ import {
   Complement as ComplementSchema,
   COMPLEMENT_PATTERNS,
   definedLevels,
+  epley,
   gradeItem,
   gradeLoad,
   LEVEL_FAMILIES,
   LEVEL_NAMES,
   levelIndex,
   majorityLevel,
+  MAX_ESTIMATE_REPS,
   nextLevel,
   prescribedLoad,
   rungLabel,
@@ -25,8 +27,6 @@ import {
   type LiftSet,
   type MovementId,
 } from "@chalk/contracts";
-
-import { MAX_ESTIMATE_REPS, epley } from "./estimate.ts";
 
 export const LEVEL_WINDOWS = [
   { id: "90d", label: "90 days", days: 90 },

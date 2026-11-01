@@ -3,6 +3,17 @@ import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as Schema from "effect/Schema";
 
 import { LiftSetId, WorkoutId } from "./baseSchemas.ts";
+import {
+  CoachEvent,
+  CoachSendInput,
+  CoachStatus,
+  CoachStorageError,
+  CoachThread,
+  CoachThreadDetail,
+  CoachThreadId,
+  CoachThreadNotFoundError,
+  CoachUnavailableError,
+} from "./coach.ts";
 import { LevelOverview, LevelStorageError } from "./levelOverview.ts";
 import {
   LiftSet,
@@ -32,6 +43,10 @@ export const RPC_METHODS = {
   liftsRecords: "lifts.records",
   levelsList: "levels.list",
   benchmarksResults: "benchmarks.results",
+  coachStatus: "coach.status",
+  coachThreads: "coach.threads",
+  coachThread: "coach.thread",
+  coachSend: "coach.send",
 } as const;
 
 /** Mount point for the RPC endpoint on the server, and the web dev proxy. */
@@ -90,6 +105,28 @@ const BenchmarksResultsRpc = Rpc.make(RPC_METHODS.benchmarksResults, {
   error: WorkoutStorageError,
 });
 
+const CoachStatusRpc = Rpc.make(RPC_METHODS.coachStatus, { success: CoachStatus });
+
+/** Every coach thread, most recently answered first. */
+const CoachThreadsRpc = Rpc.make(RPC_METHODS.coachThreads, {
+  success: Schema.Array(CoachThread),
+  error: CoachStorageError,
+});
+
+const CoachThreadRpc = Rpc.make(RPC_METHODS.coachThread, {
+  payload: { id: CoachThreadId },
+  success: CoachThreadDetail,
+  error: Schema.Union([CoachThreadNotFoundError, CoachStorageError]),
+});
+
+/** Saves the athlete's message, then streams the coach's reads and its saved reply. */
+const CoachSendRpc = Rpc.make(RPC_METHODS.coachSend, {
+  payload: CoachSendInput,
+  success: CoachEvent,
+  error: Schema.Union([CoachUnavailableError, CoachThreadNotFoundError, CoachStorageError]),
+  stream: true,
+});
+
 export const ChalkRpcGroup = RpcGroup.make(
   WorkoutsListRpc,
   WorkoutsLogRpc,
@@ -101,4 +138,8 @@ export const ChalkRpcGroup = RpcGroup.make(
   LiftsRecordsRpc,
   LevelsListRpc,
   BenchmarksResultsRpc,
+  CoachStatusRpc,
+  CoachThreadsRpc,
+  CoachThreadRpc,
+  CoachSendRpc,
 );
