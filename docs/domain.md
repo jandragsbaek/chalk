@@ -41,7 +41,10 @@ aliases from the Import page.
 ("DU", "Squat snatch", "Burpees over the rower"). `key` is the normalized phrase
 (`normalizeMovementPhrase`: lower case, split on punctuation, trailing plural "s" dropped) and is
 unique, so one phrase means one movement. A movement's own name is never stored as an alias.
-Migration `003_SessionImports` seeds whiteboard shorthand.
+Migration `003_SessionImports` seeds whiteboard shorthand. Migration `022_BurpeesAndDevilPress`
+adds the box's burpee variations (over line, over dumbbell, broad jump, tuck jump), Devil press
+(two dumbbells; its work counts both) and Single-arm devil press, with the board's "o." for
+"over" ("Burpee o. line"); a phrase an athlete had taught as plain Burpee moves to the variation.
 
 **Variations (built).** `movements.variation_of` points a variation at its **core** movement:
 Power snatch, Hang power snatch, High-hang snatch are variations of Snatch. One level only
@@ -51,6 +54,18 @@ hang power snatch PR is its own number); the family is a join away for rolling v
 core. Migration `004_VariationsAndIntent` links the seeded power and hang power snatch and clean.
 Creating a movement whose name was an alias ("Squat snatch" meant Snatch) moves the phrase to
 the new movement.
+
+**Words left over (built).** The matcher only knows whole phrases, so a variation the board
+writes a new way ("Burpee lateral over DB") is marked as its core with words after it.
+`trailingWords` reads up to four words after a movement mark, stopping at a number, a separator
+(`@ ( , + / ; :`), a stop word ("or", "rest", "max", ...) or the next mark. For a movement with a
+family the importer prints them as a dashed tail and `variationLadder` ranks the core and its
+variations by them: a word counts when it is, or starts, a word of the option's name or aliases
+beyond the core's, with board shorthand read out ("o." over, "DB" dumbbell, "SA" single arm).
+Picking one (keys 1 to 8, 0 keeps the movement, `v` walks to the next tail) runs the mark on over
+the words, saves the whole phrase as an alias and re-tags its other lines, so the next session
+reads it. Without leftovers the inspector offers the family as one-click swaps, and the
+Movements page lists a movement's family with the phrases the board writes each one as.
 
 Later fields:
 

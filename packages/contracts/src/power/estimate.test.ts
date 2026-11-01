@@ -198,6 +198,15 @@ describe("estimateBlockWork", () => {
     expect(lifted("pause-front-squat")).toBeCloseTo(lifted("front-squat"));
   });
 
+  it("counts both bells of a devil press, one for the single-arm one", () => {
+    const loadOf = (id: string, performance: WorkItem["performance"]) =>
+      estimateBlockWork(forTime([item(id, { sets: [reps(10)], performance })]), jan, modelOf)
+        .items[0]?.loadKg;
+    expect(loadOf("devil-press", { loadKg: 22.5 })).toBe(45);
+    expect(loadOf("single-arm-devil-press", { loadKg: 22.5 })).toBe(22.5);
+    expect(loadOf("devil-press", { loadKg: 22.5, implements: 2 })).toBe(45);
+  });
+
   it("counts lifted sets each at its own load", () => {
     const sets = (performed: WorkItem["performed"]) =>
       estimateBlockWork(

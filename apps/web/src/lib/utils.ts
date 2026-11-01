@@ -27,3 +27,8 @@ export function groupByDay<T extends { readonly performedOn: string }>(
   }
   return [...days];
 }
+
+/** A key press meant for a field being typed in, not for the page's shortcuts. */
+export const isTyping = (target: EventTarget | null) =>
+  target instanceof HTMLElement &&
+  (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));

@@ -104,6 +104,8 @@ export function MovementPicker({
     [movement.name, ...movement.aliases].some(
       (known) => normalizeMovementPhrase(known) === phraseKey,
     );
+  // The phrase already names a movement: nothing to remember, nothing to create.
+  const known = catalog.some(isKnownPhrase);
   const nameOf = (id: MovementId | undefined) =>
     id === undefined ? undefined : catalog.find((movement) => movement.id === id)?.name;
   const candidates = byFamily(catalog.filter((movement) => matches(movement, query))).slice(0, 8);
@@ -182,7 +184,7 @@ export function MovementPicker({
         aria-label="Matching movements"
       >
         {candidates.map((movement) => (
-          <li key={movement.id}>
+          <li key={movement.id} className="min-w-0">
             <button
               type="button"
               data-current={movement.id === value ? "" : undefined}
@@ -194,8 +196,8 @@ export function MovementPicker({
               }
               onClick={() => void handlePick(movement)}
             >
-              <span className="font-semibold">{movement.name}</span>
-              <span className="truncate text-xs text-muted-foreground">
+              <span className="max-w-full shrink-0 font-semibold">{movement.name}</span>
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
                 {[
                   movement.variationOf === undefined
                     ? undefined
@@ -214,15 +216,17 @@ export function MovementPicker({
           </li>
         ) : null}
       </ul>
-      <label className="flex items-center gap-2 text-sm text-muted-foreground">
-        <input
-          type="checkbox"
-          className="size-4 accent-foreground"
-          checked={remember}
-          onChange={(event) => setRemember(event.target.checked)}
-        />
-        Remember "{phrase.trim()}" for the next sessions
-      </label>
+      {known ? null : (
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            className="size-4 accent-foreground"
+            checked={remember}
+            onChange={(event) => setRemember(event.target.checked)}
+          />
+          Remember "{phrase.trim()}" for the next sessions
+        </label>
+      )}
       {creating ? (
         <form
           className="grid gap-2 border bg-muted p-3"
@@ -270,7 +274,7 @@ export function MovementPicker({
             </Button>
           </div>
         </form>
-      ) : (
+      ) : known ? null : (
         <Button variant="outline" size="sm" onClick={() => setCreating(true)}>
           <Plus />
           New movement "{sentenceCase(phrase)}"

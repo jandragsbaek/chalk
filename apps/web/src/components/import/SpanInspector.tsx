@@ -25,6 +25,7 @@ import {
   type Span,
   type SpanId,
   type SpanOf,
+  type TrailingWords,
 } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, NativeSelect } from "@chalk/ui/components/field.tsx";
@@ -40,6 +41,7 @@ import { CoreMovementField } from "./CoreMovementField.tsx";
 import { MovementLevelsField } from "./MovementLevelsField.tsx";
 import { MovementScalingsField } from "./MovementScalingsField.tsx";
 import { MovementPicker } from "./MovementPicker.tsx";
+import { VariationLadder, VariationSwaps } from "./VariationLadder.tsx";
 import { PerformanceEditor } from "./PerformanceEditor.tsx";
 import { ResultEditor } from "./ResultEditor.tsx";
 
@@ -312,6 +314,8 @@ export function SpanInspector({
   outcomeFirst = false,
   onAsPlanned,
   complex,
+  tail,
+  onVariationPicked,
 }: {
   readonly span: Span;
   readonly text: string;
@@ -341,6 +345,15 @@ export function SpanInspector({
   readonly complex?: ComplexInspection | undefined;
   /** Do the station by this option, and not by the others. */
   readonly onChooseOption?: (id: SpanId) => void;
+  /** Words the mark left over that may name a variation of it ("o. line" after "Burpee"). */
+  readonly tail?: TrailingWords | undefined;
+  /** The mark runs on to `end` as the picked movement (or opens for a pick). */
+  readonly onVariationPicked?: (
+    span: SpanOf<"movement">,
+    movementId: MovementId | undefined,
+    end: number,
+    learned: boolean,
+  ) => void;
 }) {
   const phrase = text.slice(span.start, span.end);
   const oneBar = span._tag === "movement" && complex?.shared === true;
@@ -415,6 +428,9 @@ export function SpanInspector({
           onAsPlanned={onAsPlanned}
           onChooseOption={onChooseOption}
           complex={complex}
+          text={text}
+          tail={tail}
+          onVariationPicked={onVariationPicked}
         />
       ) : null}
 
@@ -724,9 +740,22 @@ function MovementMark({
   onAsPlanned,
   onChooseOption,
   complex,
+  text,
+  tail,
+  onVariationPicked,
 }: {
   readonly span: SpanOf<"movement">;
   readonly phrase: string;
+  readonly text: string;
+  readonly tail: TrailingWords | undefined;
+  readonly onVariationPicked:
+    | ((
+        span: SpanOf<"movement">,
+        movementId: MovementId | undefined,
+        end: number,
+        learned: boolean,
+      ) => void)
+    | undefined;
   readonly catalog: ReadonlyArray<CatalogMovement>;
   readonly picked: CatalogMovement | undefined;
   readonly picking: PickMode | undefined;
@@ -787,6 +816,13 @@ function MovementMark({
         value={span.movementId}
         onPick={(movementId, learned) => onMovementPicked(span, movementId, learned)}
       />
+      {picked && tail === undefined && complex === undefined ? (
+        <VariationSwaps
+          movementId={picked.id}
+          catalog={catalog}
+          onPick={(movementId) => onMovementPicked(span, movementId, false)}
+        />
+      ) : null}
       {picked ? <CoreMovementField movement={picked} catalog={catalog} /> : null}
       {picked ? <MovementLevelsField movement={picked} /> : null}
       {picked ? <MovementScalingsField movement={picked} catalog={catalog} /> : null}
@@ -884,15 +920,30 @@ function MovementMark({
 
   // An unresolved movement has to be picked before anything else counts. A complex sharing one
   // bar leads with its loads, since they are what its movements have in common.
-  if ((!outcomeFirst && complex?.shared !== true) || picked === undefined)
+  // Words left over lead: until they are settled the movement itself is in question.
+  const ladder =
+    onVariationPicked === undefined ? null : (
+      <VariationLadder
+        span={span}
+        text={text}
+        tail={tail}
+        catalog={catalog}
+        onPicked={(movementId, end, learned) => onVariationPicked(span, movementId, end, learned)}
+      />
+    );
+  // While words are left over the ladder is the way to change the movement; the picker folds.
+  const laddered = tail !== undefined && onVariationPicked !== undefined;
+  if ((!outcomeFirst && complex?.shared !== true && !laddered) || picked === undefined)
     return (
       <>
+        {ladder}
         {identity}
         {outcome}
       </>
     );
   return (
     <>
+      {ladder}
       {outcome}
       <details data-disclosure className="group border-t pt-3">
         <summary className="flex cursor-pointer list-none items-baseline justify-between gap-2">

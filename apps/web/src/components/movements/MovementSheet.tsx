@@ -87,6 +87,87 @@ function AliasForm({
   );
 }
 
+/** How many of a variation's whiteboard phrases print before "+n". */
+const PHRASES_SHOWN = 2;
+
+/**
+ * The movement's family as a ruled list: a core's variations, or a variation's core and
+ * siblings with this one marked, each with the phrases the board writes it as. The importer
+ * reads words left after a core's name against these.
+ */
+function VariationsSection({
+  movement,
+  catalog,
+}: {
+  readonly movement: CatalogMovement;
+  readonly catalog: ReadonlyArray<CatalogMovement>;
+}) {
+  const coreId = movement.variationOf ?? movement.id;
+  const core = catalog.find((other) => other.id === coreId);
+  const family = catalog
+    .filter((other) => other.variationOf === coreId)
+    .toSorted((left, right) => left.name.localeCompare(right.name));
+  if (core === undefined || family.length === 0) return null;
+  const rows = movement.variationOf === undefined ? family : [core, ...family];
+  return (
+    <section aria-labelledby="movement-variations" className="grid gap-3">
+      <SectionHead
+        id="movement-variations"
+        title="Variations"
+        meta={
+          movement.variationOf === undefined
+            ? `${family.length} ${family.length === 1 ? "variation" : "variations"}`
+            : `${core.name} and ${family.length} ${family.length === 1 ? "variation" : "variations"}`
+        }
+      />
+      <ul className="grid border-y">
+        {rows.map((other) => {
+          const phrases = other.aliases.slice(0, PHRASES_SHOWN);
+          const more = other.aliases.length - phrases.length;
+          const here = other.id === movement.id;
+          return (
+            <li
+              key={other.id}
+              data-variation-row
+              data-selected={here ? "" : undefined}
+              aria-current={here ? "true" : undefined}
+              className="grid grid-cols-[minmax(0,15rem)_minmax(0,1fr)] items-baseline gap-4 border-b px-2 py-1.5 last:border-b-0"
+            >
+              {here ? (
+                <span className="truncate text-sm font-semibold">{other.name}</span>
+              ) : (
+                <Link
+                  to="/movements"
+                  search={(previous) => ({ ...previous, movement: other.id })}
+                  replace
+                  className="truncate text-sm font-semibold hover:underline"
+                >
+                  {other.name}
+                  {other.id === coreId ? (
+                    <span className="form-label ml-2 text-muted-foreground">Core</span>
+                  ) : null}
+                </Link>
+              )}
+              <span className="flex min-w-0 flex-wrap items-baseline gap-x-3 text-xs text-muted-foreground">
+                {phrases.length === 0 ? (
+                  <span data-empty aria-label="No other phrases" />
+                ) : (
+                  phrases.map((phrase) => (
+                    <span key={phrase} className="font-mono font-bold text-foreground">
+                      {phrase}
+                    </span>
+                  ))
+                )}
+                {more > 0 ? <span>+{more}</span> : null}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 /**
  * One catalog movement read as a sheet: what it is, how often it was programmed and scaled, what
  * it scales to and from, the phrases the importer knows it by, and its core and level row.
@@ -183,6 +264,8 @@ export function MovementSheet({
               </ul>
             )}
           </section>
+
+          <VariationsSection movement={movement} catalog={catalog} />
 
           <section aria-labelledby="movement-aliases" className="grid gap-3">
             <SectionHead id="movement-aliases" title="Aliases" meta="Whiteboard phrases" />

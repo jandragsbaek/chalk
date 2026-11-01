@@ -342,6 +342,7 @@ Printed and decisive: square, semi-bold, no gradient.
 - **Variants:** blocks are a 1px ink outline on no fill; parts are a solid ink block with paper text; scores carry a double underline; date, session and notes use a 2px dotted underline.
 - **State:** hover or linked deepens the fill toward its ink (26%); open drops the fill for a 1.5px dashed outline; selected adds a 3px double outline offset 1px.
 - **Offered:** a movement chip Chalk derives rather than one the athlete set (a scaling offered by the core movement or the level sheet) drops the fill for the same 1.5px dashed outline (`data-derived`).
+- **Tail:** words the matcher left after a movement mark ("lateral over DB" after "Burpee") carry no fill, only a 1.5px dashed underline in movement ink, offset under the baseline: the mark may run on into a variation, still open. The tail belongs to its mark: it lights and selects with it (dashed outline when selected), and the protocol row prints it in Courier under the name with "variation?" in condensed caps.
 
 ### Cards / Containers
 
@@ -372,6 +373,10 @@ Three 14px round lamps in an ink housing, each with its initial in condensed cap
 ### Protocol Rows and Attempt Boxes
 
 Movement rows take the copy-blue tint on hover (55%) and selection (70% with a double ink outline inset 3px). An unresolved row takes a red dashed outline and a red tinted wash. Prescriptions sit in attempt boxes: a fresh-sheet cell with a 1px box-edge stroke holding one tagged chip per set. Results sit in a box with a 1px ink stroke and a 3px goldenrod underline. A complex (barbell movements on one line, one bar) joins its rows with a 2px ink bracket in the left gutter, dashed rules between them, and prints one "One bar" result box under them; selecting one row lights the others, and the inspector leads with the shared plan, load and result (reps typed "1 + 2"). A row changed by an edit flashes canary for 900ms (disabled under reduced motion). A planned session's rows lead their level line with the plan in words: a 1px dashed input-grey box ("Planned 30 kg", still open), turning into a 1px solid ink box once it is recorded ("Done 30 kg, as planned"), per the Stroke State Rule. While planning or logging a plan, only the selected row draws its level ruler, the Source pane narrows to 2fr against the protocol's 3fr, and the inspector leads with the plan or "Done as", with the catalog fields folded under "Movement".
+
+### Variation Ladder
+
+The inspector leads with it while a movement mark has words left over. A label row ("Variation", and "left over" with the tail echoed in bold Courier on its dashed underline), then a ruled list closed top and bottom by 1px rules: one rung per variation of the core, at most eight, each a key cap (1 to 8) and the name with the words the leftovers matched in bold on a 2px copy-blue ink underline, the same ink as the mark they finish. The best fit is Chalk's offer, so it takes the open state: a 1.5px dashed movement-ink outline inset 3px and "Best fit" in condensed caps at the right. A dashed rule sets off the last rung, key 0, "Just <movement>". Rungs take the copy-blue wash on hover and the ballpoint ring on focus. Under the list, one pencil-grey line names the phrase the pick learns, and a ghost "None of these: pick or create one" opens the mark for the picker. A rung ranked by an alias rather than its name prints that alias after it in pencil-grey Courier, and "Best fit" appears only when one rung matched more of the words than any other. While the ladder shows, the catalog fields fold under "Movement", as when planning. After a pick the ladder gives way to a receipt: a fresh-sheet box on a 1px ink stroke (resolved), "Learned" in condensed caps, the phrase in bold Courier, an arrow icon, the movement, and how many other lines it re-tagged; a phrase that could not be saved prints "Picked, not learned" on a 1.5px dashed box edge. Without leftovers, a movement with a family shows its other members as small outline buttons under the picker ("Also Burpee", five then "n more").
 
 ### Debrief
 
@@ -454,7 +459,7 @@ the ruled tint and the double outline, and up and down walk the register. The sh
 movement's protocol header (Core, Sheet row, In sessions, Done scaled), then sections under
 section heads: Scales to (a numbered ruled list, first offered first, each with how often it
 stood in and ghost up, down and remove buttons, an add select, then the dashed offered chips),
-Scaled from (chips linking to the movements that offer this one), Aliases (Courier entries on a
+Scaled from (chips linking to the movements that offer this one), Variations (the family as a ruled list: core marked "Core" in condensed caps, each with its first two whiteboard phrases in bold Courier and "+n", the movement being read in the selection double outline), Aliases (Courier entries on a
 dotted underline and an add field), and Core and levels (the importer's catalog fields). The
 importer's inspector uses the same Scales to list.
 

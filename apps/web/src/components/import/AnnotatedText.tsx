@@ -12,11 +12,33 @@ interface Segment {
   readonly start: number;
   readonly end: number;
   readonly span: Span | undefined;
+  /** Words left after this movement mark, which may name a variation of it. */
+  readonly tailOf?: SpanId;
 }
 
-/** Splits one line into plain runs and highlights. Spans never overlap. */
-const segmentsOf = (lineStart: number, lineEnd: number, spans: ReadonlyArray<Span>) => {
+/** Words left after a movement mark ("o. line" after "Burpee"), by the mark's id. */
+export type Tails = ReadonlyMap<SpanId, TextRange>;
+
+/** Splits one line into plain runs, tails and highlights. Spans never overlap. */
+const segmentsOf = (
+  lineStart: number,
+  lineEnd: number,
+  spans: ReadonlyArray<Span>,
+  tails: Tails,
+) => {
   const segments: Array<Segment> = [];
+  const plain = (from: number, to: number) => {
+    let at = from;
+    const inGap = [...tails]
+      .filter(([, tail]) => tail.start >= from && tail.end <= to)
+      .sort(([, left], [, right]) => left.start - right.start);
+    for (const [owner, tail] of inGap) {
+      if (tail.start > at) segments.push({ start: at, end: tail.start, span: undefined });
+      segments.push({ start: tail.start, end: tail.end, span: undefined, tailOf: owner });
+      at = tail.end;
+    }
+    if (at < to) segments.push({ start: at, end: to, span: undefined });
+  };
   let at = lineStart;
   const inLine = spans
     .filter((span) => span.end > lineStart && span.start < lineEnd)
@@ -26,11 +48,11 @@ const segmentsOf = (lineStart: number, lineEnd: number, spans: ReadonlyArray<Spa
     // Overlaps never survive the editor; skip one rather than render text twice.
     if (from < at) continue;
     const to = Math.min(span.end, lineEnd);
-    if (from > at) segments.push({ start: at, end: from, span: undefined });
+    if (from > at) plain(at, from);
     segments.push({ start: from, end: to, span });
     at = to;
   }
-  if (at < lineEnd) segments.push({ start: at, end: lineEnd, span: undefined });
+  if (at < lineEnd) plain(at, lineEnd);
   return segments;
 };
 
@@ -71,6 +93,7 @@ export function AnnotatedText({
   onSelectText,
   onClickSpan,
   flaggedLines,
+  tails = new Map(),
 }: {
   readonly text: string;
   readonly spans: ReadonlyArray<Span>;
@@ -81,6 +104,7 @@ export function AnnotatedText({
   readonly onClickSpan: (id: SpanId) => void;
   /** 1-based line numbers with an issue that blocks saving; the gutter marks them. */
   readonly flaggedLines: ReadonlySet<number>;
+  readonly tails?: Tails;
 }) {
   function handleMouseUp(event: React.MouseEvent<HTMLDivElement>) {
     const selection = window.getSelection();
@@ -120,8 +144,20 @@ export function AnnotatedText({
           data-flagged={flaggedLines.has(index + 1) ? "" : undefined}
           className="min-h-7 whitespace-pre-wrap break-words"
         >
-          {segmentsOf(line.start, line.end, spans).map(({ start, end, span }) =>
-            span === undefined ? (
+          {segmentsOf(line.start, line.end, spans, tails).map(({ start, end, span, tailOf }) =>
+            tailOf !== undefined ? (
+              <span
+                key={start}
+                data-offset={start}
+                data-tail
+                data-selected={tailOf === selectedId ? "" : undefined}
+                data-linked={linked.has(tailOf) ? "" : undefined}
+                title="Words left over: a variation?"
+                onClick={(event) => handleSpanClick(event, tailOf)}
+              >
+                {text.slice(start, end)}
+              </span>
+            ) : span === undefined ? (
               <span key={start} data-offset={start}>
                 {text.slice(start, end)}
               </span>
