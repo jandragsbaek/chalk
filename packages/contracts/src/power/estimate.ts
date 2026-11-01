@@ -144,9 +144,9 @@ const roundCount = (item: WorkItem, block: WorkBlock, body: Body): RoundCount | 
   return undefined;
 };
 
-const loadOf = (item: WorkItem, body: Body): number | undefined => {
+const loadOf = (item: WorkItem, body: Body, pair = false): number | undefined => {
   const performance = item.performance;
-  const implementsCount = performance?.implements ?? (/\bdual\b/i.test(item.text) ? 2 : 1);
+  const implementsCount = performance?.implements ?? (pair || /\bdual\b/i.test(item.text) ? 2 : 1);
   if (performance?.loadKg !== undefined) return performance.loadKg * implementsCount;
   for (const set of item.sets)
     for (const quantity of set.quantities)
@@ -245,9 +245,9 @@ const countItem = (
     into.leftOut.push({ movementId: undefined, text: item.text, reason: "No movement picked." });
     return;
   }
-  const loadKg = loadOf(item, body);
   for (const { movementId, share } of shares) {
     const model = modelOf(movementId);
+    const loadKg = loadOf(item, body, model?.pair);
     const leave = (reason: string) => into.leftOut.push({ movementId, text: item.text, reason });
     if (model === undefined) {
       leave("No work model for this movement yet.");

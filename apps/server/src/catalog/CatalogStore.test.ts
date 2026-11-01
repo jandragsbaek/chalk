@@ -138,23 +138,57 @@ describe("CatalogStore", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect('reads the box\'s burpee variations and devil presses, "o." for over', () =>
+    Effect.gen(function* () {
+      const store = yield* CatalogStore.CatalogStore;
+      const catalog = yield* store.list();
+      const byId = new Map(catalog.map((movement) => [movement.id, movement]));
+      expect(byId.get(MovementId.make("burpee-over-line"))?.variationOf).toBe("burpee");
+      expect(byId.get(MovementId.make("single-arm-devil-press"))?.variationOf).toBe("devil-press");
+      expect(byId.get(MovementId.make("devil-press"))?.scalings).toEqual([
+        "single-arm-devil-press",
+        "dumbbell-burpee-deadlift",
+      ]);
+
+      const matcher = makeMovementMatcher(catalog);
+      const found = (line: string) => matcher.find(line).map((match) => match.movementId);
+      expect(found("12 Burpee o. line")).toEqual(["burpee-over-line"]);
+      expect(found("10 Burpees o. DB + 5 burpee broad jumps")).toEqual([
+        "burpee-over-dumbbell",
+        "burpee-broad-jump",
+      ]);
+      expect(found("Burpee o. bar, burpee o. rower")).toEqual([
+        "bar-facing-burpee",
+        "burpee-over-rower",
+      ]);
+      expect(found("8 Devils press @2x22.5, 8 DB devil's press")).toEqual([
+        "devil-press",
+        "devil-press",
+      ]);
+      expect(found("10 SA devil press @22.5/15, single DB devils press")).toEqual([
+        "single-arm-devil-press",
+        "single-arm-devil-press",
+      ]);
+    }).pipe(Effect.provide(layer)),
+  );
+
   it.effect("creates a movement with a slug id and aliases, and refuses duplicates", () =>
     Effect.gen(function* () {
       const store = yield* CatalogStore.CatalogStore;
       const created = yield* store.create({
-        name: "Devil press",
+        name: "Man maker",
         category: "dumbbell_kettlebell",
-        aliases: ["DP", "Devil presses with two dumbbells"],
+        aliases: ["MM", "Man makers with two dumbbells"],
       });
       expect(created).toEqual({
-        id: "devil-press",
-        name: "Devil press",
+        id: "man-maker",
+        name: "Man maker",
         category: "dumbbell_kettlebell",
-        aliases: ["DP", "Devil presses with two dumbbells"],
+        aliases: ["MM", "Man makers with two dumbbells"],
       });
 
       const duplicate = yield* store
-        .create({ name: "DEVIL PRESS", category: "dumbbell_kettlebell", aliases: [] })
+        .create({ name: "MAN MAKER", category: "dumbbell_kettlebell", aliases: [] })
         .pipe(Effect.flip);
       expect(duplicate._tag).toBe("MovementExistsError");
 

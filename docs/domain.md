@@ -41,7 +41,10 @@ aliases from the Import page.
 ("DU", "Squat snatch", "Burpees over the rower"). `key` is the normalized phrase
 (`normalizeMovementPhrase`: lower case, split on punctuation, trailing plural "s" dropped) and is
 unique, so one phrase means one movement. A movement's own name is never stored as an alias.
-Migration `003_SessionImports` seeds whiteboard shorthand.
+Migration `003_SessionImports` seeds whiteboard shorthand. Migration `022_BurpeesAndDevilPress`
+adds the box's burpee variations (over line, over dumbbell, broad jump, tuck jump), Devil press
+(two dumbbells; its work counts both) and Single-arm devil press, with the board's "o." for
+"over" ("Burpee o. line"); a phrase an athlete had taught as plain Burpee moves to the variation.
 
 **Variations (built).** `movements.variation_of` points a variation at its **core** movement:
 Power snatch, Hang power snatch, High-hang snatch are variations of Snatch. One level only

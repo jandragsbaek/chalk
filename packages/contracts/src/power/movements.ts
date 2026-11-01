@@ -15,6 +15,8 @@ export interface WorkModel {
   readonly perCalorie?: PerUnit;
   /** A load is part of the movement: a thruster without one is not counted. */
   readonly loaded?: boolean;
+  /** Done with two implements unless the athlete says otherwise: the posted load is per bell. */
+  readonly pair?: boolean;
   /** Why it moves nothing up (carries, holds); counted as zero work. */
   readonly none?: string;
 }
@@ -77,6 +79,8 @@ const bodyweight = (perRep: (b: Body) => number): WorkModel => ({ perRep: (b) =>
 const weighted = (perRep: PerUnit): WorkModel => ({ perRep });
 const none = (reason: string): WorkModel => ({ none: reason });
 
+/** A burpee onto the bells, then floor to overhead in one swing. */
+const devilPress = loaded((b, kg) => getUp(b) + joules(kg, b.overheadM - BELL_FLOOR_M));
 const deadlift = loaded((b, kg) => joules(kg, floorToHang(b)) + hinge(b));
 const clean = loaded((b, kg) => joules(kg, floorToRack(b) + b.thighM) + hinge(b) + squat(b));
 const powerClean = loaded((b, kg) => joules(kg, floorToRack(b)) + hinge(b));
@@ -202,6 +206,8 @@ export const WORK_MODELS: Readonly<Record<string, WorkModel>> = {
   "dumbbell-burpee-deadlift": loaded(
     (b, kg) => getUp(b) + joules(kg, b.gripHeightM - BELL_FLOOR_M),
   ),
+  "devil-press": { ...devilPress, pair: true },
+  "single-arm-devil-press": devilPress,
   "wall-ball": {
     perRep: (b, kg) => squat(b) + joules(kg, TARGET_M[b.sex] - b.chinHeightM + b.thighM),
     loaded: true,
@@ -255,6 +261,11 @@ export const WORK_MODELS: Readonly<Record<string, WorkModel>> = {
   "bar-facing-burpee": bodyweight((b) => burpee(b) + joules(b.massKg, 0.1)),
   "burpee-over-rower": bodyweight((b) => burpee(b) + joules(b.massKg, 0.1)),
   "burpee-to-target": bodyweight((b) => burpee(b) + joules(b.massKg, 0.1)),
+  "burpee-over-dumbbell": bodyweight((b) => burpee(b) + joules(b.massKg, 0.1)),
+  // The hop over a line is the burpee's own jump, sideways.
+  "burpee-over-line": bodyweight(burpee),
+  "burpee-broad-jump": bodyweight((b) => getUp(b) + joules(b.massKg, 0.3)),
+  "burpee-tuck-jump": bodyweight((b) => getUp(b) + joules(b.massKg, 0.3)),
   "burpee-box-jump": bodyweight((b) => getUp(b) + box(b)),
   "burpee-box-jump-over": bodyweight((b) => getUp(b) + box(b)),
   "burpee-pull-up": bodyweight((b) => getUp(b) + pullUp(b)),
