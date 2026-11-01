@@ -5,6 +5,7 @@ import {
   BenchmarkId,
   BENCHMARKS,
   BenchmarkScoring,
+  describeCoaching,
   describeDifference,
   estimateOneRepMax,
   IsoDate,
@@ -67,7 +68,8 @@ const ListMovements = Tool.make("list_movements", {
 
 const ListWorkouts = Tool.make("list_workouts", {
   description:
-    "Logged training sessions, newest first: date, name, kind, score and whether it was Rx.",
+    "Logged training sessions, newest first: date, name, kind, score, whether it was Rx, and " +
+    "who coached it ('Solo' for one done alone) where recorded.",
   parameters: Schema.Struct({
     ...Range,
     limit: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))),
@@ -81,6 +83,7 @@ const ListWorkouts = Tool.make("list_workouts", {
       score: Schema.String,
       rx: Schema.Boolean,
       benchmark: Schema.optionalKey(Schema.String),
+      coachedBy: Schema.optionalKey(Schema.String),
     }),
   ),
   ...common,
@@ -445,18 +448,22 @@ export const makeHandlers = (deps: {
                   score: workout.score,
                   rx: workout.rx,
                   ...(benchmark === undefined ? {} : { benchmark }),
+                  ...(workout.coaching === undefined
+                    ? {}
+                    : { coachedBy: describeCoaching(workout.coaching) }),
                 };
               }),
           ),
         ),
         (found) => ({
           summary: plural(found.length, "session"),
-          columns: ["Date", "Workout", "Kind", "Score"],
+          columns: ["Date", "Workout", "Kind", "Score", "Coached by"],
           rows: found.map((workout) => [
             day(workout.performedOn),
             workout.name,
             workout.kind,
             workout.score === "" ? "" : `${workout.score}${workout.rx ? " Rx" : ""}`,
+            workout.coachedBy ?? "",
           ]),
         }),
       ),

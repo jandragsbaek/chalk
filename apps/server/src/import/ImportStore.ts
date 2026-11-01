@@ -26,6 +26,7 @@ import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 
+import { coachingColumns } from "../workout/coaching.ts";
 import { deleteWorkoutRows } from "../workout/deleteWorkoutRows.ts";
 
 export class ImportPersistenceError extends Schema.TaggedError<ImportPersistenceError>()(
@@ -227,12 +228,14 @@ const make = Effect.gen(function* () {
       const debrief = normalizeDebrief(input.document.debrief ?? {});
       const { debrief: _entered, ...rest } = input.document;
       const stored: ImportDocument = Object.keys(debrief).length > 0 ? { ...rest, debrief } : rest;
+      const { coach, solo } = coachingColumns(input.document.coaching);
       // The athlete's headline result beats the block scores joined.
       yield* sql`
-        INSERT INTO workouts (id, performed_on, name, kind, score, rx, notes, created_at)
+        INSERT INTO workouts (id, performed_on, name, kind, score, rx, notes, coach, solo,
+                              created_at)
         VALUES (${workoutId}, ${performedOn}, ${session.name}, ${session.kind},
                 ${debrief.result ?? session.score}, 0,
-                ${session.notes}, ${now})
+                ${session.notes}, ${coach}, ${solo}, ${now})
       `;
       if (Object.keys(debrief).length > 0)
         yield* sql`

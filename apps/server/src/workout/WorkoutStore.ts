@@ -25,6 +25,7 @@ import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 
+import { coachingColumns, coachingOf } from "./coaching.ts";
 import { deleteWorkoutRows } from "./deleteWorkoutRows.ts";
 import { insertBenchmarkPart } from "./insertBenchmarkPart.ts";
 import { makeLoadSimilarParts } from "./similarParts.ts";
@@ -59,6 +60,8 @@ const WorkoutRow = Schema.Struct({
   rx: Schema.Number,
   notes: Schema.String,
   benchmarkId: Schema.NullOr(BenchmarkId),
+  coach: Schema.NullOr(Schema.String),
+  solo: Schema.Number,
   createdAt: Workout.fields.createdAt,
 });
 
@@ -97,11 +100,15 @@ const KindCountRow = Schema.Struct({
   rxCount: Schema.Number,
 });
 
-const toWorkout = ({ benchmarkId, ...row }: typeof WorkoutRow.Type): Workout => ({
-  ...row,
-  rx: row.rx === 1,
-  ...(benchmarkId === null ? {} : { benchmarkId }),
-});
+const toWorkout = ({ benchmarkId, coach, solo, ...row }: typeof WorkoutRow.Type): Workout => {
+  const coaching = coachingOf({ coach, solo });
+  return {
+    ...row,
+    rx: row.rx === 1,
+    ...(benchmarkId === null ? {} : { benchmarkId }),
+    ...(coaching === undefined ? {} : { coaching }),
+  };
+};
 
 // The first benchmark part names the session's benchmark.
 const WORKOUT_COLUMNS = `
@@ -109,7 +116,7 @@ const WORKOUT_COLUMNS = `
   (SELECT p.benchmark_id FROM workout_parts p
    WHERE p.workout_id = w.id AND p.benchmark_id IS NOT NULL
    ORDER BY p.position LIMIT 1) AS "benchmarkId",
-  w.created_at AS "createdAt"
+  w.coach, w.solo, w.created_at AS "createdAt"
 `;
 
 export class WorkoutStore extends Context.Service<
@@ -117,7 +124,7 @@ export class WorkoutStore extends Context.Service<
   {
     /** Newest first. */
     readonly list: () => Effect.Effect<ReadonlyArray<Workout>, WorkoutPersistenceError>;
-    /** Case-insensitive match on name, score or notes; newest first. */
+    /** Case-insensitive match on name, score, notes or coach; newest first. */
     readonly search: (
       query: string,
     ) => Effect.Effect<ReadonlyArray<Workout>, WorkoutPersistenceError>;
@@ -163,7 +170,8 @@ const make = Effect.gen(function* () {
     execute: (pattern) => sql`
       SELECT ${sql.unsafe(WORKOUT_COLUMNS)} FROM workouts w
       WHERE w.name LIKE ${pattern} ESCAPE '!' OR w.score LIKE ${pattern} ESCAPE '!'
-         OR w.notes LIKE ${pattern} ESCAPE '!'
+         OR w.notes LIKE ${pattern} ESCAPE '!' OR w.coach LIKE ${pattern} ESCAPE '!'
+         OR (w.solo = 1 AND 'Solo' LIKE ${pattern} ESCAPE '!')
       ORDER BY w.performed_on DESC, w.id DESC
     `,
   });
@@ -291,11 +299,14 @@ const make = Effect.gen(function* () {
     };
     const benchmark =
       input.benchmarkId === undefined ? undefined : benchmarkById(input.benchmarkId);
+    const { coach, solo } = coachingColumns(input.coaching);
     yield* Effect.gen(function* () {
       yield* sql`
-        INSERT INTO workouts (id, performed_on, name, kind, score, rx, notes, created_at)
+        INSERT INTO workouts (id, performed_on, name, kind, score, rx, notes, coach, solo,
+                              created_at)
         VALUES (${workout.id}, ${workout.performedOn}, ${workout.name}, ${workout.kind},
-                ${workout.score}, ${workout.rx ? 1 : 0}, ${workout.notes}, ${workout.createdAt})
+                ${workout.score}, ${workout.rx ? 1 : 0}, ${workout.notes}, ${coach}, ${solo},
+                ${workout.createdAt})
       `;
       if (benchmark)
         yield* insertBenchmarkPart(sql, random.uuidV7(), {

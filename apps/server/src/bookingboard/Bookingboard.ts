@@ -113,7 +113,7 @@ export class Bookingboard extends Context.Service<
     readonly disconnect: () => Effect.Effect<void, BookingboardPersistenceError>;
     /**
      * The programs of the athlete's classes on a box-local day (booked or attended, not opted
-     * out), earliest first. Classes without a program, like open gym, are left out.
+     * out), earliest first. Classes without a program, like open gym, only set `openGym`.
      */
     readonly day: (
       date: IsoDate,
@@ -223,7 +223,7 @@ const make = Effect.gen(function* () {
       Effect.mapError(() => unavailable("a class came back in a shape Chalk does not know.")),
     );
     const text = programText(detail.program?.workouts ?? []);
-    if (text === "") return undefined;
+    if (text === "") return "openGym" as const;
     const coaches = (detail.instructors ?? []).flatMap((instructor) =>
       instructor.name?.trim() ? [instructor.name.trim()] : [],
     );
@@ -298,8 +298,9 @@ const make = Effect.gen(function* () {
     return {
       date,
       classes: classes
-        .filter((entry) => entry !== undefined)
+        .filter((entry) => typeof entry === "object")
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+      openGym: classes.includes("openGym"),
     } satisfies BookingboardDay;
   });
 

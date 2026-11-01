@@ -8,6 +8,7 @@ import {
   splitLines,
   quantityFromText,
   suggestAttachment,
+  type Coaching,
   type Debrief,
   type ImportDocument,
   type IsoDate,
@@ -27,6 +28,8 @@ export interface EditorState {
   readonly performedOn: IsoDate | undefined;
   /** As typed; trimmed and emptied fields dropped only on the way out. */
   readonly debrief: Debrief;
+  /** Who coached it, or solo; undefined when not recorded. */
+  readonly coaching: Coaching | undefined;
   readonly selectedId: SpanId | undefined;
   readonly picking: PickMode | undefined;
   readonly nextId: number;
@@ -62,6 +65,7 @@ export type EditorAction =
   | { readonly type: "target"; readonly id: SpanId }
   | { readonly type: "setDate"; readonly date: IsoDate | undefined }
   | { readonly type: "setDebrief"; readonly debrief: Debrief }
+  | { readonly type: "setCoaching"; readonly coaching: Coaching | undefined }
   | { readonly type: "tagPhrase"; readonly phrase: string; readonly movementId: MovementId }
   | { readonly type: "replaceAll"; readonly spans: ReadonlyArray<Span> };
 
@@ -73,6 +77,7 @@ export const initialEditorState = (document: ImportDocument): EditorState => ({
   spans: byStart(document.spans),
   performedOn: document.performedOn,
   debrief: document.debrief ?? {},
+  coaching: document.coaching,
   selectedId: undefined,
   picking: undefined,
   // Fresh ids never collide with loaded ones ("s12", "e3", ...).
@@ -84,6 +89,7 @@ export const toDocument = (state: EditorState): ImportDocument => ({
   spans: state.spans,
   ...(state.performedOn === undefined ? {} : { performedOn: state.performedOn }),
   ...(isEmptyDebrief(state.debrief) ? {} : { debrief: normalizeDebrief(state.debrief) }),
+  ...(state.coaching === undefined ? {} : { coaching: state.coaching }),
 });
 
 /** Drops references to removed spans; a replaced movement hands its links to `heir`. */
@@ -325,6 +331,8 @@ export const editorReducer = (state: EditorState, action: EditorAction): EditorS
       return { ...state, performedOn: action.date };
     case "setDebrief":
       return { ...state, debrief: action.debrief };
+    case "setCoaching":
+      return { ...state, coaching: action.coaching };
     case "replaceAll":
       return { ...state, spans: byStart(action.spans), selectedId: undefined, picking: undefined };
     case "tagPhrase": {

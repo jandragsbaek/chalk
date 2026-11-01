@@ -1880,6 +1880,46 @@
           },
           "debrief": {
             "$ref": "#/components/schemas/Debrief"
+          },
+          "coaching": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "coached"
+                    ]
+                  },
+                  "coach": {
+                    "type": "string",
+                    "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "_tag",
+                  "coach"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "solo"
+                    ]
+                  }
+                },
+                "required": [
+                  "_tag"
+                ],
+                "additionalProperties": false
+              }
+            ]
           }
         },
         "required": [
@@ -3353,6 +3393,46 @@
             "type": "string",
             "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
             "minLength": 1
+          },
+          "coaching": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "coached"
+                    ]
+                  },
+                  "coach": {
+                    "type": "string",
+                    "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "_tag",
+                  "coach"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "solo"
+                    ]
+                  }
+                },
+                "required": [
+                  "_tag"
+                ],
+                "additionalProperties": false
+              }
+            ]
           },
           "createdAt": {
             "type": "string"

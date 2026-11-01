@@ -58,6 +58,7 @@ import { localIsoDate } from "../../lib/utils.ts";
 import { SAVE_REACTIVITY_KEYS, saveImportAtom } from "../../state/imports.ts";
 import { PLANS_REACTIVITY_KEY, savePlanAtom } from "../../state/plans.ts";
 import { AnnotatedText, type TextRange } from "./AnnotatedText.tsx";
+import { CoachingField } from "./CoachingField.tsx";
 import { DebriefSheet } from "./DebriefSheet.tsx";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { FieldBox } from "../FieldBox.tsx";
@@ -498,6 +499,13 @@ export function ImportWorkbench({
                 }
               />
             )}
+          </FieldBox>
+          <FieldBox label="Coached by" wide>
+            <CoachingField
+              coaching={state.coaching}
+              date={session.performedOn}
+              onChange={(coaching) => dispatch({ type: "setCoaching", coaching })}
+            />
           </FieldBox>
           {/* A plan's title already says its kind, and its protocol shows the parts. */}
           {outcomeFirst ? null : (

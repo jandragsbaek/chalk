@@ -1,4 +1,4 @@
-import type { WorkoutId } from "@chalk/contracts";
+import { coachingPhrase, type WorkoutId } from "@chalk/contracts";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { Link } from "@tanstack/react-router";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
@@ -60,6 +60,11 @@ export function WorkoutHistory() {
                         <Badge variant={workout.rx ? "default" : "muted"}>
                           {workout.rx ? "Rx" : "Scaled"}
                         </Badge>
+                        {workout.coaching ? (
+                          <span className="text-xs text-muted-foreground">
+                            {coachingPhrase(workout.coaching)}
+                          </span>
+                        ) : null}
                       </div>
                       <span className="text-lg font-semibold tabular-nums">{workout.score}</span>
                       {workout.notes ? (

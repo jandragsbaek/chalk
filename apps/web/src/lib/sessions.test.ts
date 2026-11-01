@@ -1,7 +1,7 @@
-import type { CatalogMovement, LiftSet, SessionEntry, Workout } from "@chalk/contracts";
+import type { CatalogMovement, Coaching, LiftSet, SessionEntry, Workout } from "@chalk/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { filterSessions, groupByMonth, movementOptions } from "./sessions.ts";
+import { filterSessions, groupByMonth, knownCoaches, movementOptions } from "./sessions.ts";
 
 const catalog = [
   { id: "snatch", name: "Snatch", category: "barbell", aliases: [] },
@@ -21,10 +21,20 @@ function workout(
   name: string,
   movementIds: ReadonlyArray<string>,
   notes = "",
+  coaching?: Coaching,
 ): SessionEntry {
   return {
     _tag: "workout",
-    workout: { id: name, performedOn, name, kind: "amrap", score: "5+18", rx: false, notes },
+    workout: {
+      id: name,
+      performedOn,
+      name,
+      kind: "amrap",
+      score: "5+18",
+      rx: false,
+      notes,
+      ...(coaching === undefined ? {} : { coaching }),
+    },
     sessionNumber: null,
     imported: false,
     movementIds,
@@ -52,10 +62,13 @@ function strengthDay(
 }
 
 const entries = [
-  workout("2026-10-27", "Fight the clock", ["power-snatch", "row"]),
+  workout("2026-10-27", "Fight the clock", ["power-snatch", "row"], "", {
+    _tag: "coached",
+    coach: "Rikke L.",
+  }),
   strengthDay("2026-10-26", ["back-squat"], "Shoulder pain on the last set"),
-  workout("2026-09-29", "Isabel", ["snatch"], "Hands tore"),
-  workout("2025-12-30", "Rowing intervals", ["row"]),
+  workout("2026-09-29", "Isabel", ["snatch"], "Hands tore", { _tag: "solo" }),
+  workout("2025-12-30", "Rowing intervals", ["row"], "", { _tag: "coached", coach: "Sarah L." }),
 ];
 
 const names = (list: ReadonlyArray<SessionEntry>) =>
@@ -80,6 +93,20 @@ describe("filterSessions", () => {
     expect(
       names(filterSessions(entries, { ...none, query: "row", year: "2025" }, catalog)),
     ).toEqual(["Rowing intervals"]);
+  });
+
+  it("matches who coached a session, and Solo for one done alone", () => {
+    expect(names(filterSessions(entries, { ...none, query: "rikke" }, catalog))).toEqual([
+      "Fight the clock",
+    ]);
+    expect(names(filterSessions(entries, { ...none, query: "solo" }, catalog))).toEqual(["Isabel"]);
+  });
+});
+
+describe("knownCoaches", () => {
+  it("names each coach once, most recently coached first", () => {
+    const again = workout("2025-11-01", "Cindy", [], "", { _tag: "coached", coach: "Rikke L." });
+    expect(knownCoaches([...entries, again])).toEqual(["Rikke L.", "Sarah L."]);
   });
 });
 

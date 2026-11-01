@@ -4,6 +4,7 @@ import {
   LogWorkoutInput,
   SCORE_PLACEHOLDERS as BENCHMARK_SCORE_PLACEHOLDERS,
   type Benchmark,
+  type Coaching,
 } from "@chalk/contracts";
 import { useAtomSet } from "@effect/atom-react";
 import * as Exit from "effect/Exit";
@@ -15,6 +16,7 @@ import { localIsoDate } from "../lib/utils.ts";
 import { SCORE_PLACEHOLDERS, WORKOUT_KIND_LABELS, WORKOUT_KINDS } from "../lib/workoutKinds.ts";
 import { LIFTS_REACTIVITY_KEY } from "../state/strength.ts";
 import { logWorkoutAtom, WORKOUTS_REACTIVITY_KEY } from "../state/workouts.ts";
+import { CoachingField } from "./import/CoachingField.tsx";
 import { WorkoutPicker } from "./WorkoutPicker.tsx";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, Label, NativeSelect, Textarea } from "@chalk/ui/components/field.tsx";
@@ -41,6 +43,7 @@ export function LogWorkoutForm({ benchmark: fixed }: { readonly benchmark?: Benc
   const [score, setScore] = useState("");
   const [rx, setRx] = useState(true);
   const [notes, setNotes] = useState("");
+  const [coaching, setCoaching] = useState<Coaching | undefined>();
   const [status, setStatus] = useState<SubmitStatus>({ type: "idle" });
   const benchmark = fixed ?? findBenchmark(name);
 
@@ -60,6 +63,7 @@ export function LogWorkoutForm({ benchmark: fixed }: { readonly benchmark?: Benc
       rx,
       notes: notes.trim(),
       ...(benchmark ? { benchmarkId: benchmark.id } : {}),
+      ...(coaching ? { coaching } : {}),
     });
     if (Option.isNone(input)) {
       setStatus({ type: "error", message: "Add a date, a workout name and a score." });
@@ -149,6 +153,16 @@ export function LogWorkoutForm({ benchmark: fixed }: { readonly benchmark?: Benc
           <Switch checked={rx} onCheckedChange={setRx} />
           {rx ? "Rx" : "Scaled"}
         </Label>
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="workout-coach">Coached by</Label>
+        <CoachingField
+          id="workout-coach"
+          coaching={coaching}
+          date={performedOn === "" ? undefined : performedOn}
+          onChange={setCoaching}
+        />
       </div>
 
       <div className="grid gap-1.5 sm:col-span-2">
