@@ -1,6 +1,7 @@
-import { CoachThreadId, MovementId, type CoachEvent } from "@chalk/contracts";
+import { COACH_MODELS, CoachThreadId, MovementId, type CoachEvent } from "@chalk/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as AiError from "effect/ai/AiError";
+import * as ConfigProvider from "effect/ConfigProvider";
 import * as LanguageModel from "effect/ai/LanguageModel";
 import type * as Response from "effect/ai/Response";
 import * as SecureRandom from "effect/crypto/SecureRandom";
@@ -38,7 +39,9 @@ const text = (value: string): Array<Response.PartEncoded> => [
 
 /**
  * A model that answers from a script: each call gets the options it was sent and returns the
- * parts the script picks. Calls are kept, so a test can check what the model was shown.
+ * parts the script picks. Calls are kept with the slug that took them, so a test can check what
+ * the model was shown and which model answered. Offers "test/model" (the default) and
+ * "test/other".
  */
 const scriptedModel = (
   script: (
@@ -47,30 +50,43 @@ const scriptedModel = (
   ) => Effect.Effect<Array<Response.PartEncoded>, AiError.AiError>,
 ) => {
   const calls: Array<LanguageModel.ProviderOptions> = [];
-  const model = Layer.effect(
-    CoachService.CoachModel,
+  const slugs: Array<string> = [];
+  const choice = (slug: string) =>
     LanguageModel.make({
       generateText: (options) => {
         calls.push(options);
+        slugs.push(slug);
         return script(options, calls.length);
       },
       streamText: () => Stream.die("the coach does not stream from the model"),
     }).pipe(
-      Effect.map((languageModel) =>
-        CoachService.CoachModel.of({ model: Option.some({ name: "test/model", languageModel }) }),
+      Effect.map((languageModel): CoachService.CoachModelChoice => ({
+        slug,
+        label: slug,
+        price: null,
+        languageModel,
+      })),
+    );
+  const model = Layer.effect(
+    CoachService.CoachModel,
+    Effect.all([choice("test/model"), choice("test/other")]).pipe(
+      Effect.map((choices) =>
+        CoachService.CoachModel.of({
+          models: Option.some({ defaultModel: "test/model", choices }),
+        }),
       ),
     ),
   );
-  return { calls, model };
+  return { calls, slugs, model };
 };
 
 const noModel = Layer.succeed(
   CoachService.CoachModel,
-  CoachService.CoachModel.of({ model: Option.none() }),
+  CoachService.CoachModel.of({ models: Option.none() }),
 );
 
-const layerWith = (
-  model: Layer.Layer<CoachService.CoachModel>,
+const layerWith = <E>(
+  model: Layer.Layer<CoachService.CoachModel, E>,
   coachStore: typeof CoachStore.layer = CoachStore.layer,
 ) =>
   CoachService.layer.pipe(
@@ -115,7 +131,7 @@ describe("CoachService", () => {
   it.effect("says it is unavailable without a model, and saves nothing", () =>
     Effect.gen(function* () {
       const coach = yield* CoachService.CoachService;
-      expect(yield* coach.status()).toEqual({ available: false, model: null });
+      expect(yield* coach.status()).toEqual({ available: false, defaultModel: null, models: [] });
       const error = yield* send({ text: "How is my squat?" }).pipe(Effect.flip);
       expect(error._tag).toBe("CoachUnavailableError");
       expect(yield* coach.threads()).toEqual([]);
@@ -189,6 +205,45 @@ describe("CoachService", () => {
       ]);
       expect(detail.thread.reads).toBe(2);
     }).pipe(Effect.provide(layerWith(readsThenAnswers.model))),
+  );
+
+  const picked = scriptedModel(() => Effect.succeed(text("Answered.")));
+
+  it.effect("answers with the model the athlete picked, and refuses one it does not offer", () =>
+    Effect.gen(function* () {
+      const coach = yield* CoachService.CoachService;
+      expect(yield* coach.status()).toMatchObject({
+        available: true,
+        defaultModel: "test/model",
+        models: [{ slug: "test/model" }, { slug: "test/other" }],
+      });
+
+      const first = last(yield* send({ text: "Default, please." })) as Extract<
+        CoachEvent,
+        { _tag: "CoachTurn" }
+      >;
+      expect(first.turn.model).toBe("test/model");
+
+      // Switching mid-thread: the reply and the thread both carry the new model.
+      const second = last(
+        yield* send({ threadId: first.thread.id, text: "Now the other one.", model: "test/other" }),
+      ) as Extract<CoachEvent, { _tag: "CoachTurn" }>;
+      expect(picked.slugs).toEqual(["test/model", "test/other"]);
+      expect(second.turn.model).toBe("test/other");
+      expect(second.thread.model).toBe("test/other");
+      const detail = yield* coach.thread(first.thread.id);
+      expect(detail.turns.map((turn) => [turn.role, turn.model])).toEqual([
+        ["athlete", undefined],
+        ["coach", "test/model"],
+        ["athlete", undefined],
+        ["coach", "test/other"],
+      ]);
+
+      const error = yield* send({ text: "Use mine.", model: "openai/gpt-4o" }).pipe(Effect.flip);
+      expect(error).toMatchObject({ _tag: "CoachModelNotAllowedError", model: "openai/gpt-4o" });
+      expect(yield* coach.threads()).toHaveLength(1);
+      expect(picked.slugs).toHaveLength(2);
+    }).pipe(Effect.provide(layerWith(picked.model))),
   );
 
   const greedy = scriptedModel((options) =>
@@ -300,5 +355,59 @@ describe("CoachService", () => {
       }).pipe(Effect.flip);
       expect(error._tag).toBe("CoachThreadNotFoundError");
     }).pipe(Effect.provide(layerWith(failing.model))),
+  );
+});
+
+describe("CoachService.layerModel", () => {
+  const statusWith = (env: Record<string, string>) =>
+    Effect.gen(function* () {
+      const coach = yield* CoachService.CoachService;
+      return yield* coach.status();
+    }).pipe(
+      Effect.provide(
+        layerWith(
+          CoachService.layerModel.pipe(
+            Layer.provide(ConfigProvider.layer(ConfigProvider.fromEnvRecord(env))),
+          ),
+        ),
+      ),
+    );
+
+  it.effect("offers Chalk's list, with CHALK_COACH_MODEL as the default", () =>
+    Effect.gen(function* () {
+      const status = yield* statusWith({
+        OPENROUTER_API_KEY: "sk-test",
+        CHALK_COACH_MODEL: "z-ai/glm-5.3",
+      });
+      expect(status).toEqual({
+        available: true,
+        defaultModel: "z-ai/glm-5.3",
+        models: COACH_MODELS,
+      });
+    }),
+  );
+
+  it.effect("offers a CHALK_COACH_MODEL outside the list ahead of it, unpriced", () =>
+    Effect.gen(function* () {
+      const status = yield* statusWith({
+        OPENROUTER_API_KEY: "sk-test",
+        CHALK_COACH_MODEL: "acme/coach-1",
+      });
+      expect(status.defaultModel).toBe("acme/coach-1");
+      expect(status.models).toEqual([
+        { slug: "acme/coach-1", label: "coach-1", price: null },
+        ...COACH_MODELS,
+      ]);
+    }),
+  );
+
+  it.effect("is off without a key", () =>
+    Effect.gen(function* () {
+      expect(yield* statusWith({ CHALK_COACH_MODEL: "acme/coach-1" })).toEqual({
+        available: false,
+        defaultModel: null,
+        models: [],
+      });
+    }),
   );
 });

@@ -5,6 +5,7 @@ import {
   WorkoutId,
   type CoachEvent,
   type CoachReceipt,
+  type CoachStatus,
   type CoachThread,
   type CoachTurn,
 } from "@chalk/contracts";
@@ -16,6 +17,7 @@ import {
   EMPTY_REPLY,
   paragraphs,
   starterPrompts,
+  threadModel,
   threadTurns,
 } from "./coach.ts";
 
@@ -170,5 +172,25 @@ describe("starterPrompts", () => {
     expect(
       starterPrompts({ today: "2026-11-01", movements: [], liftSets: [], workouts: [] }),
     ).toEqual(["Where should the next four weeks of training go?"]);
+  });
+});
+
+describe("the model a conversation is answered with", () => {
+  const status: CoachStatus = {
+    available: true,
+    defaultModel: "anthropic/claude-sonnet-5.5",
+    models: [
+      { slug: "anthropic/claude-sonnet-5.5", label: "Claude Sonnet 5.5", price: "$2 / $10" },
+      { slug: "z-ai/glm-5.3", label: "GLM 5.3", price: "$0.08 / $3.60" },
+    ],
+  };
+
+  it("stays with the model that last answered, while the server still offers it", () => {
+    expect(threadModel(status, "z-ai/glm-5.3")).toBe("z-ai/glm-5.3");
+  });
+
+  it("falls back to the default for a new thread, or a model no longer offered", () => {
+    expect(threadModel(status, undefined)).toBe("anthropic/claude-sonnet-5.5");
+    expect(threadModel(status, "openai/gpt-4o")).toBe("anthropic/claude-sonnet-5.5");
   });
 });

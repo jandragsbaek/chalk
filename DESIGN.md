@@ -344,7 +344,7 @@ Printed and decisive: square, semi-bold, no gradient.
 
 ### Inputs / Fields
 
-- **Style:** fresh-sheet fill, 1px box-edge stroke, square, 36px tall, 10px horizontal padding, 0.875rem text. Native selects keep the platform picker.
+- **Style:** fresh-sheet fill, 1px box-edge stroke, square, 36px tall, 10px horizontal padding, 0.875rem text. Native selects keep the platform picker; a select whose rows need a note (the coach's model pick, label plus price) uses the popup `Select`: a fresh sheet on a 1px ink stroke, no shadow, highlighted row on the muted tint, a check at the current pick.
 - **Focus:** border turns ballpoint blue with a 2px ring at 30%.
 - **Hover:** border darkens to ink.
 

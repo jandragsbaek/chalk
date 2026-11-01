@@ -56,12 +56,16 @@ const TurnRow = Schema.Struct({
   role: CoachTurn.fields.role,
   text: Schema.String,
   receipts: Schema.fromJsonString(Schema.Array(CoachReceipt)),
+  model: Schema.NullOr(Schema.String),
   stopped: Schema.NullOr(Schema.Literals(["read-limit", "step-limit", "model-error"])),
   createdAt: Schema.String,
 });
 
-const toTurn = ({ stopped, ...row }: typeof TurnRow.Type): CoachTurn =>
-  stopped === null ? row : { ...row, stopped };
+const toTurn = ({ model, stopped, ...row }: typeof TurnRow.Type): CoachTurn => ({
+  ...row,
+  ...(model === null ? {} : { model }),
+  ...(stopped === null ? {} : { stopped }),
+});
 
 const encodeReceipts = Schema.encodeSync(Schema.fromJsonString(Schema.Array(CoachReceipt)));
 
@@ -122,7 +126,7 @@ const make = Effect.gen(function* () {
     Request: Schema.String,
     Result: TurnRow,
     execute: (id) => sql`
-      SELECT seq, role, text, receipts, stopped, created_at AS "createdAt"
+      SELECT seq, role, text, receipts, model, stopped, created_at AS "createdAt"
       FROM coach_turns WHERE thread_id = ${id} ORDER BY seq
     `,
   });
@@ -207,9 +211,9 @@ const make = Effect.gen(function* () {
       `;
       const next = (last?.seq ?? 0) + 1;
       yield* sql`
-        INSERT INTO coach_turns (thread_id, seq, role, text, receipts, stopped, created_at)
+        INSERT INTO coach_turns (thread_id, seq, role, text, receipts, model, stopped, created_at)
         VALUES (${id}, ${next}, ${turn.role}, ${turn.text}, ${encodeReceipts(turn.receipts)},
-                ${turn.stopped ?? null}, ${createdAt})
+                ${turn.model ?? null}, ${turn.stopped ?? null}, ${createdAt})
       `;
       yield* stamp.history === undefined
         ? sql`UPDATE coach_threads SET model = ${stamp.model}, updated_at = ${createdAt}

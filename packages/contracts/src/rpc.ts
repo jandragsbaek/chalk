@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema";
 import { LiftSetId, WorkoutId } from "./baseSchemas.ts";
 import {
   CoachEvent,
+  CoachModelNotAllowedError,
   CoachSendInput,
   CoachStatus,
   CoachStorageError,
@@ -123,7 +124,12 @@ const CoachThreadRpc = Rpc.make(RPC_METHODS.coachThread, {
 const CoachSendRpc = Rpc.make(RPC_METHODS.coachSend, {
   payload: CoachSendInput,
   success: CoachEvent,
-  error: Schema.Union([CoachUnavailableError, CoachThreadNotFoundError, CoachStorageError]),
+  error: Schema.Union([
+    CoachUnavailableError,
+    CoachModelNotAllowedError,
+    CoachThreadNotFoundError,
+    CoachStorageError,
+  ]),
   stream: true,
 });
 

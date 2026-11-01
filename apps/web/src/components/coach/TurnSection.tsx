@@ -1,4 +1,4 @@
-import type { CoachTurn } from "@chalk/contracts";
+import { coachModelLabel, type CoachTurn } from "@chalk/contracts";
 import type * as React from "react";
 
 import { Fragment } from "react";
@@ -86,7 +86,11 @@ export function CoachSection({
         <TurnHead
           seq={turn.seq}
           who="Coach"
-          meta={`${plural(turn.receipts.length, "read")} · ${clock.format(new Date(turn.createdAt))}`}
+          meta={[
+            ...(turn.model === undefined ? [] : [coachModelLabel(turn.model)]),
+            plural(turn.receipts.length, "read"),
+            clock.format(new Date(turn.createdAt)),
+          ].join(" · ")}
         />
         <Receipts reads={reads} open={open} onToggle={onToggle} />
       </div>
@@ -155,12 +159,15 @@ function Citation({
 /** The coach at work: its reads landing one by one, before it has written anything. */
 export function ReadingSection({
   seq,
+  model,
   reads,
   open,
   onToggle,
 }: {
   /** The number the reply will take. */
   readonly seq: number;
+  /** The slug answering, when this page sent the message. */
+  readonly model: string | null;
   readonly reads: ReadonlyArray<LiveRead>;
   readonly open: ReadonlySet<number>;
   readonly onToggle: (number: number) => void;
@@ -171,7 +178,10 @@ export function ReadingSection({
         <TurnHead
           seq={seq}
           who="Coach"
-          meta={reads.length === 0 ? "Thinking…" : `Reading… ${plural(reads.length, "read")}`}
+          meta={[
+            ...(model === null ? [] : [coachModelLabel(model)]),
+            reads.length === 0 ? "Thinking…" : `Reading… ${plural(reads.length, "read")}`,
+          ].join(" · ")}
         />
         <Receipts reads={reads} open={open} onToggle={onToggle} />
       </div>

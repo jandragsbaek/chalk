@@ -1,4 +1,13 @@
+import type { CoachModelOption } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@chalk/ui/components/select.tsx";
 import { useState } from "react";
 
 /** Characters the server accepts in one message. */
@@ -6,17 +15,24 @@ const MAX_LENGTH = 4000;
 
 /**
  * Where the athlete types to the coach: a typed-source field (the athlete's words are always set
- * in the typewriter), Enter sends and Shift+Enter breaks the line.
+ * in the typewriter), Enter sends and Shift+Enter breaks the line. Under it, the model the
+ * message goes to, which the athlete can change before any message.
  */
 export function Composer({
   placeholder,
+  models,
   model,
+  onModelChange,
   busy,
   error,
   onSend,
 }: {
   readonly placeholder: string;
+  /** What the server offers, in menu order. */
+  readonly models: ReadonlyArray<CoachModelOption>;
+  /** The slug the next message goes to. */
   readonly model: string;
+  readonly onModelChange: (slug: string) => void;
   readonly busy: boolean;
   readonly error: string | null;
   readonly onSend: (text: string) => void;
@@ -61,16 +77,61 @@ export function Composer({
           {busy ? "Coach is working…" : "Send"}
         </Button>
       </div>
-      {error === null ? (
-        <p className="flex justify-between gap-4 text-xs text-muted-foreground">
-          <span>Enter sends, Shift+Enter breaks the line.</span>
-          <span>Your log goes to {model} through OpenRouter.</span>
-        </p>
-      ) : (
+      {error === null ? null : (
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       )}
+      <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+        <span>Enter sends, Shift+Enter breaks the line.</span>
+        <ModelPicker models={models} model={model} onModelChange={onModelChange} />
+      </div>
     </form>
+  );
+}
+
+/** "Your log goes to [model] through OpenRouter.": the privacy line, with the model as a pick. */
+function ModelPicker({
+  models,
+  model,
+  onModelChange,
+}: {
+  readonly models: ReadonlyArray<CoachModelOption>;
+  readonly model: string;
+  readonly onModelChange: (slug: string) => void;
+}) {
+  const items = models.map((option) => ({ value: option.slug, label: option.label }));
+  return (
+    <span className="flex items-center gap-1.5">
+      <span>Your log goes to</span>
+      <Select
+        items={items}
+        value={model}
+        onValueChange={(slug) => {
+          if (slug !== null) onModelChange(slug);
+        }}
+      >
+        <SelectTrigger aria-label="Coach model" size="sm" className="max-w-56">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent side="top" align="end" className="w-80">
+          <SelectLabel>
+            <span>Model</span>
+            <span>$ per M tokens in / out</span>
+          </SelectLabel>
+          {models.map((option) => (
+            <SelectItem
+              key={option.slug}
+              value={option.slug}
+              note={option.price ?? "Set on the server"}
+              title={option.slug}
+            >
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span>through OpenRouter.</span>
+    </span>
   );
 }

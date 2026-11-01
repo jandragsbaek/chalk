@@ -1,4 +1,5 @@
 import {
+  coachModelLabel,
   CoachThreadId,
   type CoachStatus,
   type CoachThread,
@@ -19,7 +20,7 @@ import { receiptAnchor } from "../components/coach/Receipts.tsx";
 import { ThreadRail } from "../components/coach/ThreadRail.tsx";
 import { AthleteSection, CoachSection, ReadingSection } from "../components/coach/TurnSection.tsx";
 import { FieldBox } from "../components/FieldBox.tsx";
-import { starterPrompts, threadTurns, type LiveReply } from "../lib/coach.ts";
+import { starterPrompts, threadModel, threadTurns, type LiveReply } from "../lib/coach.ts";
 import { localIsoDate } from "../lib/utils.ts";
 import {
   coachSendAtom,
@@ -90,6 +91,8 @@ function sendError(result: AsyncResult.AsyncResult<LiveReply, unknown>): string 
     switch (error._tag) {
       case "CoachUnavailableError":
         return "The coach is not set up on this server.";
+      case "CoachModelNotAllowedError":
+        return "The server no longer offers that model. Reload and pick another.";
       case "CoachThreadNotFoundError":
         return "This conversation no longer exists. Start a new one.";
       case "CoachStorageError":
@@ -143,10 +146,15 @@ function ThreadPane({
   const navigate = useNavigate({ from: "/coach" });
   const [sendResult, send] = useAtom(coachSendAtom);
   /** The last message sent from this pane, and when, so it can print before the server saves it. */
-  const [sentHere, setSentHere] = useState<{ readonly text: string; readonly at: string } | null>(
-    null,
-  );
+  const [sentHere, setSentHere] = useState<{
+    readonly text: string;
+    readonly at: string;
+    readonly model: string | null;
+  } | null>(null);
   const [open, setOpen] = useState<ReadonlySet<number>>(() => new Set());
+  /** The model the athlete picked in this pane; until then, the thread's own or the default. */
+  const [picked, setPicked] = useState<string | null>(null);
+  const model = picked ?? threadModel(status, saved?.thread.model);
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -185,8 +193,9 @@ function ThreadPane({
     });
   };
   const submit = (text: string) => {
-    setSentHere({ text, at: new Date().toISOString() });
-    send(threadId === undefined ? { text } : { threadId, text });
+    setSentHere({ text, at: new Date().toISOString(), model });
+    const pick = model === null ? {} : { model };
+    send(threadId === undefined ? { text, ...pick } : { threadId, text, ...pick });
   };
 
   const { turns, reading } = threadTurns(saved?.turns ?? [], liveHere);
@@ -263,6 +272,7 @@ function ThreadPane({
           {echo !== null || reading !== null ? (
             <ReadingSection
               seq={echo === null ? nextSeq : nextSeq + 1}
+              model={sentHere?.model ?? null}
               reads={reading ?? []}
               open={open}
               onToggle={toggle}
@@ -275,10 +285,12 @@ function ThreadPane({
       </div>
       <div className="shrink-0 border-t bg-background">
         <div className="mx-auto w-full max-w-[46rem] px-6 pt-3 pb-4">
-          {status.available ? (
+          {status.available && model !== null ? (
             <Composer
               placeholder={threadId === undefined ? "Ask about your training…" : "Reply…"}
-              model={status.model ?? "the coach"}
+              models={status.models}
+              model={model}
+              onModelChange={setPicked}
               busy={busy}
               error={sentHere === null ? null : sendError(sendResult)}
               onSend={submit}
@@ -287,8 +299,8 @@ function ThreadPane({
             <p className="border border-dashed border-input bg-card px-4 py-3 text-sm">
               The coach is not set up on this server. Set{" "}
               <code className="font-mono">OPENROUTER_API_KEY</code> (and{" "}
-              <code className="font-mono">CHALK_COACH_MODEL</code> to pick the model), then restart
-              Chalk. Saved conversations stay readable.
+              <code className="font-mono">CHALK_COACH_MODEL</code> for its default model), then
+              restart Chalk. Saved conversations stay readable.
             </p>
           )}
         </div>
@@ -313,7 +325,7 @@ function ThreadHead({ thread }: { readonly thread: CoachThread }) {
         <FieldBox label="Reads">{thread.reads}</FieldBox>
         <FieldBox label="Model">
           <span className="block truncate" title={thread.model}>
-            {thread.model.split("/").at(-1)}
+            {coachModelLabel(thread.model)}
           </span>
         </FieldBox>
       </dl>
