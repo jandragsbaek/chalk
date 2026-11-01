@@ -156,6 +156,21 @@ Back squat 1RM: 150 kg. Failed 155 kg. Feels close to true max.
 
 Booking Board: attended OnTime (classId 1551350, Johannes B. P., 17:30, Power).`;
 
+/** A for-time couplet with its cap on a line of its own, below the Rx+ options (2025-08-25). */
+export const CAPPED_FOR_TIME = `Performance | Conditioning
+For time:
+30 Bar Facing Burpees
+15 Hang Power Cleans (115/85lbs)
+30 Pull-Ups
+15 Hang Power Cleans (115/85lbs)
+30 Bar Facing Burpees
+
+Rx+ Loading and Movements:
+155/105lbs
+15 Bar or Ring Muscle Ups instead of 30 Pull-Ups
+Goal = <12 Minutes
+Cap = 15 Minutes`;
+
 const movement = (id: string, name: string, aliases: ReadonlyArray<string> = []) => ({
   id: MovementId.make(id),
   name,
@@ -177,6 +192,7 @@ export const CATALOG: ReadonlyArray<MatchableMovement> = [
   movement("pull-up", "Pull-up"),
   movement("rope-climb", "Rope climb"),
   movement("burpee", "Burpee"),
+  movement("bar-facing-burpee", "Bar-facing burpee", ["Bar facing burpee"]),
   movement("sit-up", "Sit-up"),
   movement("double-under", "Double-under", ["DU"]),
   movement("row", "Row"),

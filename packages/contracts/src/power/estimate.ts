@@ -5,10 +5,12 @@ import type { Performance } from "../levels.ts";
 import type {
   BlockFormat,
   BlockParams,
+  BlockResult,
   CatalogMovement,
   PerformedSet,
   Quantity,
 } from "../sessionImport.ts";
+import { cappedShares } from "../sessionImport/blockResult.ts";
 import type { DerivedSession } from "../sessionImport/derive.ts";
 import type { Body } from "./body.ts";
 import { WORK_MODELS, type WorkModel } from "./movements.ts";
@@ -22,6 +24,8 @@ import { WORK_MODELS, type WorkModel } from "./movements.ts";
 
 /** What one item of a block needs; a derived block's items fit, and so do a benchmark's. */
 export interface WorkItem {
+  /** A derived item's span; a capped result names the station it stopped at by it. */
+  readonly spanId?: string;
   readonly movementId: MovementId | undefined;
   readonly text: string;
   readonly sets: ReadonlyArray<{ readonly quantities: ReadonlyArray<Quantity> }>;
@@ -35,6 +39,8 @@ export interface WorkBlock {
   readonly params: BlockParams;
   readonly items: ReadonlyArray<WorkItem>;
   readonly scores: ReadonlyArray<string>;
+  /** The athlete's entered result; the scores carry its text too. */
+  readonly result?: BlockResult;
   readonly rotation?: number;
 }
 
@@ -179,6 +185,8 @@ const secondsOf = (block: WorkBlock): number | undefined => {
   const rounds = params.rounds === undefined ? undefined : params.rounds.min;
   switch (block.format) {
     case "for_time": {
+      // Capped: the block took its cap.
+      if (block.result?._tag === "capped") return params.timeCapSeconds;
       for (const score of block.scores) {
         const seconds = parseBenchmarkScore("time", score);
         if (seconds !== undefined && seconds > 0) return seconds;
@@ -338,7 +346,11 @@ export const estimateBlockWork = (
     }
   } else {
     const rounds = roundsOf(block);
-    for (const item of items) {
+    const result = block.result;
+    const shares = result?._tag === "capped" ? cappedShares(block, result, body.sex) : undefined;
+    if (result?._tag === "capped" && shares === undefined)
+      return skippedBlock("Capped, and where it stopped cannot be counted.", seconds);
+    for (const [index, item] of items.entries()) {
       if (item.performed.length > 0) {
         countSets(item, body, modelOf, counted);
         continue;
@@ -359,7 +371,17 @@ export const estimateBlockWork = (
         item.sets.some((set) => set.quantities.some((q) => q.measure === "reps"))
           ? block.params.scheme.length
           : 1;
-      countItem(item, rounds * schemeRounds * count.amount, count.unit, body, modelOf, counted);
+      // Capped: only the share of the station done before the cap.
+      const share = shares?.[index] ?? 1;
+      if (share === 0) continue;
+      countItem(
+        item,
+        rounds * schemeRounds * count.amount * share,
+        count.unit,
+        body,
+        modelOf,
+        counted,
+      );
     }
   }
 

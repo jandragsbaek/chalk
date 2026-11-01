@@ -439,6 +439,26 @@ export const parseRoundRest = (text: string): number | undefined => {
   return undefined;
 };
 
+const CAP_WORD = String.raw`(?:time\s*cap|cap|tc|tidsgr(?:æ|ae)nse)`;
+const TIME_CAP = [
+  // "Cap = 15 Minutes", "Time cap: 12 min", "(TC 20)".
+  new RegExp(String.raw`^\(?\s*${CAP_WORD}\s*[:=]?\s*(${N})\s*${TIME_UNIT}?\.?\s*\)?\.?$`, "i"),
+  // "15 min cap", "(20 minute time cap)".
+  new RegExp(String.raw`^\(?\s*(${N})\s*${TIME_UNIT}\s*${CAP_WORD}\s*\)?\.?$`, "i"),
+];
+
+/**
+ * A time cap written as a line of its own or after a format ("Cap = 15 Minutes", "15 min cap"),
+ * in seconds; a bare number is minutes. Belongs to the for-time block it caps.
+ */
+export const parseTimeCap = (text: string): number | undefined => {
+  for (const pattern of TIME_CAP) {
+    const match = text.trim().match(pattern);
+    if (match) return toNumber(match[1]!) * (match[2] === undefined ? 60 : timeFactor(match[2]));
+  }
+  return undefined;
+};
+
 /**
  * The quantity a highlighted phrase stands for, as `measure`. Uses the recognizers when they
  * agree on the measure, else reads the first number(s) of the phrase.

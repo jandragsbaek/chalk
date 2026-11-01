@@ -21,13 +21,18 @@ export const formatSeconds = (seconds: number) => {
 
 /**
  * "AMRAP 15 min", "Every 1:30 × 8", "40 s on / 20 s off × 9", "21-15-9 for time", and a rest
- * between rounds after it: "AMRAP 15 min · 30 s rest b/t rounds".
+ * between rounds after it: "AMRAP 15 min · 30 s rest b/t rounds", and a time cap last: "For time ·
+ * 15 min cap".
  */
 export const describeBlock = (format: BlockFormat | undefined, params: BlockParams): string => {
   const title = describeFormat(format, params);
-  return format !== "intervals" && params.restSeconds !== undefined
-    ? `${title} · ${formatSeconds(params.restSeconds)} rest b/t rounds`
-    : title;
+  const rested =
+    format !== "intervals" && params.restSeconds !== undefined
+      ? `${title} · ${formatSeconds(params.restSeconds)} rest b/t rounds`
+      : title;
+  return format !== "for_time" || params.timeCapSeconds === undefined
+    ? rested
+    : `${rested} · ${formatSeconds(params.timeCapSeconds)} cap`;
 };
 
 const describeFormat = (format: BlockFormat | undefined, params: BlockParams): string => {

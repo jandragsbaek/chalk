@@ -365,6 +365,16 @@ re-derivable.
 - **Tonnage**: reps × load summed, per item, per block and per session (results plus notes lift
   sets; a movement in both is warned about, since it counts twice). `ImportSummary.tonnageKg`
   is the same sum over the workout's lift sets.
+- **Block results (built).** The box's text rarely holds the athlete's score, so a scored block
+  takes one entered in the editor, on its header (`BlockResult` on the block span; on the
+  benchmark span for a benchmark written by name only): a time or `capped` for a for-time, rounds
+  - reps for an AMRAP, reps for EMOM, every-X, intervals and other. Capped is entered as where the
+    cap came (round, station, reps of it); the editor counts the `total` on the athlete's side of
+    an M/F split. The result's text ("12:34", "Capped · 113 reps", "5+12") is the block's first
+    score. A for-time block has a `timeCapSeconds` param ("Cap = 15 Minutes", "15 min cap" lines
+    are read into it; a benchmark's own cap applies). A capped block's time is its cap and its work
+    stops where the athlete did. A result that no longer fits its block (format changed, station
+    removed) blocks saving.
 - **Debrief (built).** The athlete's side of the session, entered in the editor and stored on
   the document (`ImportDocument.debrief`, schema `Debrief`): the result in their words, minutes, how it felt (1 to 5), how hard they could push today (capacity,
   1 to 5), session RPE (Foster CR-10, 1 to 10), what limited them (engine, muscle endurance,

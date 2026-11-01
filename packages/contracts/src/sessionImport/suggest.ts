@@ -10,6 +10,7 @@ import {
   parseBlockFormat,
   parseQuantities,
   parseRoundRest,
+  parseTimeCap,
   splitLines,
   type QuantityMatch,
 } from "./parse.ts";
@@ -195,7 +196,28 @@ export const suggestSpans = (
     spans.push({ _tag: "intent", id: makeId(), start, end });
   };
 
+  /** Sets the time cap of the for-time block scored last; `true` when there was one. */
+  const capLastBlock = (seconds: number) => {
+    const block = lastScoreable;
+    if (block?._tag !== "block" || block.format !== "for_time") return false;
+    const capped: SpanOf<"block"> = {
+      ...block,
+      params: { ...block.params, timeCapSeconds: seconds },
+    };
+    spans[spans.indexOf(block)] = capped;
+    if (currentBlock === block) currentBlock = capped;
+    lastScoreable = capped;
+    return true;
+  };
+
   const workoutLine = (content: string, offset: number) => {
+    // "Cap = 15 Minutes": the cap of the for-time block above, and the coach's words for it.
+    const cap = parseTimeCap(content);
+    if (cap !== undefined) {
+      capLastBlock(cap);
+      addIntent(offset, offset + content.length);
+      return;
+    }
     // "Rest 30 sec b/t rounds.": the block's rest, and the coach's words for it.
     const roundRest = parseRoundRest(content);
     if (roundRest !== undefined) {
@@ -232,6 +254,9 @@ export const suggestSpans = (
       content = rest.trimStart();
       offset += format.length + skipped;
       if (content === "") return;
+      // "For time (15 min cap)".
+      const formatCap = parseTimeCap(content.replace(/^[:,.\s-]+/, ""));
+      if (formatCap !== undefined && capLastBlock(formatCap)) return;
     }
 
     const station = content.match(/^\d+\)\s*/);
