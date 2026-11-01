@@ -2,17 +2,22 @@ import type { WorkoutId } from "@chalk/contracts";
 import * as Atom from "effect/reactivity/Atom";
 
 import { AdminClient } from "../api/client.ts";
+import { PLANS_REACTIVITY_KEY } from "./plans.ts";
 import { CATALOG_REACTIVITY_KEY, LIFTS_REACTIVITY_KEY } from "./strength.ts";
 import { WORKOUTS_REACTIVITY_KEY } from "./workouts.ts";
 
 /** Import reads register this key; a save refetches the imported list. */
 export const IMPORTS_REACTIVITY_KEY = "imports";
 
-/** Keys a successful save invalidates: imports, workouts, and the lift sets and levels it derives. */
+/**
+ * Keys a successful save invalidates: imports, workouts, the lift sets and levels it derives, and
+ * plans (a session logged from a plan removes it).
+ */
 export const SAVE_REACTIVITY_KEYS = [
   IMPORTS_REACTIVITY_KEY,
   WORKOUTS_REACTIVITY_KEY,
   LIFTS_REACTIVITY_KEY,
+  PLANS_REACTIVITY_KEY,
 ];
 
 export const catalogAtom = AdminClient.query("movements", "list", {

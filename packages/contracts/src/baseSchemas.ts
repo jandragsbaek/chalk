@@ -8,6 +8,10 @@ const makeEntityId = <Brand extends string>(brand: Parameters<typeof Schema.bran
 export const WorkoutId = makeEntityId("WorkoutId");
 export type WorkoutId = typeof WorkoutId.Type;
 
+/** A planned session: a posted workout entered before it is done. */
+export const PlanId = makeEntityId("PlanId");
+export type PlanId = typeof PlanId.Type;
+
 /** Stable slug from the movement catalog, e.g. "back-squat". */
 export const MovementId = makeEntityId("MovementId");
 export type MovementId = typeof MovementId.Type;

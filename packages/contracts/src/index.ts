@@ -9,6 +9,7 @@ export * from "./debrief.ts";
 export * from "./levels.ts";
 export * from "./levelOverview.ts";
 export * from "./sessionImport.ts";
+export * from "./plan.ts";
 export * from "./sessionImport/index.ts";
 export * from "./benchmarks/index.ts";
 export * from "./estimate.ts";

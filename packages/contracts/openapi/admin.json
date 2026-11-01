@@ -769,6 +769,11 @@
                     "type": "string",
                     "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
                     "minLength": 1
+                  },
+                  "fromPlan": {
+                    "type": "string",
+                    "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                    "minLength": 1
                   }
                 },
                 "required": [
@@ -834,6 +839,212 @@
           }
         }
       }
+    },
+    "/api/admin/plans": {
+      "get": {
+        "tags": [
+          "plans"
+        ],
+        "operationId": "plans.list",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionPlan"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "ImportStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "plans"
+        ],
+        "operationId": "plans.save",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "SessionPlan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ImportInvalidError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportInvalidErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PlanNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanNotFoundErrorEncoded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "ImportStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "document": {
+                    "$ref": "#/components/schemas/ImportDocument"
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "document"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/admin/plans/{id}": {
+      "get": {
+        "tags": [
+          "plans"
+        ],
+        "operationId": "plans.get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "SessionPlan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPlan"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PlanNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanNotFoundErrorEncoded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "ImportStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "plans"
+        ],
+        "operationId": "plans.remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "<No Content>"
+          },
+          "404": {
+            "description": "PlanNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanNotFoundErrorEncoded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "ImportStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -857,85 +1068,24 @@
         ],
         "additionalProperties": false
       },
-      "ImportConflictErrorEncoded": {
+      "PlanNotFoundErrorEncoded": {
         "type": "object",
         "properties": {
           "_tag": {
             "type": "string",
             "enum": [
-              "ImportConflictError"
+              "PlanNotFoundError"
             ]
           },
-          "existing": {
-            "$ref": "#/components/schemas/ImportSummary"
+          "id": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
           }
         },
         "required": [
           "_tag",
-          "existing"
-        ],
-        "additionalProperties": false
-      },
-      "ImportSummary": {
-        "type": "object",
-        "properties": {
-          "workoutId": {
-            "type": "string",
-            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
-            "minLength": 1
-          },
-          "performedOn": {
-            "type": "string"
-          },
-          "sessionNumber": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "name": {
-            "type": "string",
-            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
-            "minLength": 1
-          },
-          "partCount": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "itemCount": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "liftSetCount": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "tonnageKg": {
-            "type": "number"
-          },
-          "importedAt": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "workoutId",
-          "performedOn",
-          "sessionNumber",
-          "name",
-          "partCount",
-          "itemCount",
-          "liftSetCount",
-          "tonnageKg",
-          "importedAt"
+          "id"
         ],
         "additionalProperties": false
       },
@@ -958,6 +1108,42 @@
         "required": [
           "_tag",
           "problems"
+        ],
+        "additionalProperties": false
+      },
+      "SessionPlan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "plannedOn": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "document": {
+            "$ref": "#/components/schemas/ImportDocument"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "plannedOn",
+          "name",
+          "document",
+          "createdAt",
+          "updatedAt"
         ],
         "additionalProperties": false
       },
@@ -1387,6 +1573,9 @@
                     },
                     "performance": {
                       "$ref": "#/components/schemas/Performance"
+                    },
+                    "plan": {
+                      "$ref": "#/components/schemas/Performance"
                     }
                   },
                   "required": [
@@ -1689,6 +1878,88 @@
             "maximum": 9007199254740991
           }
         },
+        "additionalProperties": false
+      },
+      "ImportConflictErrorEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "ImportConflictError"
+            ]
+          },
+          "existing": {
+            "$ref": "#/components/schemas/ImportSummary"
+          }
+        },
+        "required": [
+          "_tag",
+          "existing"
+        ],
+        "additionalProperties": false
+      },
+      "ImportSummary": {
+        "type": "object",
+        "properties": {
+          "workoutId": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "performedOn": {
+            "type": "string"
+          },
+          "sessionNumber": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "partCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "itemCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "liftSetCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "tonnageKg": {
+            "type": "number"
+          },
+          "importedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workoutId",
+          "performedOn",
+          "sessionNumber",
+          "name",
+          "partCount",
+          "itemCount",
+          "liftSetCount",
+          "tonnageKg",
+          "importedAt"
+        ],
         "additionalProperties": false
       },
       "ImportNotFoundErrorEncoded": {
@@ -2290,6 +2561,9 @@
     },
     {
       "name": "imports"
+    },
+    {
+      "name": "plans"
     }
   ]
 }

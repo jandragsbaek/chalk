@@ -13,10 +13,13 @@ import { Input, NativeSelect } from "@chalk/ui/components/field.tsx";
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 
+import { describePlan } from "../../lib/plan.ts";
 import { LevelVerdict } from "./LevelVerdict.tsx";
 
 interface Draft {
   readonly recorded: boolean;
+  /** Chosen "as written" on purpose; an empty plan from "Scale it" is no plan yet. */
+  readonly asWritten: boolean;
   readonly load: string;
   readonly implements: 1 | 2;
   readonly rows: ReadonlyArray<{ readonly movementId: string; readonly reps: string }>;
@@ -30,6 +33,7 @@ const toNumber = (raw: string) => {
 
 export const draftFromPerformance = (performance: Performance | undefined): Draft => ({
   recorded: performance !== undefined,
+  asWritten: performance !== undefined && Object.keys(performance).length === 0,
   load: performance?.loadKg === undefined ? "" : String(performance.loadKg),
   implements: performance?.implements ?? 1,
   rows: (performance?.variants ?? []).map((entry) => ({
@@ -39,8 +43,11 @@ export const draftFromPerformance = (performance: Performance | undefined): Draf
   unbroken: performance?.unbroken === undefined ? "" : String(performance.unbroken),
 });
 
-/** The draft as a performance: blank fields are left out, half-filled variation rows too. */
-export const performanceFromDraft = (draft: Draft): Performance | undefined => {
+/**
+ * The draft as a performance: blank fields are left out, half-filled variation rows too. While
+ * planning, an empty draft counts only when it was chosen as written.
+ */
+export const performanceFromDraft = (draft: Draft, planning = false): Performance | undefined => {
   if (!draft.recorded) return undefined;
   const loadKg = toNumber(draft.load);
   const unbroken = toNumber(draft.unbroken);
@@ -50,12 +57,15 @@ export const performanceFromDraft = (draft: Draft): Performance | undefined => {
       ? []
       : [{ movementId: row.movementId as MovementId, reps }];
   });
-  return {
+  const performance: Performance = {
     ...(loadKg === undefined ? {} : { loadKg }),
     ...(draft.implements === 2 ? { implements: 2 as const } : {}),
     ...(variants.length === 0 ? {} : { variants }),
     ...(unbroken === undefined || !Number.isInteger(unbroken) ? {} : { unbroken }),
   };
+  return planning && !draft.asWritten && Object.keys(performance).length === 0
+    ? undefined
+    : performance;
 };
 
 /** The family's own variations first, easiest first, then the rest of the catalog. */
@@ -108,6 +118,8 @@ function Field({
 /**
  * How a programmed movement was done: as prescribed, at another load, or rep by variation
  * ("6 kipping, 44 jumping"), with the biggest unbroken set. Graded live against the level sheet.
+ * In `plan` mode the same fields say how the athlete means to scale it, before the session; in
+ * `done` mode a planned scaling is shown and can be taken over as it was.
  */
 export function PerformanceEditor({
   performance,
@@ -115,12 +127,20 @@ export function PerformanceEditor({
   grade,
   catalog,
   onChange,
+  mode = "done",
+  planned,
+  onAsPlanned,
 }: {
   readonly performance: Performance | undefined;
   readonly item: DerivedItem;
   readonly grade: ItemGrade | undefined;
   readonly catalog: ReadonlyArray<CatalogMovement>;
   readonly onChange: (performance: Performance | undefined) => void;
+  readonly mode?: "done" | "plan";
+  /** The scaling planned for it, when logging a planned session. */
+  readonly planned?: Performance | undefined;
+  /** Takes the plan as done; the workbench may fill the lift result from it too. */
+  readonly onAsPlanned?: (() => void) | undefined;
 }) {
   const [draft, setDraft] = useState(() => draftFromPerformance(performance));
   const family = grade?.family;
@@ -129,10 +149,15 @@ export function PerformanceEditor({
   const written = prescribedLoad(item.sets);
   const showLoad = family === undefined || family.kind === "load" || written !== undefined;
   const showImplements = family?.group === "kb_db";
+  const planning = mode === "plan";
+  const scaleRows = () =>
+    family?.kind === "variant" && item.movementId !== undefined
+      ? [{ movementId: item.movementId, reps: "" }]
+      : draft.rows;
 
   function edit(next: Draft) {
     setDraft(next);
-    const nextPerformance = performanceFromDraft(next);
+    const nextPerformance = performanceFromDraft(next, planning);
     if (JSON.stringify(nextPerformance) !== JSON.stringify(performance)) onChange(nextPerformance);
   }
 
@@ -145,7 +170,7 @@ export function PerformanceEditor({
   return (
     <div className="grid gap-3 border-t pt-3">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="form-label text-muted-foreground">Done as</span>
+        <span className="form-label text-muted-foreground">{planning ? "Plan" : "Done as"}</span>
         {draft.recorded ? (
           <Button
             variant="ghost"
@@ -157,30 +182,55 @@ export function PerformanceEditor({
         ) : null}
       </div>
 
+      {planned !== undefined && !planning ? (
+        <p data-plan-box className="flex items-baseline gap-2 px-2.5 py-1.5 text-sm">
+          <span className="form-label shrink-0 text-muted-foreground">Planned</span>
+          <span className="min-w-0">{describePlan(planned, nameOf)}</span>
+        </p>
+      ) : null}
+
       {draft.recorded ? null : (
         <>
           <p className="text-sm text-muted-foreground">
-            Say how it went, and the movement is graded against the level sheet.
+            {planning
+              ? "Say how you mean to scale it; the plan is graded against the level sheet."
+              : "Say how it went, and the movement is graded against the level sheet."}
           </p>
-          <div className="grid grid-cols-2 gap-1">
-            <Button size="sm" onClick={() => edit({ ...draft, recorded: true })}>
-              As prescribed
+          <div
+            className={
+              planned !== undefined && !planning
+                ? "grid grid-cols-3 gap-1"
+                : "grid grid-cols-2 gap-1"
+            }
+          >
+            {planned !== undefined && !planning ? (
+              <Button
+                size="sm"
+                aria-keyshortcuts="p"
+                onClick={() => {
+                  setDraft(draftFromPerformance(planned));
+                  if (onAsPlanned) onAsPlanned();
+                  else onChange(planned);
+                }}
+              >
+                As planned
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              variant={planned !== undefined && !planning ? "outline" : "default"}
+              onClick={() => edit({ ...draft, recorded: true, asWritten: true })}
+            >
+              {planning ? "As written" : "As prescribed"}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() =>
-                edit({
-                  ...draft,
-                  recorded: true,
-                  rows:
-                    family?.kind === "variant" && item.movementId !== undefined
-                      ? [{ movementId: item.movementId, reps: "" }]
-                      : draft.rows,
-                })
+                edit({ ...draft, recorded: true, asWritten: false, rows: scaleRows() })
               }
             >
-              Scaled it
+              {planning ? "Scale it" : "Scaled it"}
             </Button>
           </div>
         </>
@@ -191,7 +241,7 @@ export function PerformanceEditor({
           {showLoad ? (
             <div className={showImplements ? "grid grid-cols-2 items-end gap-2" : "grid gap-2"}>
               <Field
-                label="Load used, kg"
+                label={planning ? "Planned load, kg" : "Load used, kg"}
                 value={draft.load}
                 placeholder={written === undefined ? "" : `${written} as written`}
                 onChange={(load) => edit({ ...draft, load })}
@@ -218,7 +268,7 @@ export function PerformanceEditor({
             <span className="form-label text-muted-foreground">Reps by variation</span>
             {draft.rows.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Every rep as written. Split them when some were scaled.
+                {planning ? "All reps as written until you split them." : "All reps as written."}
               </p>
             ) : (
               <ol className="grid gap-1">
@@ -297,13 +347,17 @@ export function PerformanceEditor({
             </Button>
           </div>
 
-          <Field
-            label="Biggest unbroken set (hardest variation)"
-            value={draft.unbroken}
-            onChange={(unbroken) => edit({ ...draft, unbroken })}
-          />
+          {planning ? null : (
+            <Field
+              label="Biggest unbroken set (hardest variation)"
+              value={draft.unbroken}
+              onChange={(unbroken) => edit({ ...draft, unbroken })}
+            />
+          )}
 
-          {grade ? <LevelVerdict grade={grade} nameOf={nameOf} /> : null}
+          {grade ? (
+            <LevelVerdict grade={grade} nameOf={nameOf} side={planning ? "planned" : "done"} />
+          ) : null}
         </>
       ) : null}
 

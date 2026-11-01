@@ -14,17 +14,23 @@ import {
 export const liftedKgOf = (item: DerivedItem) =>
   item.performed.length === 0 ? undefined : Math.max(...item.performed.map((set) => set.loadKg));
 
+/** Which side of an item `performed` grades: what was done, or what the athlete planned. */
+export type GradedSide = "done" | "planned";
+
 export const gradeDerivedItem = (
   item: DerivedItem,
   movements: ReadonlyMap<MovementId, CatalogMovement>,
+  side: GradedSide = "done",
 ): ItemGrade | undefined =>
   gradeItem(
-    {
-      movementId: item.movementId,
-      sets: item.sets,
-      performance: item.performance,
-      liftedKg: liftedKgOf(item),
-    },
+    side === "done"
+      ? {
+          movementId: item.movementId,
+          sets: item.sets,
+          performance: item.performance,
+          liftedKg: liftedKgOf(item),
+        }
+      : { movementId: item.movementId, sets: item.sets, performance: item.plan },
     movements,
   );
 
@@ -34,19 +40,23 @@ export interface SessionGrades {
   readonly programmed: ReturnType<typeof divisionOf>;
   /** The level every movement was done at least; a done alternative stands in for its item. */
   readonly performed: ReturnType<typeof divisionOf>;
-  /** Graded movements still without a record of how they were done. */
+  /** Graded movements still without a record of how they were done (or, planning, a plan). */
   readonly unrecorded: number;
 }
 
-/** Every item of the session graded against the sheet, and the session's two divisions. */
+/**
+ * Every item of the session graded against the sheet, and the session's two divisions. While
+ * planning, the `planned` side grades each item's plan in place of what was done.
+ */
 export function gradeSession(
   session: DerivedSession,
   catalog: ReadonlyArray<CatalogMovement>,
+  side: GradedSide = "done",
 ): SessionGrades {
   const movements = new Map(catalog.map((movement) => [movement.id, movement]));
   const byItem = new Map<SpanId, ItemGrade>();
   const visit = (item: DerivedItem) => {
-    const grade = gradeDerivedItem(item, movements);
+    const grade = gradeDerivedItem(item, movements, side);
     if (grade) byItem.set(item.spanId, grade);
     item.alternatives.forEach(visit);
   };

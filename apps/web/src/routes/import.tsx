@@ -1,4 +1,5 @@
 import {
+  PlanId,
   WorkoutId,
   type CatalogMovement,
   type ImportDocument,
@@ -16,9 +17,16 @@ import { useState } from "react";
 import { ImportedList } from "../components/import/ImportedList.tsx";
 import { ImportWorkbench, suggestDocument } from "../components/import/ImportWorkbench.tsx";
 import { catalogAtom, storedImportAtom } from "../state/imports.ts";
+import { planAtom } from "../state/plans.ts";
 
-/** `?workout=<id>` re-opens a stored import; without it the page starts at the paste box. */
-const ImportSearch = Schema.Struct({ workout: Schema.optional(WorkoutId) });
+/**
+ * `?workout=<id>` re-opens a stored import; `?plan=<id>` logs a planned session from its plan;
+ * without either the page starts at the paste box.
+ */
+const ImportSearch = Schema.Struct({
+  workout: Schema.optional(WorkoutId),
+  plan: Schema.optional(PlanId),
+});
 
 export const Route = createFileRoute("/import")({
   validateSearch: Schema.toStandardSchemaV1(ImportSearch),
@@ -26,10 +34,10 @@ export const Route = createFileRoute("/import")({
 });
 
 function ImportPage() {
-  const { workout } = Route.useSearch();
+  const { workout, plan } = Route.useSearch();
   return (
     <main className="flex flex-1 flex-col">
-      <ImportEditor workout={workout} />
+      <ImportEditor workout={workout} plan={plan} />
     </main>
   );
 }
@@ -48,7 +56,13 @@ function Notice({ tone, children }: { tone?: "error"; children: React.ReactNode 
   );
 }
 
-function ImportEditor({ workout }: { readonly workout: WorkoutId | undefined }) {
+function ImportEditor({
+  workout,
+  plan,
+}: {
+  readonly workout: WorkoutId | undefined;
+  readonly plan: PlanId | undefined;
+}) {
   const catalog = useAtomValue(catalogAtom);
   return AsyncResult.match(catalog, {
     onInitial: () => <Notice>Loading the movement catalog...</Notice>,
@@ -56,10 +70,12 @@ function ImportEditor({ workout }: { readonly workout: WorkoutId | undefined }) 
       <Notice tone="error">Could not load the catalog. Is the admin server running?</Notice>
     ),
     onSuccess: ({ value }) =>
-      workout === undefined ? (
-        <PasteFlow catalog={value} />
-      ) : (
+      workout !== undefined ? (
         <StoredImportEditor key={workout} workoutId={workout} catalog={value} />
+      ) : plan !== undefined ? (
+        <PlanLogEditor key={plan} id={plan} catalog={value} />
+      ) : (
+        <PasteFlow catalog={value} />
       ),
   });
 }
@@ -171,6 +187,38 @@ function StoredImportEditor({
         catalog={catalog}
         onSaved={close}
         onDiscard={close}
+      />
+    ),
+  });
+}
+
+/** After the session: the plan's marks and planned scaling, ready for what was done. */
+function PlanLogEditor({
+  id,
+  catalog,
+}: {
+  readonly id: PlanId;
+  readonly catalog: ReadonlyArray<CatalogMovement>;
+}) {
+  const result = useAtomValue(planAtom(id));
+  const navigate = useNavigate();
+
+  return AsyncResult.match(result, {
+    onInitial: () => <Notice>Loading the plan...</Notice>,
+    onFailure: () => (
+      <Notice tone="error">Could not load this plan. It may have been logged already.</Notice>
+    ),
+    onSuccess: ({ value: plan }) => (
+      <ImportWorkbench
+        plan={plan.id}
+        initial={plan.document}
+        replace={undefined}
+        catalog={catalog}
+        onSaved={() => void navigate({ to: "/" })}
+        // Back to where "Log it" was pressed (Today or the plan list).
+        onDiscard={() =>
+          window.history.length > 1 ? window.history.back() : void navigate({ to: "/plan" })
+        }
       />
     ),
   });

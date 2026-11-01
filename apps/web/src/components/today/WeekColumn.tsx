@@ -1,9 +1,10 @@
-import type { MovementId } from "@chalk/contracts";
+import type { MovementId, PlanId } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Link } from "@tanstack/react-router";
 import type * as React from "react";
 
 import { isoWeek, weekDays, type Consistency, type TrainingDay } from "../../lib/dashboard.ts";
+import type { PlannedMovement } from "../../lib/plan.ts";
 import { toDate } from "../../lib/progress.ts";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { FieldBox } from "../FieldBox.tsx";
@@ -12,9 +13,18 @@ import { formatShort } from "./SectionHead.tsx";
 
 const weekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 
+/** A plan not logged yet, as the week column shows it. */
+export interface DayPlan {
+  readonly id: PlanId;
+  /** Kind and first movements, or the session's own name (see `planTitle`). */
+  readonly title: string;
+  readonly movements: ReadonlyArray<PlannedMovement>;
+}
+
 /**
- * This week as the athlete's card: one row per day, Monday first, with what was trained; today
- * double-outlined. Under it the consistency numbers and the way to log the next session.
+ * This week as the athlete's card: one row per day, Monday first, with what was trained and
+ * what is planned; today double-outlined. Under it the consistency numbers, today's plan with
+ * its scaling, and the way to log the next session.
  */
 export function WeekColumn({
   today,
@@ -24,6 +34,7 @@ export function WeekColumn({
   names,
   activeDay,
   onActivate,
+  plans,
 }: {
   readonly today: Date;
   readonly todayIso: string;
@@ -32,8 +43,11 @@ export function WeekColumn({
   readonly names: ReadonlyMap<MovementId, string>;
   readonly activeDay: string | null;
   readonly onActivate: (iso: string | null) => void;
+  /** Plans not logged yet, by the day they are planned for. */
+  readonly plans: ReadonlyMap<string, ReadonlyArray<DayPlan>>;
 }) {
   const week = weekDays(today);
+  const todayPlans = plans.get(todayIso) ?? [];
   const first = week[0] ?? todayIso;
   const last = week[6] ?? todayIso;
 
@@ -80,12 +94,17 @@ export function WeekColumn({
                   day={day}
                   names={names}
                   hasHistory={days.size > 0}
+                  plans={plans.get(iso) ?? []}
                 />
               </div>
             </li>
           );
         })}
       </ol>
+
+      {todayPlans.map((plan) => (
+        <TodayPlan key={plan.id} plan={plan} />
+      ))}
 
       <dl
         aria-label="Consistency"
@@ -111,8 +130,17 @@ export function WeekColumn({
         </FieldBox>
       </dl>
 
-      <div className="px-5 py-5">
-        <Button render={<Link to="/log" />} className="w-full">
+      <div className="grid gap-2 px-5 py-5">
+        {todayPlans.length === 0 ? (
+          <Button render={<Link to="/plan" />} variant="outline" className="w-full">
+            Plan today's session
+          </Button>
+        ) : null}
+        <Button
+          render={<Link to="/log" />}
+          variant={todayPlans.length === 0 ? "default" : "outline"}
+          className="w-full"
+        >
           Log session
         </Button>
       </div>
@@ -124,12 +152,75 @@ function Unit({ children }: { readonly children: React.ReactNode }) {
   return <span className="ml-1 text-xs font-normal text-muted-foreground">{children}</span>;
 }
 
+/** Today's plan before the session: each movement with the scaling planned, and the way to log it. */
+function TodayPlan({ plan }: { readonly plan: DayPlan }) {
+  return (
+    <section
+      aria-label={`Planned today: ${plan.title}`}
+      className="grid gap-2.5 border-b px-5 py-4"
+    >
+      <div className="grid gap-0.5">
+        <span className="flex items-baseline justify-between gap-3">
+          <h2 className="form-label text-muted-foreground">Planned today</h2>
+          <Link
+            to="/plan"
+            search={{ plan: plan.id }}
+            className="text-xs text-muted-foreground underline decoration-input hover:text-foreground hover:decoration-foreground"
+          >
+            Edit plan
+          </Link>
+        </span>
+        <p className="text-base font-semibold leading-5 text-balance">{plan.title}</p>
+      </div>
+      {plan.movements.length > 0 ? (
+        <ul className="grid gap-0.5 text-sm">
+          {plan.movements.map((movement) => (
+            <li key={movement.spanId} className="flex min-w-0 items-baseline justify-between gap-3">
+              <span className="truncate text-muted-foreground">{movement.name}</span>
+              <span
+                className={
+                  movement.plan === undefined
+                    ? "shrink-0 text-muted-foreground"
+                    : "min-w-0 truncate text-right font-medium"
+                }
+              >
+                {movement.plan ?? "No plan"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <Button render={<Link to="/import" search={{ plan: plan.id }} />} className="w-full">
+        Log it
+      </Button>
+    </section>
+  );
+}
+
+function PlanEntry({ plan, past }: { readonly plan: DayPlan; readonly past: boolean }) {
+  return (
+    <span className="flex min-w-0 items-baseline gap-2">
+      <Link
+        to="/plan"
+        search={{ plan: plan.id }}
+        className="truncate text-sm font-medium underline decoration-dashed decoration-input hover:decoration-foreground"
+      >
+        {plan.title}
+      </Link>
+      <span className="form-label shrink-0 text-muted-foreground">
+        {past ? "Not logged" : "Planned"}
+      </span>
+    </span>
+  );
+}
+
 function DayEntries({
   iso,
   todayIso,
   day,
   names,
   hasHistory,
+  plans,
 }: {
   readonly iso: string;
   readonly todayIso: string;
@@ -137,7 +228,13 @@ function DayEntries({
   readonly names: ReadonlyMap<MovementId, string>;
   /** With nothing logged at all, a past day is unknown, not a rest day. */
   readonly hasHistory: boolean;
+  /** Plans for this day not logged yet. */
+  readonly plans: ReadonlyArray<DayPlan>;
 }) {
+  const planned = plans.map((plan) => (
+    <PlanEntry key={plan.id} plan={plan} past={iso < todayIso} />
+  ));
+  if ((!day || day.sessions === 0) && planned.length > 0) return planned;
   if (!day || day.sessions === 0) {
     if (iso > todayIso) return <span data-empty aria-label="Not yet" />;
     if (iso < todayIso && !hasHistory) return <span data-empty aria-label="Nothing logged" />;
@@ -149,16 +246,19 @@ function DayEntries({
   }
   if (day.workouts.length === 0) {
     return (
-      <span className="flex flex-wrap gap-1">
-        {day.liftMovementIds.map((id) => (
-          <span key={id} data-tag="movement" data-chip className="px-1.5 text-sm font-medium">
-            {names.get(id) ?? id}
-          </span>
-        ))}
-      </span>
+      <>
+        <span className="flex flex-wrap gap-1">
+          {day.liftMovementIds.map((id) => (
+            <span key={id} data-tag="movement" data-chip className="px-1.5 text-sm font-medium">
+              {names.get(id) ?? id}
+            </span>
+          ))}
+        </span>
+        {planned}
+      </>
     );
   }
-  return day.workouts.map((workout) => (
+  const logged = day.workouts.map((workout) => (
     <span key={workout.id} className="flex min-w-0 items-baseline gap-2">
       {workout.benchmarkId ? (
         <Link
@@ -176,4 +276,10 @@ function DayEntries({
       </span>
     </span>
   ));
+  return (
+    <>
+      {logged}
+      {planned}
+    </>
+  );
 }

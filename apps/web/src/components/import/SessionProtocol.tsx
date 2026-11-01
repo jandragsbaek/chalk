@@ -13,7 +13,8 @@ import {
 } from "@chalk/contracts";
 
 import { describeBlock, formatKg } from "../../lib/blockLabels.ts";
-import { LevelLine } from "./LevelVerdict.tsx";
+import { describePlan } from "../../lib/plan.ts";
+import { LevelLine, type GradeSide, type LevelLead } from "./LevelVerdict.tsx";
 
 export interface ProtocolNames {
   readonly nameOf: (id: MovementId) => string | undefined;
@@ -21,6 +22,8 @@ export interface ProtocolNames {
   readonly coreOf: (id: MovementId) => string | undefined;
   /** The movement graded against the level sheet; none when it is on no row of it. */
   readonly gradeOf: (id: SpanId) => ItemGrade | undefined;
+  /** Whose level `gradeOf` grades: what was done, or the plan while planning. */
+  readonly gradeSide?: GradeSide;
 }
 
 /**
@@ -33,6 +36,8 @@ export interface ProtocolEditor {
   readonly onSelect: (id: SpanId) => void;
   readonly onHover: (id: SpanId | undefined) => void;
   readonly lineOf: (id: SpanId) => number | undefined;
+  /** Planning or logging a plan: only the selected row draws its level ruler. */
+  readonly rulerOnSelectedOnly?: boolean;
 }
 
 /** Row state the editor reads: selected, lit by a hovered mark. */
@@ -49,6 +54,21 @@ export const countItems = (items: ReadonlyArray<DerivedItem>): number =>
 const blockItems = (blocks: ReadonlyArray<DerivedBlock>) =>
   countItems(blocks.flatMap((block) => block.items));
 
+/**
+ * What the row's level line leads with. Planning: the plan. Logging a plan: what was done once
+ * it is recorded (the plan noted when it differs), else the plan still waiting.
+ */
+const leadOf = (item: DerivedItem, names: ProtocolNames): LevelLead | undefined => {
+  const plan = item.plan === undefined ? undefined : describePlan(item.plan, names.nameOf);
+  if (names.gradeSide === "planned" || item.performance === undefined)
+    return plan === undefined ? undefined : { label: "Planned", text: plan };
+  if (plan === undefined) return undefined;
+  const done = describePlan(item.performance, names.nameOf);
+  return done === plan
+    ? { label: "Done", text: done, note: "as planned" }
+    : { label: "Done", text: done, note: `planned ${plan}` };
+};
+
 function ItemRow({
   item,
   names,
@@ -63,8 +83,15 @@ function ItemRow({
   const name = item.movementId === undefined ? undefined : names.nameOf(item.movementId);
   const core = item.movementId === undefined ? undefined : names.coreOf(item.movementId);
   // Re-keyed when the row's content changes, so an edit lights the rows it touched.
-  const signature = JSON.stringify([item.movementId, item.sets, item.performed, item.performance]);
+  const signature = JSON.stringify([
+    item.movementId,
+    item.sets,
+    item.performed,
+    item.performance,
+    item.plan,
+  ]);
   const grade = names.gradeOf(item.spanId);
+  const lead = leadOf(item, names);
   const content = (
     <>
       {editor ? <span key={signature} data-flash aria-hidden /> : null}
@@ -124,7 +151,28 @@ function ItemRow({
             </span>
           </span>
         ) : null}
-        {grade ? <LevelLine grade={grade} nameOf={names.nameOf} /> : null}
+        {lead !== undefined && grade === undefined ? (
+          <span
+            data-plan-box={lead.label === "Planned" ? "" : undefined}
+            data-done-box={lead.label === "Done" ? "" : undefined}
+            className="flex basis-full flex-wrap items-baseline gap-x-2 px-1.5 text-sm leading-6"
+          >
+            <span className="form-label text-muted-foreground">{lead.label}</span>
+            <span className="font-medium">{lead.text}</span>
+            {lead.note === undefined ? null : (
+              <span className="text-xs text-muted-foreground">{lead.note}</span>
+            )}
+          </span>
+        ) : null}
+        {grade ? (
+          <LevelLine
+            grade={grade}
+            nameOf={names.nameOf}
+            side={names.gradeSide ?? "done"}
+            lead={lead}
+            ruler={!editor?.rulerOnSelectedOnly || editor.selectedId === item.spanId}
+          />
+        ) : null}
       </span>
     </>
   );

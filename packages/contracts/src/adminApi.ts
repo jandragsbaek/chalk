@@ -4,7 +4,8 @@ import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 import * as OpenApi from "effect/http-api/OpenApi";
 import * as Schema from "effect/Schema";
 
-import { MovementId, WorkoutId } from "./baseSchemas.ts";
+import { MovementId, PlanId, WorkoutId } from "./baseSchemas.ts";
+import { PlanNotFoundError, SavePlanInput, SessionPlan } from "./plan.ts";
 import { SessionEntry } from "./session.ts";
 import {
   AddAliasInput,
@@ -121,6 +122,33 @@ export const AdminImportsGroup = HttpApiGroup.make("imports")
   )
   .prefix("/imports");
 
+/**
+ * Planned sessions: a posted workout entered in the morning with the scaling planned, logged
+ * later from the importer. Oldest day first; plans are removed once logged.
+ */
+export const AdminPlansGroup = HttpApiGroup.make("plans")
+  .add(
+    HttpApiEndpoint.get("list", "/", {
+      success: Schema.Array(SessionPlan),
+      error: ImportStorageError,
+    }),
+    HttpApiEndpoint.get("get", "/:id", {
+      params: { id: PlanId },
+      success: SessionPlan,
+      error: [PlanNotFoundError, ImportStorageError],
+    }),
+    HttpApiEndpoint.post("save", "/", {
+      payload: SavePlanInput,
+      success: SessionPlan,
+      error: [ImportInvalidError, PlanNotFoundError, ImportStorageError],
+    }),
+    HttpApiEndpoint.delete("remove", "/:id", {
+      params: { id: PlanId },
+      error: [PlanNotFoundError, ImportStorageError],
+    }),
+  )
+  .prefix("/plans");
+
 /** Mount point of the admin API, next to `RPC_PATH` on the same origin. */
 export const ADMIN_API_PREFIX = "/api/admin";
 
@@ -129,5 +157,6 @@ export class ChalkAdminApi extends HttpApi.make("chalk-admin")
   .add(AdminWorkoutsGroup)
   .add(AdminMovementsGroup)
   .add(AdminImportsGroup)
+  .add(AdminPlansGroup)
   .prefix(ADMIN_API_PREFIX)
   .annotateMerge(OpenApi.annotations({ title: "Chalk Admin API", version: "0.0.0" })) {}

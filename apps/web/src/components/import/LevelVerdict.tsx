@@ -18,6 +18,20 @@ import {
 
 const kgFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
+/**
+ * Whose level the grade's `performed` side is: what was done, or, while planning, what the
+ * athlete means to do. Only the words change.
+ */
+export type GradeSide = "done" | "planned";
+
+const WORDS = {
+  done: { at: "Done at", hardest: "Hardest done", short: "done", none: "not recorded" },
+  planned: { at: "Planned at", hardest: "Hardest planned", short: "planned", none: "no plan" },
+} as const;
+
+const rulerLabel = (grade: ItemGrade, familyName: string, side: GradeSide) =>
+  `${familyName}: board ${levelName(grade.prescribed?.level)}, ${WORDS[side].short} ${grade.performed ? levelName(grade.performed.level) : WORDS[side].none}.`;
+
 /** "12 % at Scaled": the share of reps above the level most reps reached, if any. */
 export const shareNote = (grade: ItemGrade): string | undefined => {
   const performed = grade.performed;
@@ -34,7 +48,11 @@ export const shareNote = (grade: ItemGrade): string | undefined => {
   return `${Math.round((reps / total) * 100)} % at ${LEVEL_NAMES[top.level]} or above`;
 };
 
-const markersOf = (grade: ItemGrade, nameOf: (id: MovementId) => string | undefined) => {
+const markersOf = (
+  grade: ItemGrade,
+  nameOf: (id: MovementId) => string | undefined,
+  side: GradeSide,
+) => {
   const markers: Array<RulerMarker> = [];
   const performed = grade.performed;
   const capability = performed?.capability;
@@ -42,14 +60,14 @@ const markersOf = (grade: ItemGrade, nameOf: (id: MovementId) => string | undefi
     markers.push({
       kind: "capability",
       position: capability.position,
-      title: `Hardest done: ${nameOf(capability.movementId) ?? capability.movementId}${capability.unbroken === undefined ? "" : `, ${capability.unbroken} unbroken`}`,
+      title: `${WORDS[side].hardest}: ${nameOf(capability.movementId) ?? capability.movementId}${capability.unbroken === undefined ? "" : `, ${capability.unbroken} unbroken`}`,
     });
   if (performed !== undefined)
     markers.push({
       kind: "performed",
       position: performed.position,
       ...(performed.loadKg === undefined ? {} : { label: kgFormat.format(performed.loadKg) }),
-      title: `Done at ${levelName(performed.level)}${performed.loadKg === undefined ? "" : `, ${kgFormat.format(performed.loadKg)} kg`}`,
+      title: `${WORDS[side].at} ${levelName(performed.level)}${performed.loadKg === undefined ? "" : `, ${kgFormat.format(performed.loadKg)} kg`}`,
     });
   return markers;
 };
@@ -68,7 +86,7 @@ const segmentsOf = (grade: ItemGrade, shares: ReadonlyArray<LevelShare>) =>
   }));
 
 /** Board and done as two badges: dashed for what was asked, solid for what was done. */
-function Badges({ grade }: { readonly grade: ItemGrade }) {
+function Badges({ grade, side }: { readonly grade: ItemGrade; readonly side: GradeSide }) {
   return (
     <>
       {grade.prescribed === undefined ? (
@@ -86,11 +104,11 @@ function Badges({ grade }: { readonly grade: ItemGrade }) {
         to
       </span>
       {grade.performed === undefined ? (
-        <span className="text-xs text-muted-foreground">not recorded</span>
+        <span className="text-xs text-muted-foreground">{WORDS[side].none}</span>
       ) : (
         <LevelBadge
           level={levelKey(grade.performed.level)}
-          title={`Done at ${levelName(grade.performed.level)}`}
+          title={`${WORDS[side].at} ${levelName(grade.performed.level)}`}
         >
           {levelName(grade.performed.level)}
         </LevelBadge>
@@ -99,37 +117,71 @@ function Badges({ grade }: { readonly grade: ItemGrade }) {
   );
 }
 
-/** One protocol row's level: board to done, a small ruler, and any split of the reps. */
+/**
+ * What a protocol row's level line leads with: the planned scaling (a plan, printed dashed) or
+ * what was done (solid), in words, with the plan as a note when it was not followed.
+ */
+export interface LevelLead {
+  readonly label: "Planned" | "Done";
+  readonly text: string;
+  readonly note?: string | undefined;
+}
+
+/** One protocol row's level: its lead in words, board to done, a small ruler, any rep split. */
 export function LevelLine({
   grade,
   nameOf,
+  side = "done",
+  lead,
+  ruler = true,
 }: {
   readonly grade: ItemGrade;
   readonly nameOf: (id: MovementId) => string | undefined;
+  readonly side?: GradeSide;
+  readonly lead?: LevelLead | undefined;
+  /** Off for rows that are not selected while planning; the inspector keeps the full ruler. */
+  readonly ruler?: boolean;
 }) {
   const note = shareNote(grade);
   const family = grade.performed?.family ?? grade.family;
   return (
     <span
       data-level-line
+      data-plan-box={lead?.label === "Planned" ? "" : undefined}
+      data-done-box={lead?.label === "Done" ? "" : undefined}
       className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 px-1.5 text-sm leading-6"
     >
-      <span className="form-label text-muted-foreground">Level</span>
-      <Badges grade={grade} />
+      {lead === undefined ? (
+        <span className="form-label text-muted-foreground">Level</span>
+      ) : (
+        <>
+          <span className="form-label text-muted-foreground">{lead.label}</span>
+          <span className="font-medium">{lead.text}</span>
+          {lead.note === undefined ? null : (
+            <span className="text-xs text-muted-foreground">{lead.note}</span>
+          )}
+          <span aria-hidden className="text-muted-foreground">
+            ·
+          </span>
+        </>
+      )}
+      <Badges grade={grade} side={side} />
       {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
-      <span className="ml-auto w-44">
-        <LevelRuler
-          size="sm"
-          stops={familyStops(family)}
-          markers={markersOf(grade, nameOf)}
-          range={
-            grade.prescribed && family.id === grade.family.id
-              ? { from: grade.prescribed.position, to: grade.prescribed.position }
-              : undefined
-          }
-          label={`${family.name}: board ${levelName(grade.prescribed?.level)}, done ${grade.performed ? levelName(grade.performed.level) : "not recorded"}.`}
-        />
-      </span>
+      {ruler ? (
+        <span className="ml-auto w-44">
+          <LevelRuler
+            size="sm"
+            stops={familyStops(family)}
+            markers={markersOf(grade, nameOf, side)}
+            range={
+              grade.prescribed && family.id === grade.family.id
+                ? { from: grade.prescribed.position, to: grade.prescribed.position }
+                : undefined
+            }
+            label={rulerLabel(grade, family.name, side)}
+          />
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -138,9 +190,11 @@ export function LevelLine({
 export function LevelVerdict({
   grade,
   nameOf,
+  side = "done",
 }: {
   readonly grade: ItemGrade;
   readonly nameOf: (id: MovementId) => string | undefined;
+  readonly side?: GradeSide;
 }) {
   const family = grade.performed?.family ?? grade.family;
   const shares = grade.performed?.family.kind === "variant" ? grade.performed.shares : [];
@@ -151,22 +205,23 @@ export function LevelVerdict({
         <span className="text-sm font-semibold">{family.name}</span>
       </span>
       <span className="flex flex-wrap items-center gap-2 text-sm">
-        <Badges grade={grade} />
+        <Badges grade={grade} side={side} />
       </span>
       <LevelRuler
         stops={familyStops(family)}
-        markers={markersOf(grade, nameOf)}
+        markers={markersOf(grade, nameOf, side)}
         range={
           grade.prescribed && family.id === grade.family.id
             ? { from: grade.prescribed.position, to: grade.prescribed.position }
             : undefined
         }
-        label={`${family.name}: board ${levelName(grade.prescribed?.level)}, done ${grade.performed ? levelName(grade.performed.level) : "not recorded"}.`}
+        label={rulerLabel(grade, family.name, side)}
       />
       {shares.length > 0 ? <LevelShareBar segments={segmentsOf(grade, shares)} /> : null}
       {family.id !== grade.family.id ? (
         <p className="text-xs text-muted-foreground">
-          Done as another movement, so it is graded on {family.name}, not {grade.family.name}.
+          {side === "done" ? "Done" : "Planned"} as another movement, so it is graded on{" "}
+          {family.name}, not {grade.family.name}.
         </p>
       ) : null}
     </div>

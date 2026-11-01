@@ -15,7 +15,10 @@ import {
   type ImportDocument,
   type ImportSummary,
   type MovementId,
+  type PlanId,
+  type SessionPlan,
   type SpanId,
+  type SpanOf,
   type WorkoutId,
 } from "@chalk/contracts";
 import {
@@ -34,7 +37,7 @@ import { useAtomSet } from "@effect/atom-react";
 import * as Cause from "effect/Cause";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
-import { Highlighter, RotateCcw, Save } from "lucide-react";
+import { Highlighter, ListChecks, RotateCcw, Save, Undo2, X } from "lucide-react";
 import { useEffect, useEffectEvent, useReducer, useRef, useState, type ReactNode } from "react";
 
 import {
@@ -46,8 +49,10 @@ import {
 } from "../../lib/importEditor.ts";
 import { formatKg } from "../../lib/blockLabels.ts";
 import { gradeSession } from "../../lib/levelGrades.ts";
+import { asPlanned, planTitle, withPlannedLoad } from "../../lib/plan.ts";
 import { resultDefaults } from "../../lib/resultDraft.ts";
 import { SAVE_REACTIVITY_KEYS, saveImportAtom } from "../../state/imports.ts";
+import { PLANS_REACTIVITY_KEY, savePlanAtom } from "../../state/plans.ts";
 import { AnnotatedText, type TextRange } from "./AnnotatedText.tsx";
 import { DebriefSheet } from "./DebriefSheet.tsx";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
@@ -99,6 +104,13 @@ const findItem = (
   return undefined;
 };
 
+/** Programmed items in protocol order, alternatives after their item: the `j` / `k` order. */
+const programmedItems = (session: DerivedSession): ReadonlyArray<DerivedItem> => {
+  const walk = (items: ReadonlyArray<DerivedItem>): ReadonlyArray<DerivedItem> =>
+    items.flatMap((item) => [item, ...walk(item.alternatives)]);
+  return walk(session.parts.flatMap((part) => part.blocks.flatMap((block) => block.items)));
+};
+
 /** Lift set rows the save will write: notes sets times their count, plus every performed set. */
 const liftSetCount = (session: DerivedSession) => {
   const performed = (items: ReadonlyArray<DerivedItem>): number =>
@@ -109,25 +121,66 @@ const liftSetCount = (session: DerivedSession) => {
   );
 };
 
+/**
+ * `log` saves a session that was done (from a paste, a stored import, or a plan); `plan` saves
+ * the posted workout before it is done, with a planned scaling per movement and no results or
+ * debrief.
+ */
+export type WorkbenchMode = "log" | "plan";
+
 export function ImportWorkbench({
   initial,
   replace,
   catalog,
   onSaved,
   onDiscard,
+  mode = "log",
+  plan,
+  onPlanned,
 }: {
   readonly initial: ImportDocument;
   /** The stored import this editor rewrites, when re-opened. */
   readonly replace: WorkoutId | undefined;
   readonly catalog: ReadonlyArray<CatalogMovement>;
-  readonly onSaved: (summary: ImportSummary) => void;
+  readonly onSaved?: (summary: ImportSummary) => void;
   readonly onDiscard: () => void;
+  readonly mode?: WorkbenchMode;
+  /** Planning: the plan this editor rewrites. Logging: the plan the session is logged from. */
+  readonly plan?: PlanId | undefined;
+  readonly onPlanned?: (plan: SessionPlan) => void;
 }) {
-  const [state, dispatch] = useReducer(editorReducer, initial, initialEditorState);
+  const planning = mode === "plan";
+  /** Planning, or logging a plan: the plan is the work, so it leads the screen. */
+  const outcomeFirst = planning || plan !== undefined;
+  const [state, dispatch] = useReducer(editorReducer, initial, (document) => {
+    const start = initialEditorState(document);
+    if (!outcomeFirst) return start;
+    // Open on the first movement still to plan (or to log), not on the tag keys.
+    const names = new Map(catalog.map((movement) => [movement.id, movement.name]));
+    const items = programmedItems(deriveSession(document, (id) => names.get(id)));
+    const open = items.find((item) => {
+      const span = document.spans.find((candidate) => candidate.id === item.spanId);
+      return span?._tag === "movement" && (planning ? span.plan : span.performance) === undefined;
+    });
+    return { ...start, selectedId: (open ?? items[0])?.spanId };
+  });
+  /** Bumped when a plan is taken as done, so the open inspector re-reads the span. */
+  const [revision, setRevision] = useState(0);
+  const [undo, setUndo] = useState<
+    | {
+        readonly previous: ReadonlyArray<SpanOf<"movement">>;
+        readonly applied: ReadonlyArray<SpanOf<"movement">>;
+      }
+    | undefined
+  >();
+  const [pristine] = useState(() => JSON.stringify(toDocument(initialEditorState(initial))));
+  const [confirmDrop, setConfirmDrop] = useState(false);
   const [selection, setSelection] = useState<TextRange | undefined>();
   const [hovered, setHovered] = useState<SpanId | undefined>();
   const [status, setStatus] = useState<SaveStatus>({ type: "idle" });
   const saveImport = useAtomSet(saveImportAtom, { mode: "promiseExit" });
+  const savePlan = useAtomSet(savePlanAtom, { mode: "promiseExit" });
+  const editing = replace !== undefined || (planning && plan !== undefined);
   const debriefField = useRef<HTMLInputElement>(null);
 
   const matcher = makeMovementMatcher(catalog);
@@ -144,10 +197,55 @@ export function ImportWorkbench({
   };
   const document = toDocument(state);
   const session = deriveSession(document, nameOf);
+  // A plan keeps its name while it is logged; a pasted session is named by its heading.
+  const title = outcomeFirst ? planTitle(session, nameOf) : session.name;
   const errors = session.issues.filter((issue) => issue.severity === "error");
   const selected = state.spans.find((span) => span.id === state.selectedId);
   const programmed = selected?._tag === "movement" ? findItem(session, selected.id) : undefined;
-  const grades = gradeSession(session, catalog);
+  const items = programmedItems(session);
+  /** Movements with a plan and nothing recorded yet: what "Log all as planned" fills. */
+  const unloggedPlans = planning
+    ? []
+    : state.spans.filter(
+        (span): span is SpanOf<"movement"> =>
+          span._tag === "movement" && span.plan !== undefined && span.performance === undefined,
+      );
+
+  function takeAsPlanned(spans: ReadonlyArray<SpanOf<"movement">>) {
+    const applied = spans.map((span) => asPlanned(span, findItem(session, span.id)));
+    for (const span of applied) dispatch({ type: "update", span });
+    setRevision((count) => count + 1);
+    if (spans.length > 1) setUndo({ previous: spans, applied });
+  }
+
+  // "All as planned" can be taken back until one of the rows it filled is edited.
+  const canUndo =
+    undo !== undefined &&
+    undo.applied.every(
+      (span) =>
+        JSON.stringify(state.spans.find((candidate) => candidate.id === span.id)) ===
+        JSON.stringify(span),
+    );
+
+  function undoAsPlanned() {
+    if (undo === undefined) return;
+    for (const span of undo.previous) dispatch({ type: "update", span });
+    setUndo(undefined);
+    setRevision((count) => count + 1);
+  }
+
+  // Close and Start over drop the work only after asking, once anything was changed.
+  const dirty = JSON.stringify(document) !== pristine;
+
+  function step(by: 1 | -1) {
+    if (items.length === 0) return;
+    const at = items.findIndex((item) => item.spanId === state.selectedId);
+    const next =
+      at === -1 ? (by === 1 ? 0 : items.length - 1) : (at + by + items.length) % items.length;
+    setSelection(undefined);
+    dispatch({ type: "select", id: items[next]!.spanId });
+  }
+  const grades = gradeSession(session, catalog, planning ? "planned" : "done");
   const linked = linkedIds(state.spans, hovered ?? state.selectedId);
   const hasDateSpan = state.spans.some((span) => span._tag === "date");
   const lines = splitLines(state.text);
@@ -217,9 +315,19 @@ export function ImportWorkbench({
       }
       return;
     }
-    if (event.key.toLowerCase() === "f" && !state.picking) {
+    if (event.key.toLowerCase() === "f" && !state.picking && !planning) {
       event.preventDefault();
       openDebrief();
+      return;
+    }
+    if (event.key === "j" || event.key === "k") {
+      event.preventDefault();
+      step(event.key === "j" ? 1 : -1);
+      return;
+    }
+    if (event.key === "p" && !planning && selected?._tag === "movement" && selected.plan) {
+      event.preventDefault();
+      takeAsPlanned([selected]);
       return;
     }
     if (!selected) return;
@@ -240,15 +348,43 @@ export function ImportWorkbench({
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
+  async function saveAsPlan() {
+    setStatus({ type: "saving" });
+    const exit = await savePlan({
+      payload: { document, ...(plan === undefined ? {} : { id: plan }) },
+      reactivityKeys: [PLANS_REACTIVITY_KEY],
+    });
+    if (Exit.isSuccess(exit)) {
+      setStatus({ type: "idle" });
+      onPlanned?.(exit.value);
+      return;
+    }
+    const failure = Cause.findErrorOption(exit.cause);
+    setStatus({
+      type: "error",
+      message:
+        Option.isSome(failure) && failure.value._tag === "ImportInvalidError"
+          ? failure.value.problems.join(" ")
+          : Option.isSome(failure) && failure.value._tag === "PlanNotFoundError"
+            ? "This plan is gone: it was logged or deleted somewhere else."
+            : "Could not save the plan. Is the server running?",
+    });
+  }
+
   async function save(replacing: WorkoutId | undefined) {
+    if (planning) return saveAsPlan();
     setStatus({ type: "saving" });
     const exit = await saveImport({
-      payload: { document, ...(replacing === undefined ? {} : { replace: replacing }) },
+      payload: {
+        document,
+        ...(replacing === undefined ? {} : { replace: replacing }),
+        ...(plan === undefined ? {} : { fromPlan: plan }),
+      },
       reactivityKeys: SAVE_REACTIVITY_KEYS,
     });
     if (Exit.isSuccess(exit)) {
       setStatus({ type: "idle" });
-      onSaved(exit.value);
+      onSaved?.(exit.value);
       return;
     }
     const failure = Cause.findErrorOption(exit.cause);
@@ -266,21 +402,39 @@ export function ImportWorkbench({
 
   return (
     <div data-workbench className="flex flex-col">
+      {outcomeFirst ? (
+        // j / k move the selection without moving focus; say where it landed.
+        <p aria-live="polite" className="sr-only">
+          {selected?._tag === "movement" && selected.movementId !== undefined
+            ? (nameOf(selected.movementId) ?? "")
+            : ""}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-stretch border-b bg-card">
-        <div className="flex flex-col justify-center gap-1 border-r px-5 py-2.5">
-          <h1 className="protocol-title text-3xl">{session.name}</h1>
+        <div className="flex min-w-0 max-w-sm flex-col justify-center gap-1 border-r px-5 py-2.5">
+          <h1 className="protocol-title truncate text-3xl" title={title}>
+            {title}
+          </h1>
           <p className="text-xs text-muted-foreground">
-            {replace ? "Editing a saved import" : "New import, not saved yet"}
+            {planning
+              ? plan
+                ? "Editing a plan"
+                : "New plan, not saved yet"
+              : replace
+                ? "Editing a saved import"
+                : plan
+                  ? "Logging a planned session"
+                  : "New import, not saved yet"}
           </p>
         </div>
         <dl className="flex flex-wrap divide-x border-r">
-          <FieldBox label="Date" wide={!hasDateSpan}>
+          <FieldBox label={planning ? "Planned for" : "Date"} wide={!hasDateSpan}>
             {hasDateSpan ? (
               session.performedOn
             ) : (
               <Input
                 type="date"
-                aria-label="Performed on"
+                aria-label={planning ? "Planned for" : "Performed on"}
                 value={session.performedOn ?? ""}
                 onChange={(event) =>
                   dispatch({
@@ -291,29 +445,42 @@ export function ImportWorkbench({
               />
             )}
           </FieldBox>
-          <FieldBox label="Kind">{WORKOUT_KIND_LABELS[session.kind]}</FieldBox>
-          <FieldBox label="Parts">{session.parts.length}</FieldBox>
+          {/* A plan's title already says its kind, and its protocol shows the parts. */}
+          {outcomeFirst ? null : (
+            <>
+              <FieldBox label="Kind">{WORKOUT_KIND_LABELS[session.kind]}</FieldBox>
+              <FieldBox label="Parts">{session.parts.length}</FieldBox>
+            </>
+          )}
           <FieldBox label="Movements">
             {countItems(session.parts.flatMap((part) => part.blocks.flatMap((b) => b.items)))}
           </FieldBox>
-          <FieldBox label="Lift sets">{liftSetCount(session)}</FieldBox>
-          <FieldBox label="Lifted">{formatKg(session.tonnageKg)}</FieldBox>
+          {planning ? null : (
+            <>
+              <FieldBox label="Lifted">
+                {formatKg(session.tonnageKg)}
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  {liftSetCount(session) === 1 ? "1 set" : `${liftSetCount(session)} sets`}
+                </span>
+              </FieldBox>
+            </>
+          )}
           {grades.programmed ? (
-            <FieldBox label="Programmed level">
+            <FieldBox label="Board level">
               <LevelBadge level={levelKey(grades.programmed.level)} open>
                 {levelName(grades.programmed.level)}
               </LevelBadge>
             </FieldBox>
           ) : null}
           {grades.programmed ? (
-            <FieldBox label="Done at">
+            <FieldBox label={planning ? "Planned at" : "Done at"}>
               {grades.performed && grades.unrecorded === 0 ? (
                 <LevelBadge level={levelKey(grades.performed.level)}>
                   {levelName(grades.performed.level)}
                 </LevelBadge>
               ) : (
                 <span className="text-sm font-normal text-muted-foreground">
-                  {grades.unrecorded} to record
+                  {grades.unrecorded} {planning ? "to plan" : "to record"}
                 </span>
               )}
             </FieldBox>
@@ -327,13 +494,14 @@ export function ImportWorkbench({
                 render={<Button variant="ghost" aria-label="Re-suggest marks" title="Re-suggest" />}
               >
                 <Highlighter />
-                <span className="hidden xl:inline">Re-suggest</span>
+                <span className="hidden 2xl:inline">Re-suggest</span>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogTitle>Replace all marks?</AlertDialogTitle>
                 <AlertDialogDescription>
                   Suggestions run again with the current catalog, including aliases you just taught
-                  it. Your manual edits in this session are lost.
+                  it. Your manual edits in this session are lost
+                  {planning || plan ? ", planned scaling included" : ""}.
                 </AlertDialogDescription>
                 <AlertDialogFooter>
                   <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
@@ -353,20 +521,48 @@ export function ImportWorkbench({
             </AlertDialog>
             <Button
               variant="ghost"
-              aria-label={replace ? "Close" : "Start over"}
-              title={replace ? "Close" : "Start over"}
-              onClick={onDiscard}
+              aria-label={editing || plan ? "Close" : "Start over"}
+              title={editing || plan ? "Close" : "Start over"}
+              onClick={() => (dirty ? setConfirmDrop(true) : onDiscard())}
             >
-              <RotateCcw />
-              <span className="hidden xl:inline">{replace ? "Close" : "Start over"}</span>
+              {editing || plan ? <X /> : <RotateCcw />}
+              <span className="hidden 2xl:inline">{editing || plan ? "Close" : "Start over"}</span>
             </Button>
+            <AlertDialog open={confirmDrop} onOpenChange={setConfirmDrop}>
+              <AlertDialogContent>
+                <AlertDialogTitle>Drop your changes?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {planning
+                    ? "The plan keeps what was last saved."
+                    : plan
+                      ? "Nothing is logged and the plan stays as it was."
+                      : replace
+                        ? "The saved import keeps what was last saved."
+                        : "The marks and everything entered on this session go."}
+                </AlertDialogDescription>
+                <AlertDialogFooter>
+                  <AlertDialogClose render={<Button variant="outline" />}>
+                    Keep editing
+                  </AlertDialogClose>
+                  <AlertDialogClose render={<Button variant="destructive" />} onClick={onDiscard}>
+                    Drop changes
+                  </AlertDialogClose>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button
               disabled={errors.length > 0 || status.type === "saving"}
               onClick={() => void save(replace)}
               title={errors.length > 0 ? "Fix the issues marked in red first" : undefined}
             >
               <Save />
-              {status.type === "saving" ? "Saving..." : replace ? "Save changes" : "Save session"}
+              {status.type === "saving"
+                ? "Saving..."
+                : editing
+                  ? "Save changes"
+                  : planning
+                    ? "Save plan"
+                    : "Save session"}
             </Button>
           </div>
         </div>
@@ -405,7 +601,13 @@ export function ImportWorkbench({
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,18rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,22rem)]">
+      <div
+        className={
+          outcomeFirst
+            ? "grid min-h-0 flex-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_minmax(0,18rem)] xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_minmax(0,22rem)]"
+            : "grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,18rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,22rem)]"
+        }
+      >
         <section aria-label="Source text" className="flex min-h-0 flex-col border-b lg:border-r">
           <PaneHeader title="Source" meta={`${lines.length} lines, ${state.spans.length} marks`} />
           <TagBar selectedText={selectedText} onTag={tag} />
@@ -425,37 +627,67 @@ export function ImportWorkbench({
         <section aria-label="Protocol" className="flex min-h-0 flex-col border-b lg:border-r">
           <PaneHeader
             title="Protocol"
-            meta="What will be saved"
+            meta={planning ? "What you will do" : "What will be saved"}
             action={
-              <button
-                type="button"
-                aria-keyshortcuts="f"
-                className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
-                onClick={openDebrief}
-              >
-                Debrief
-                <kbd data-key>f</kbd>
-              </button>
+              planning ? undefined : (
+                <span className="flex items-center gap-4">
+                  {canUndo ? (
+                    <Button variant="ghost" size="sm" onClick={undoAsPlanned}>
+                      <Undo2 />
+                      Undo all as planned
+                    </Button>
+                  ) : unloggedPlans.length > 0 ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      title="Record every planned movement as done as planned"
+                      onClick={() => takeAsPlanned(unloggedPlans)}
+                    >
+                      <ListChecks />
+                      All {unloggedPlans.length} as planned
+                    </Button>
+                  ) : null}
+                  <button
+                    type="button"
+                    aria-keyshortcuts="f"
+                    className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
+                    onClick={openDebrief}
+                  >
+                    Debrief
+                    <kbd data-key>f</kbd>
+                  </button>
+                </span>
+              )
             }
           />
           <div data-pane-scroll className="min-h-0 flex-1 overflow-auto pb-10">
             <SessionProtocol
               session={session}
-              names={{ nameOf, coreOf, gradeOf: (id) => grades.byItem.get(id) }}
+              names={{
+                nameOf,
+                coreOf,
+                gradeOf: (id) => grades.byItem.get(id),
+                gradeSide: planning ? "planned" : "done",
+              }}
               editor={{
                 selectedId: state.selectedId,
                 linked,
                 onSelect: handleClickSpan,
                 onHover: setHovered,
                 lineOf,
+                rulerOnSelectedOnly: outcomeFirst,
               }}
             />
-            <DebriefSheet
-              debrief={state.debrief}
-              scores={session.parts.flatMap((part) => part.blocks.flatMap((block) => block.scores))}
-              firstFieldRef={debriefField}
-              onChange={(debrief) => dispatch({ type: "setDebrief", debrief })}
-            />
+            {planning ? null : (
+              <DebriefSheet
+                debrief={state.debrief}
+                scores={session.parts.flatMap((part) =>
+                  part.blocks.flatMap((block) => block.scores),
+                )}
+                firstFieldRef={debriefField}
+                onChange={(debrief) => dispatch({ type: "setDebrief", debrief })}
+              />
+            )}
           </div>
         </section>
         <aside
@@ -470,7 +702,11 @@ export function ImportWorkbench({
             title={aside === "mark" ? "Selected mark" : aside === "tag" ? "Tag as" : "Keys"}
             meta={
               aside === "mark"
-                ? "Esc to close"
+                ? outcomeFirst
+                  ? planning
+                    ? "j k next · esc"
+                    : "j k next · p as planned · esc"
+                  : "Esc to close"
                 : aside === "tag"
                   ? `"${selectedText}"`
                   : "Select text, then press a key"
@@ -479,8 +715,11 @@ export function ImportWorkbench({
           <div className="min-h-0 flex-1 overflow-auto">
             {aside === "mark" && selected ? (
               <SpanInspector
-                key={selected.id}
+                key={`${selected.id}:${revision}`}
                 span={selected}
+                mode={mode}
+                outcomeFirst={outcomeFirst}
+                onAsPlanned={plan === undefined ? undefined : (span) => takeAsPlanned([span])}
                 text={state.text}
                 spans={state.spans}
                 catalog={catalog}
@@ -490,7 +729,10 @@ export function ImportWorkbench({
                     ? undefined
                     : {
                         item: programmed.item,
-                        defaults: resultDefaults(programmed.item, programmed.block),
+                        defaults: withPlannedLoad(
+                          resultDefaults(programmed.item, programmed.block),
+                          selected?._tag === "movement" ? selected.plan : undefined,
+                        ),
                         grade: grades.byItem.get(programmed.item.spanId),
                       }
                 }
