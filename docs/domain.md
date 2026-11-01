@@ -283,6 +283,9 @@ re-derivable.
   build-up line). `performedSets` expands a result; each set becomes a lift set with
   `workout_item_id` and `set_number`, so results feed rep maxes and the item knows what was
   lifted. A result outside 1 to 100 sets or reps, or a load not in (0, 1000] kg, blocks saving.
+  A **complex** is the movements on one line ("1 Snatch pull + 1 snatch + 2 overhead squat",
+  alternatives excluded): one bar, so the result editor offers "Same for" the others, which
+  copies the sets and loads and keeps each movement's own prescribed reps.
 - **Tonnage**: reps × load summed, per item, per block and per session (results plus notes lift
   sets; a movement in both is warned about, since it counts twice). `ImportSummary.tonnageKg`
   is the same sum over the workout's lift sets.
