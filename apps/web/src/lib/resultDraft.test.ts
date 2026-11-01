@@ -20,6 +20,7 @@ const item = (lines: ReadonlyArray<ReadonlyArray<Quantity>>): DerivedItem => ({
   text: "Snatch",
   sets: lines.map((quantities, line) => ({ line, quantities })),
   performed: [],
+  listed: [],
   performance: undefined,
   plan: undefined,
   alternatives: [],

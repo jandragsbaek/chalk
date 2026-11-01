@@ -283,9 +283,13 @@ re-derivable.
   build-up line). `performedSets` expands a result; each set becomes a lift set with
   `workout_item_id` and `set_number`, so results feed rep maxes and the item knows what was
   lifted. A result outside 1 to 100 sets or reps, or a load not in (0, 1000] kg, blocks saving.
-  A **complex** is the movements on one line ("1 Snatch pull + 1 snatch + 2 overhead squat",
-  alternatives excluded): one bar, so the result editor offers "Same for" the others, which
-  copies the sets and loads and keeps each movement's own prescribed reps.
+  Set by set, a set of 0 reps is one missed at its load: kept in the result, lifting nothing.
+- **Complexes (built).** Barbell movements written on one line of a block ("1 Power clean + 2
+  hang power clean") are done on one bar, so the editor enters their plan, load and result once
+  (web, `lib/complexes.ts`; read from the text, not stored). Reps are typed as written, "1 + 2",
+  and a missed rep as what was made, "1 + 1". Each movement still gets its own `result`, `plan`
+  and `performance` on its span, so rep maxes, tonnage and the coach stay per movement.
+  `separateLoad` on the spans ("Separate loads") gives each movement its own load again.
 - **Tonnage**: reps × load summed, per item, per block and per session (results plus notes lift
   sets; a movement in both is warned about, since it counts twice). `ImportSummary.tonnageKg`
   is the same sum over the workout's lift sets.

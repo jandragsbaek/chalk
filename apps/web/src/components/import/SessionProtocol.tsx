@@ -18,6 +18,7 @@ import { LevelBadge } from "@chalk/ui/components/level-ruler.tsx";
 import type { ReactNode } from "react";
 
 import { formatKg } from "../../lib/blockLabels.ts";
+import { formatComplex, type Complex } from "../../lib/complexes.ts";
 import { describePlan } from "../../lib/plan.ts";
 import { chosenOption } from "../../lib/station.ts";
 import { LevelLine, type GradeSide, type LevelLead } from "./LevelVerdict.tsx";
@@ -30,6 +31,8 @@ export interface ProtocolNames {
   readonly gradeOf: (id: SpanId) => ItemGrade | undefined;
   /** Whose level `gradeOf` grades: what was done, or the plan while planning. */
   readonly gradeSide?: GradeSide;
+  /** The complex a movement is part of (one bar, loads entered once); none for most. */
+  readonly complexOf?: (id: SpanId) => Complex | undefined;
 }
 
 /**
@@ -87,6 +90,7 @@ function OptionRow({
   alternative,
   full,
   passed,
+  inComplex = false,
 }: {
   readonly item: DerivedItem;
   readonly names: ProtocolNames;
@@ -95,6 +99,8 @@ function OptionRow({
   readonly full: boolean;
   /** Another option of the station was picked. */
   readonly passed: boolean;
+  /** In a complex sharing one bar, which prints what was lifted once for all its rows. */
+  readonly inComplex?: boolean;
 }) {
   const name = item.movementId === undefined ? undefined : names.nameOf(item.movementId);
   const core = item.movementId === undefined ? undefined : names.coreOf(item.movementId);
@@ -166,7 +172,7 @@ function OptionRow({
             </LevelBadge>
           </span>
         ) : null}
-        {item.performed.length > 0 ? (
+        {item.performed.length > 0 && !inComplex ? (
           <span
             data-result-box
             className="flex basis-full flex-wrap items-baseline gap-x-2 bg-card px-1.5 text-sm leading-6"
@@ -363,6 +369,82 @@ function Issues({
   );
 }
 
+/** A block's rows: single movements, and the movements of a complex sharing one bar together. */
+const rowsOf = (
+  items: ReadonlyArray<DerivedItem>,
+  names: ProtocolNames,
+): ReadonlyArray<
+  | { readonly item: DerivedItem; readonly complex?: undefined }
+  | { readonly item?: undefined; readonly complex: ReadonlyArray<DerivedItem> }
+> => {
+  const rows: Array<{ item: DerivedItem } | { complex: Array<DerivedItem> }> = [];
+  for (const item of items) {
+    const complex = names.complexOf?.(item.spanId);
+    const last = rows.at(-1);
+    if (complex?.shared !== true) rows.push({ item });
+    else if (last && "complex" in last && names.complexOf?.(last.complex[0]!.spanId) === complex)
+      last.complex.push(item);
+    else rows.push({ complex: [item] });
+  }
+  return rows;
+};
+
+/**
+ * A complex ("1 power clean + 2 hang power clean"): its rows joined by a bracket, and what was
+ * lifted on the one bar printed once under them.
+ */
+function ComplexRows({
+  items,
+  names,
+  editor,
+}: {
+  readonly items: ReadonlyArray<DerivedItem>;
+  readonly names: ProtocolNames;
+  readonly editor: ProtocolEditor | undefined;
+}) {
+  const lifted = items.every((item) => item.performed.length > 0);
+  const performed = items.flatMap((item) => item.performed);
+  return (
+    <li data-complex className="pb-1">
+      <ul>
+        {items.map((item) => (
+          <li key={item.spanId}>
+            <OptionRow
+              item={item}
+              names={names}
+              editor={editor}
+              alternative={false}
+              full
+              passed={false}
+              inComplex
+            />
+          </li>
+        ))}
+      </ul>
+      <div className="grid grid-cols-[minmax(0,13rem)_minmax(0,1fr)] gap-4 px-4">
+        <span className="form-label self-center text-muted-foreground">One bar</span>
+        {lifted ? (
+          <span
+            data-result-box
+            className="flex flex-wrap items-baseline gap-x-2 bg-card px-1.5 text-sm leading-6"
+          >
+            <span className="form-label text-muted-foreground">Lifted</span>
+            <span className="tabular-nums">{formatComplex(items.map((item) => item.listed))}</span>
+            <span className="ml-auto font-semibold tabular-nums">
+              {formatKg(tonnageOf(performed))}
+            </span>
+          </span>
+        ) : (
+          <span className="flex h-6 items-center gap-2 text-xs text-muted-foreground">
+            <span data-empty aria-hidden />
+            loads entered once for the complex
+          </span>
+        )}
+      </div>
+    </li>
+  );
+}
+
 /**
  * The session set like a meet protocol: parts, their blocks, one row per movement with its sets
  * in boxes and what was lifted, and the lift sets read from the notes. With an `editor` it is the
@@ -482,9 +564,23 @@ export function SessionProtocol({
                 </p>
               ) : (
                 <ul className="divide-y">
-                  {block.items.map((item) => (
-                    <StationRow key={item.spanId} item={item} names={names} editor={editor} />
-                  ))}
+                  {rowsOf(block.items, names).map((row) =>
+                    row.complex === undefined ? (
+                      <StationRow
+                        key={row.item.spanId}
+                        item={row.item}
+                        names={names}
+                        editor={editor}
+                      />
+                    ) : (
+                      <ComplexRows
+                        key={row.complex[0]?.spanId}
+                        items={row.complex}
+                        names={names}
+                        editor={editor}
+                      />
+                    ),
+                  )}
                 </ul>
               )}
             </div>

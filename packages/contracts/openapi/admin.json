@@ -1641,6 +1641,9 @@
                     },
                     "plan": {
                       "$ref": "#/components/schemas/Performance"
+                    },
+                    "separateLoad": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
