@@ -24,7 +24,7 @@ const classLabel = (entry: BookingboardClass) =>
 
 /**
  * "Pull from bookingboard": the program of the athlete's class on `date`, handed to `onPulled`
- * as org text. A day with several classes asks which one; without a connection it points to
+ * as plain text. A day with several classes asks which one; without a connection it points to
  * Settings.
  */
 export function BoardPull({

@@ -55,9 +55,11 @@ const pickOwner = <M extends Placed>(
 };
 
 const HEADING = /^(\*+)\s+(.*)$/;
-const BULLET = /^\s*[-+]\s+/;
+const BULLET = /^\s*[-+•]\s+/;
 const DATE = /(\d{4}-\d{2}-\d{2})/;
 const SESSION = /\bsession\s*#?\s*(\d+)/i;
+/** A plain-text line that opens a session: "Session 167 ...", "2026-10-28 ...". */
+const PLAIN_DATED = /^(?:session\s*#?\s*\d+|[<[]?\d{4}-\d{2}-\d{2})/i;
 const NOTES_HEADING = /^(?:notes?|noter|results?|resultater)\s*:?$/i;
 const CONTAINER_HEADING = /^(?:workouts?|wod|træning)\s*:?$/i;
 const FAILED = /\b(?:fail(?:ed)?|miss(?:ed)?|no[\s-]?rep)\b/i;
@@ -325,11 +327,46 @@ export const suggestSpans = (
     }
   };
 
-  for (const line of splitLines(text)) {
-    const heading = line.text.match(HEADING);
+  /**
+   * Plain text has no stars, so a line heads by what it says: a session or date line, a notes or
+   * container word on its own, or, in the workout, a label on top of a paragraph ("Workout #1",
+   * "Strength") that names no movement, format, number or benchmark and is no sentence.
+   */
+  const plainHeading = (content: string, paragraphStart: boolean, followed: boolean) => {
+    if ([PLAIN_DATED, NOTES_HEADING, CONTAINER_HEADING].some((pattern) => pattern.test(content)))
+      return true;
+    if (region === "notes" || !paragraphStart || !followed) return false;
+    if (/[.!?]$/.test(content) || /^[*#]/.test(content) || !/\p{L}/u.test(content)) return false;
+    const masked = maskParentheses(content);
+    return (
+      parseBlockFormat(masked) === undefined &&
+      parseRoundRest(masked) === undefined &&
+      !/^rest\b/i.test(masked) &&
+      matcher.find(masked, 0).length === 0 &&
+      parseQuantities(masked, 0, { bareReps: false }).length === 0 &&
+      namedBenchmark(content, matcher) === undefined
+    );
+  };
+
+  const lines = splitLines(text);
+  /** Org text heads with stars only; reading plain headings there would change its parts. */
+  const org = lines.some((line) => HEADING.test(line.text));
+  /** The line before was blank, or a session, notes or container heading: a paragraph starts. */
+  let paragraphStart = true;
+  for (const [index, line] of lines.entries()) {
+    const startsParagraph = paragraphStart;
+    paragraphStart = line.text.trim() === "";
+    const orgHeading = line.text.match(HEADING);
+    const plain = org || BULLET.test(line.text) ? undefined : line.text.trim();
+    const heading = orgHeading
+      ? { content: orgHeading[2]!.trimEnd(), at: line.text.indexOf(orgHeading[2]!) }
+      : plain && plainHeading(plain, startsParagraph, (lines[index + 1]?.text.trim() ?? "") !== "")
+        ? { content: plain, at: line.text.indexOf(plain) }
+        : undefined;
     if (heading) {
-      const contentStart = line.start + line.text.indexOf(heading[2]!);
-      const content = heading[2]!.trimEnd();
+      const contentStart = line.start + heading.at;
+      const content = heading.content;
+      paragraphStart = true;
       const date = content.match(DATE);
       const session = content.match(SESSION);
       if (date || session) {
@@ -368,6 +405,7 @@ export const suggestSpans = (
         start: contentStart,
         end: contentStart + content.length,
       });
+      paragraphStart = false;
       lastPartMovement = undefined;
       currentBlock = undefined;
       continue;
