@@ -119,10 +119,9 @@ function Field({
 }
 
 /**
- * How a programmed movement was done: as prescribed, at another load, or rep by variation
- * ("6 kipping, 44 jumping"), with the biggest unbroken set. Graded live against the level sheet.
- * In `plan` mode the same fields say how the athlete means to scale it, before the session; in
- * `done` mode a planned scaling is shown and can be taken over as it was.
+ * How a programmed movement was done (or, in `plan` mode, will be scaled): as prescribed, at
+ * another load, or reps by variation, with the biggest unbroken set; graded live. Logging a plan
+ * shows it and can take it over. A complex asks only the bar's load, graded for every movement.
  */
 export function PerformanceEditor({
   performance,
@@ -133,6 +132,7 @@ export function PerformanceEditor({
   mode = "done",
   planned,
   onAsPlanned,
+  complexGrades,
 }: {
   readonly performance: Performance | undefined;
   readonly item: DerivedItem;
@@ -144,6 +144,8 @@ export function PerformanceEditor({
   readonly planned?: Performance | undefined;
   /** Takes the plan as done; the workbench may fill the lift result from it too. */
   readonly onAsPlanned?: (() => void) | undefined;
+  /** A complex: the grade of each of its movements, which share this load. */
+  readonly complexGrades?: ReadonlyArray<ItemGrade | undefined> | undefined;
 }) {
   const [draft, setDraft] = useState(() => draftFromPerformance(performance));
   const family = grade?.family;
@@ -156,6 +158,17 @@ export function PerformanceEditor({
   const target = roundTarget(item);
   const perRound = parseAmount(draft.perRound);
   const reach = perRound === undefined ? undefined : describeReach(perRound, target);
+  const complex = complexGrades !== undefined;
+  // One verdict per level-sheet row: a power clean and a hang power clean grade on the same one.
+  const verdicts = complex
+    ? complexGrades.filter(
+        (entry, at): entry is ItemGrade =>
+          entry !== undefined &&
+          complexGrades.findIndex((other) => other?.family.id === entry.family.id) === at,
+      )
+    : grade === undefined
+      ? []
+      : [grade];
   const scaleRows = () =>
     family?.kind === "variant" && item.movementId !== undefined
       ? [{ movementId: item.movementId, reps: "" }]
@@ -200,7 +213,9 @@ export function PerformanceEditor({
           <p className="text-sm text-muted-foreground">
             {planning
               ? "Say how you mean to scale it; the plan is graded against the level sheet."
-              : "Say how it went, and the movement is graded against the level sheet."}
+              : complex
+                ? "Say how it went, and the movements are graded against the level sheet."
+                : "Say how it went, and the movement is graded against the level sheet."}
           </p>
           <div
             className={
@@ -270,88 +285,90 @@ export function PerformanceEditor({
             </div>
           ) : null}
 
-          <div className="grid gap-1">
-            <span className="form-label text-muted-foreground">Reps by variation</span>
-            {draft.rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {planning ? "All reps as written until you split them." : "All reps as written."}
-              </p>
-            ) : (
-              <ol className="grid gap-1">
-                {draft.rows.map((row, index) => (
-                  <li
-                    // oxlint-disable-next-line react/no-array-index-key -- a row is its position; inputs are controlled
-                    key={index}
-                    className="grid grid-cols-[minmax(0,1fr)_4.5rem_2rem] items-center gap-2"
-                  >
-                    <NativeSelect
-                      aria-label={`Variation ${index + 1}`}
-                      value={row.movementId}
-                      onChange={(event) => setRow(index, "movementId", event.target.value)}
+          {complex ? null : (
+            <div className="grid gap-1">
+              <span className="form-label text-muted-foreground">Reps by variation</span>
+              {draft.rows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {planning ? "All reps as written until you split them." : "All reps as written."}
+                </p>
+              ) : (
+                <ol className="grid gap-1">
+                  {draft.rows.map((row, index) => (
+                    <li
+                      // oxlint-disable-next-line react/no-array-index-key -- a row is its position; inputs are controlled
+                      key={index}
+                      className="grid grid-cols-[minmax(0,1fr)_4.5rem_2rem] items-center gap-2"
                     >
-                      <option value="">Pick a variation</option>
-                      {known.length > 0 ? (
-                        <optgroup label={family?.name ?? "This movement"}>
-                          {known.map((movement) => (
+                      <NativeSelect
+                        aria-label={`Variation ${index + 1}`}
+                        value={row.movementId}
+                        onChange={(event) => setRow(index, "movementId", event.target.value)}
+                      >
+                        <option value="">Pick a variation</option>
+                        {known.length > 0 ? (
+                          <optgroup label={family?.name ?? "This movement"}>
+                            {known.map((movement) => (
+                              <option key={movement.id} value={movement.id}>
+                                {movement.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
+                        <optgroup label="Other movements">
+                          {rest.map((movement) => (
                             <option key={movement.id} value={movement.id}>
                               {movement.name}
                             </option>
                           ))}
                         </optgroup>
-                      ) : null}
-                      <optgroup label="Other movements">
-                        {rest.map((movement) => (
-                          <option key={movement.id} value={movement.id}>
-                            {movement.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    </NativeSelect>
-                    <Input
-                      inputMode="numeric"
-                      aria-label={`Variation ${index + 1} reps`}
-                      placeholder="reps"
-                      value={row.reps}
-                      onChange={(event) => setRow(index, "reps", event.target.value)}
-                    />
-                    <Button
-                      variant="ghost-destructive"
-                      size="icon"
-                      aria-label={`Remove variation ${index + 1}`}
-                      onClick={() =>
-                        edit({ ...draft, rows: draft.rows.filter((_, at) => at !== index) })
-                      }
-                    >
-                      <X />
-                    </Button>
-                  </li>
-                ))}
-              </ol>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-fit"
-              onClick={() =>
-                edit({
-                  ...draft,
-                  rows: [
-                    ...draft.rows,
-                    {
-                      movementId:
-                        draft.rows.length === 0 && item.movementId !== undefined
-                          ? item.movementId
-                          : "",
-                      reps: "",
-                    },
-                  ],
-                })
-              }
-            >
-              <Plus />
-              Add variation
-            </Button>
-          </div>
+                      </NativeSelect>
+                      <Input
+                        inputMode="numeric"
+                        aria-label={`Variation ${index + 1} reps`}
+                        placeholder="reps"
+                        value={row.reps}
+                        onChange={(event) => setRow(index, "reps", event.target.value)}
+                      />
+                      <Button
+                        variant="ghost-destructive"
+                        size="icon"
+                        aria-label={`Remove variation ${index + 1}`}
+                        onClick={() =>
+                          edit({ ...draft, rows: draft.rows.filter((_, at) => at !== index) })
+                        }
+                      >
+                        <X />
+                      </Button>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-fit"
+                onClick={() =>
+                  edit({
+                    ...draft,
+                    rows: [
+                      ...draft.rows,
+                      {
+                        movementId:
+                          draft.rows.length === 0 && item.movementId !== undefined
+                            ? item.movementId
+                            : "",
+                        reps: "",
+                      },
+                    ],
+                  })
+                }
+              >
+                <Plus />
+                Add variation
+              </Button>
+            </div>
+          )}
 
           {target === undefined ? null : (
             <div className="grid gap-1">
@@ -370,7 +387,7 @@ export function PerformanceEditor({
             </div>
           )}
 
-          {planning ? null : (
+          {planning || complex ? null : (
             <Field
               label="Biggest unbroken set (hardest variation)"
               value={draft.unbroken}
@@ -378,15 +395,22 @@ export function PerformanceEditor({
             />
           )}
 
-          {grade ? (
-            <LevelVerdict grade={grade} nameOf={nameOf} side={planning ? "planned" : "done"} />
-          ) : null}
+          {verdicts.map((verdict) => (
+            <LevelVerdict
+              key={verdict.family.id}
+              grade={verdict}
+              nameOf={nameOf}
+              side={planning ? "planned" : "done"}
+            />
+          ))}
         </>
       ) : null}
 
-      {grade === undefined ? (
+      {verdicts.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          This movement is on no row of the level sheet. Set its row under Levels to grade it.
+          {complex
+            ? "These movements are on no row of the level sheet. Set their row under Levels to grade them."
+            : "This movement is on no row of the level sheet. Set its row under Levels to grade it."}
         </p>
       ) : null}
     </div>

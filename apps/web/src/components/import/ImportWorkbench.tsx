@@ -48,9 +48,9 @@ import {
   type TagChoice,
 } from "../../lib/importEditor.ts";
 import { formatKg } from "../../lib/blockLabels.ts";
+import { findComplexes } from "../../lib/complexes.ts";
 import { gradeSession } from "../../lib/levelGrades.ts";
 import { asPlanned, planTitle, withPlannedLoad } from "../../lib/plan.ts";
-import { complexPartners, resultAtReps } from "../../lib/complex.ts";
 import { resultDefaults } from "../../lib/resultDraft.ts";
 import { chooseOption, chosenOption, stationOptions } from "../../lib/station.ts";
 import { SAVE_REACTIVITY_KEYS, saveImportAtom } from "../../state/imports.ts";
@@ -60,8 +60,7 @@ import { DebriefSheet } from "./DebriefSheet.tsx";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { FieldBox } from "../FieldBox.tsx";
 import { SessionProtocol } from "./SessionProtocol.tsx";
-import type { ComplexAction } from "./ResultEditor.tsx";
-import { SpanInspector } from "./SpanInspector.tsx";
+import { SpanInspector, type ComplexInspection } from "./SpanInspector.tsx";
 import { KeySwatch, TAG_ACTIONS, TagBar } from "./TagBar.tsx";
 
 type SaveStatus =
@@ -189,6 +188,7 @@ export function ImportWorkbench({
       movement.variationOf === undefined ? [] : [[movement.id, movement.variationOf] as const],
     ),
   );
+  const categories = new Map(catalog.map((movement) => [movement.id, movement.category]));
   const coreOf = (id: MovementId) => {
     const core = cores.get(id);
     return core === undefined ? undefined : names.get(core);
@@ -200,30 +200,41 @@ export function ImportWorkbench({
   const errors = session.issues.filter((issue) => issue.severity === "error");
   const selected = state.spans.find((span) => span.id === state.selectedId);
   const programmed = selected?._tag === "movement" ? findItem(session, selected.id) : undefined;
-  /** The rest of the selected movement's complex that can take a result. */
-  const partners =
-    selected?._tag === "movement" && programmed !== undefined
-      ? complexPartners(state.text, state.spans, selected).flatMap((span) => {
-          const found = findItem(session, span.id);
-          return found === undefined
-            ? []
-            : [{ span, reps: resultDefaults(found.item, found.block).reps }];
-        })
-      : [];
-  const complex: ComplexAction | undefined =
-    partners.length === 0
+  const grades = gradeSession(session, catalog, planning ? "planned" : "done");
+  const complexes = findComplexes(session, document, (id) => categories.get(id));
+  const selectedComplex =
+    programmed === undefined || selected === undefined ? undefined : complexes.get(selected.id);
+  /** The selected movement's complex with every movement's item, defaults and grade. */
+  const complexInspection: ComplexInspection | undefined =
+    selectedComplex === undefined
       ? undefined
       : {
-          names: partners.map(({ span }) =>
-            span.movementId === undefined
-              ? state.text.slice(span.start, span.end)
-              : (nameOf(span.movementId) ?? state.text.slice(span.start, span.end)),
-          ),
-          onApply: (result) => {
-            for (const { span, reps } of partners)
-              dispatch({ type: "update", span: { ...span, result: resultAtReps(result, reps) } });
+          shared: selectedComplex.shared,
+          members: selectedComplex.members.flatMap((id) => {
+            const span = state.spans.find((candidate) => candidate.id === id);
+            const found = findItem(session, id);
+            return span?._tag === "movement" && found
+              ? [
+                  {
+                    span,
+                    item: found.item,
+                    defaults: withPlannedLoad(resultDefaults(found.item, found.block), span.plan),
+                    grade: grades.byItem.get(id),
+                  },
+                ]
+              : [];
+          }),
+          onUpdateAll: (spans) => {
+            for (const span of spans) dispatch({ type: "update", span });
           },
         };
+  /** The selected movement and, in a complex sharing one bar, the rest of it. */
+  const selectedMovements = (): ReadonlyArray<SpanOf<"movement">> =>
+    complexInspection?.shared
+      ? complexInspection.members.map((member) => member.span)
+      : selected?._tag === "movement"
+        ? [selected]
+        : [];
   const items = programmedItems(session);
   /**
    * Movements with a plan and nothing recorded yet: what "Log all as planned" fills. A station
@@ -280,8 +291,12 @@ export function ImportWorkbench({
     setSelection(undefined);
     dispatch({ type: "select", id: items[next]!.spanId });
   }
-  const grades = gradeSession(session, catalog, planning ? "planned" : "done");
-  const linked = linkedIds(state.spans, hovered ?? state.selectedId);
+  const pointed = hovered ?? state.selectedId;
+  // A complex lights as one: its other movements go with the one pointed at.
+  const linked = new Set([
+    ...linkedIds(state.spans, pointed),
+    ...(pointed === undefined ? [] : (complexes.get(pointed)?.members ?? [])),
+  ]);
   const hasDateSpan = state.spans.some((span) => span._tag === "date");
   const lines = splitLines(state.text);
   const lineOf = (id: SpanId) => {
@@ -362,7 +377,7 @@ export function ImportWorkbench({
     }
     if (event.key === "p" && !planning && selected?._tag === "movement" && selected.plan) {
       event.preventDefault();
-      takeAsPlanned([selected]);
+      takeAsPlanned(selectedMovements());
       return;
     }
     if (!selected) return;
@@ -708,6 +723,7 @@ export function ImportWorkbench({
                 coreOf,
                 gradeOf: (id) => grades.byItem.get(id),
                 gradeSide: planning ? "planned" : "done",
+                complexOf: (id) => complexes.get(id),
               }}
               editor={{
                 selectedId: state.selectedId,
@@ -755,11 +771,12 @@ export function ImportWorkbench({
           <div className="min-h-0 flex-1 overflow-auto">
             {aside === "mark" && selected ? (
               <SpanInspector
-                key={`${selected.id}:${revision}`}
+                key={`${selected.id}:${revision}:${complexInspection?.shared ?? "single"}`}
                 span={selected}
                 mode={mode}
                 outcomeFirst={outcomeFirst}
-                onAsPlanned={plan === undefined ? undefined : (span) => takeAsPlanned([span])}
+                onAsPlanned={plan === undefined ? undefined : (spans) => takeAsPlanned(spans)}
+                complex={complexInspection}
                 text={state.text}
                 spans={state.spans}
                 catalog={catalog}
@@ -774,7 +791,6 @@ export function ImportWorkbench({
                           selected?._tag === "movement" ? selected.plan : undefined,
                         ),
                         grade: grades.byItem.get(programmed.item.spanId),
-                        complex,
                         station: stationOptions(programmed.station),
                         chosen: chosenOption(programmed.station, planning ? "planned" : "done")
                           ?.spanId,

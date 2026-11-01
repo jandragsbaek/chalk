@@ -1,5 +1,5 @@
 import {
-  performedSets,
+  resultSets,
   type Amount,
   type DerivedBlock,
   type DerivedItem,
@@ -10,6 +10,8 @@ import {
 /**
  * The result form of a programmed movement as typed: strings, so a half-typed "62," survives.
  * A complete draft becomes a `LiftResult` on the movement span; an incomplete one becomes none.
+ * A complex ("1 power clean + 2 hang power clean", one bar) is one draft for all its movements:
+ * the loads are typed once and the reps as written, "1 + 2", one count per movement.
  */
 export type ResultMode = LiftResult["_tag"];
 
@@ -155,20 +157,82 @@ export const resultFromDraft = (draft: ResultDraft): LiftResult | undefined => {
   return step === undefined ? undefined : { _tag: "ramp", sets, reps, startKg: load, stepKg: step };
 };
 
+/** "1 + 2" into one count per movement; `undefined` unless there is one for each. */
+const splitReps = (raw: string, count: number): ReadonlyArray<string> | undefined => {
+  const parts = raw.split("+").map((part) => part.trim());
+  return parts.length === count ? parts : undefined;
+};
+
+/** One count per movement as typed in a complex; blank while any of them is unknown. */
+const joinReps = (reps: ReadonlyArray<string>): string =>
+  reps.some((value) => value === "") ? "" : reps.join(" + ");
+
+/** The draft of the `index`-th of `count` movements sharing it. */
+const memberDraft = (draft: ResultDraft, index: number, count: number): ResultDraft => {
+  const repsAt = (raw: string) => splitReps(raw, count)?.[index] ?? "";
+  return {
+    ...draft,
+    reps: repsAt(draft.reps),
+    rows: draft.rows.map((row) => ({ ...row, reps: repsAt(row.reps) })),
+  };
+};
+
+/**
+ * One result per movement sharing the draft, in order; each `undefined` while incomplete. Every
+ * movement gets the same sets and loads, and its own reps.
+ */
+export const resultsFromDraft = (
+  draft: ResultDraft,
+  count: number,
+): ReadonlyArray<LiftResult | undefined> =>
+  Array.from({ length: count }, (_, index) =>
+    draft.mode === undefined ? undefined : resultFromDraft(memberDraft(draft, index, count)),
+  );
+
+/**
+ * The draft for movements that share their loads: the first one's mode and loads, everyone's
+ * reps joined set by set ("1 + 2", or "1 + 1" for a missed rep).
+ */
+export const draftFromResults = (
+  results: ReadonlyArray<LiftResult | undefined>,
+  defaults: ReadonlyArray<ResultDefaults>,
+): ResultDraft => {
+  const drafts = results.map((result, index) =>
+    draftFromResult(result, defaults[index] ?? defaults[0]!),
+  );
+  const [lead] = drafts;
+  if (lead === undefined) return draftFromResult(undefined, defaults[0]!);
+  return {
+    ...lead,
+    reps: joinReps(drafts.map((draft) => draft.reps)),
+    rows: lead.rows.map((row, at) => ({
+      ...row,
+      reps: joinReps(drafts.map((draft) => draft.rows[at]?.reps ?? draft.reps)),
+    })),
+  };
+};
+
 const blankRows = (draft: ResultDraft): ReadonlyArray<DraftRow> =>
   Array.from({ length: Math.min(readCount(draft.sets) ?? 1, 100) || 1 }, () => ({
     reps: draft.reps,
     load: draft.load,
   }));
 
-/** Moves what is typed over to another mode: a ramp opened set by set lists its loads. */
-export const switchMode = (draft: ResultDraft, mode: ResultMode): ResultDraft => {
+/**
+ * Moves what is typed over to another mode: a ramp opened set by set lists its loads. `count` is
+ * how many movements share the draft (a complex).
+ */
+export const switchMode = (draft: ResultDraft, mode: ResultMode, count = 1): ResultDraft => {
   if (mode === draft.mode) return draft;
   if (mode === "each") {
-    const current = resultFromDraft(draft);
+    const current = resultsFromDraft(draft, count);
+    const [lead] = current;
     const rows =
-      current !== undefined
-        ? performedSets(current).map((set) => ({ reps: show(set.reps), load: show(set.loadKg) }))
+      lead !== undefined && current.every((result) => result !== undefined)
+        ? resultSets(lead).map((set, at) => ({
+            reps: joinReps(current.map((result) => show(result && resultSets(result)[at]?.reps))),
+            load: show(set.loadKg),
+          }))
         : draft.rows.length > 0
           ? draft.rows
           : blankRows(draft);

@@ -33,13 +33,14 @@ import { Fragment } from "react";
 
 import { parseAmount, toNumber } from "../../lib/amount.ts";
 import { MEASURE_LABELS } from "../../lib/blockLabels.ts";
+import { separateLoads, shareLoads, withResults, withShared } from "../../lib/complexes.ts";
 import type { PickMode } from "../../lib/importEditor.ts";
 import type { ResultDefaults } from "../../lib/resultDraft.ts";
 import { CoreMovementField } from "./CoreMovementField.tsx";
 import { MovementLevelsField } from "./MovementLevelsField.tsx";
 import { MovementPicker } from "./MovementPicker.tsx";
 import { PerformanceEditor } from "./PerformanceEditor.tsx";
-import { ResultEditor, type ComplexAction } from "./ResultEditor.tsx";
+import { ResultEditor } from "./ResultEditor.tsx";
 
 const TAG_TITLES: Record<Span["_tag"], string> = {
   movement: "Movement",
@@ -258,6 +259,22 @@ function withAmount<S extends SpanOf<"quantity">>(
   return (amount === undefined ? rest : { ...rest, female: amount }) as S;
 }
 
+/** A movement of a complex, as the inspector edits it. */
+export interface ComplexMember {
+  readonly span: SpanOf<"movement">;
+  readonly item: DerivedItem;
+  readonly defaults: ResultDefaults;
+  readonly grade: ItemGrade | undefined;
+}
+
+/** The complex the selected movement is part of: one bar, loads entered once while `shared`. */
+export interface ComplexInspection {
+  readonly shared: boolean;
+  /** In the order written; the first leads. */
+  readonly members: ReadonlyArray<ComplexMember>;
+  readonly onUpdateAll: (spans: ReadonlyArray<SpanOf<"movement">>) => void;
+}
+
 function withParam<K extends keyof BlockParams>(
   params: BlockParams,
   key: K,
@@ -276,7 +293,6 @@ export interface ProgrammedMovement {
   readonly station: ReadonlyArray<DerivedItem>;
   /** The option a plan (or what was done) picked, if one was. */
   readonly chosen: SpanId | undefined;
-  readonly complex: ComplexAction | undefined;
 }
 
 export function SpanInspector({
@@ -294,6 +310,7 @@ export function SpanInspector({
   mode = "log",
   outcomeFirst = false,
   onAsPlanned,
+  complex,
 }: {
   readonly span: Span;
   readonly text: string;
@@ -317,12 +334,15 @@ export function SpanInspector({
    * catalog fields fold away under "Movement".
    */
   readonly outcomeFirst?: boolean;
-  /** Logging a plan: take the movement's planned scaling as done. */
-  readonly onAsPlanned?: ((span: SpanOf<"movement">) => void) | undefined;
+  /** Logging a plan: take the movements' planned scaling as done (a complex's all at once). */
+  readonly onAsPlanned?: ((spans: ReadonlyArray<SpanOf<"movement">>) => void) | undefined;
+  /** The complex a programmed movement is part of ("1 power clean + 2 hang power clean"). */
+  readonly complex?: ComplexInspection | undefined;
   /** Do the station by this option, and not by the others. */
   readonly onChooseOption?: (id: SpanId) => void;
 }) {
   const phrase = text.slice(span.start, span.end);
+  const oneBar = span._tag === "movement" && complex?.shared === true;
   const picked =
     span._tag === "movement" && span.movementId !== undefined
       ? catalog.find((movement) => movement.id === span.movementId)
@@ -343,14 +363,29 @@ export function SpanInspector({
     <section aria-label="Selected mark" className="grid content-start gap-4 p-4">
       <header className="flex items-start justify-between gap-2">
         <div className="grid gap-1.5">
-          <span className="form-label text-muted-foreground">{TAG_TITLES[span._tag]}</span>
-          <mark
-            data-tag={span._tag}
-            data-measure={span._tag === "quantity" ? span.measure : undefined}
-            className="w-fit font-mono text-lg font-bold"
-          >
-            {phrase}
-          </mark>
+          <span className="form-label text-muted-foreground">
+            {oneBar ? "Complex, one bar" : TAG_TITLES[span._tag]}
+          </span>
+          {oneBar && complex ? (
+            <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 leading-7">
+              {complex.members.map((member, at) => (
+                <span key={member.span.id} className="flex items-baseline gap-1.5">
+                  {at > 0 ? <span className="font-bold">+</span> : null}
+                  <mark data-tag="movement" className="w-fit font-mono text-lg font-bold">
+                    {text.slice(member.span.start, member.span.end)}
+                  </mark>
+                </span>
+              ))}
+            </span>
+          ) : (
+            <mark
+              data-tag={span._tag}
+              data-measure={span._tag === "quantity" ? span.measure : undefined}
+              className="w-fit font-mono text-lg font-bold"
+            >
+              {phrase}
+            </mark>
+          )}
         </div>
         <Button
           variant="ghost-destructive"
@@ -378,6 +413,7 @@ export function SpanInspector({
           onMovementPicked={onMovementPicked}
           onAsPlanned={onAsPlanned}
           onChooseOption={onChooseOption}
+          complex={complex}
         />
       ) : null}
 
@@ -686,6 +722,7 @@ function MovementMark({
   onMovementPicked,
   onAsPlanned,
   onChooseOption,
+  complex,
 }: {
   readonly span: SpanOf<"movement">;
   readonly phrase: string;
@@ -703,7 +740,8 @@ function MovementMark({
     movementId: MovementId,
     learned: boolean,
   ) => void;
-  readonly onAsPlanned: ((span: SpanOf<"movement">) => void) | undefined;
+  readonly onAsPlanned: ((spans: ReadonlyArray<SpanOf<"movement">>) => void) | undefined;
+  readonly complex: ComplexInspection | undefined;
   readonly onChooseOption: ((id: SpanId) => void) | undefined;
 }) {
   const nameOf = (id: MovementId) => catalog.find((movement) => movement.id === id)?.name;
@@ -762,7 +800,11 @@ function MovementMark({
       />
     </>
   );
-  const outcome = programmed ? (
+  const withoutField = (key: "plan" | "performance" | "result") => {
+    const { [key]: _old, ...rest } = span;
+    return rest;
+  };
+  const single = programmed ? (
     <>
       {choice}
       {mode === "plan" ? (
@@ -772,42 +814,75 @@ function MovementMark({
           item={programmed.item}
           grade={programmed.grade}
           catalog={catalog}
-          onChange={(plan) => {
-            const { plan: _old, ...rest } = span;
-            onUpdate(plan === undefined ? rest : { ...rest, plan });
-          }}
+          onChange={(plan) =>
+            onUpdate(plan === undefined ? withoutField("plan") : { ...span, plan })
+          }
         />
       ) : (
         <>
           <PerformanceEditor
             performance={span.performance}
             planned={span.plan}
-            onAsPlanned={onAsPlanned === undefined ? undefined : () => onAsPlanned(span)}
+            onAsPlanned={onAsPlanned === undefined ? undefined : () => onAsPlanned([span])}
             item={programmed.item}
             grade={programmed.grade}
             catalog={catalog}
-            onChange={(performance) => {
-              const { performance: _old, ...rest } = span;
-              onUpdate(performance === undefined ? rest : { ...rest, performance });
-            }}
+            onChange={(performance) =>
+              onUpdate(
+                performance === undefined ? withoutField("performance") : { ...span, performance },
+              )
+            }
           />
           <ResultEditor
-            result={span.result}
-            item={programmed.item}
-            defaults={programmed.defaults}
-            complex={programmed.complex}
-            onChange={(result: LiftResult | undefined) => {
-              const { result: _old, ...rest } = span;
-              onUpdate(result === undefined ? rest : { ...rest, result });
-            }}
+            results={[span.result]}
+            items={[programmed.item]}
+            defaults={[programmed.defaults]}
+            onChange={([result]: ReadonlyArray<LiftResult | undefined>) =>
+              onUpdate(result === undefined ? withoutField("result") : { ...span, result })
+            }
           />
         </>
       )}
     </>
   ) : null;
+  const outcome =
+    complex === undefined ? (
+      single
+    ) : complex.shared ? (
+      <SharedLoad complex={complex} mode={mode} catalog={catalog} onAsPlanned={onAsPlanned} />
+    ) : (
+      <>
+        {single}
+        <div className="flex items-baseline justify-between gap-2 border-t pt-3">
+          <span className="text-xs text-muted-foreground">
+            Done on one bar with{" "}
+            {complex.members
+              .filter((member) => member.span.id !== span.id)
+              .map((member) => member.item.text)
+              .join(", ")}
+            ?
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              complex.onUpdateAll(
+                shareLoads(
+                  complex.members.map((member) => member.span),
+                  complex.members.map((member) => member.defaults),
+                ),
+              )
+            }
+          >
+            One bar
+          </Button>
+        </div>
+      </>
+    );
 
-  // An unresolved movement has to be picked before anything else counts.
-  if (!outcomeFirst || picked === undefined)
+  // An unresolved movement has to be picked before anything else counts. A complex sharing one
+  // bar leads with its loads, since they are what its movements have in common.
+  if ((!outcomeFirst && complex?.shared !== true) || picked === undefined)
     return (
       <>
         {identity}
@@ -829,6 +904,73 @@ function MovementMark({
         </summary>
         <div className="grid gap-4 pt-3">{identity}</div>
       </details>
+    </>
+  );
+}
+
+/**
+ * A complex's plan, how it was done and what was lifted, entered once for the bar and written to
+ * every movement, each with its own reps.
+ */
+function SharedLoad({
+  complex,
+  mode,
+  catalog,
+  onAsPlanned,
+}: {
+  readonly complex: ComplexInspection;
+  readonly mode: "log" | "plan";
+  readonly catalog: ReadonlyArray<CatalogMovement>;
+  readonly onAsPlanned: ((spans: ReadonlyArray<SpanOf<"movement">>) => void) | undefined;
+}) {
+  const members = complex.members.map((member) => member.span);
+  const [lead] = complex.members;
+  if (lead === undefined) return null;
+  const grades = complex.members.map((member) => member.grade);
+  return (
+    <>
+      {mode === "plan" ? (
+        <PerformanceEditor
+          mode="plan"
+          performance={lead.span.plan}
+          item={lead.item}
+          grade={lead.grade}
+          complexGrades={grades}
+          catalog={catalog}
+          onChange={(plan) => complex.onUpdateAll(withShared(members, "plan", plan))}
+        />
+      ) : (
+        <>
+          <PerformanceEditor
+            performance={lead.span.performance}
+            planned={lead.span.plan}
+            onAsPlanned={onAsPlanned === undefined ? undefined : () => onAsPlanned(members)}
+            item={lead.item}
+            grade={lead.grade}
+            complexGrades={grades}
+            catalog={catalog}
+            onChange={(performance) =>
+              complex.onUpdateAll(withShared(members, "performance", performance))
+            }
+          />
+          <ResultEditor
+            results={members.map((span) => span.result)}
+            items={complex.members.map((member) => member.item)}
+            defaults={complex.members.map((member) => member.defaults)}
+            onChange={(results) => complex.onUpdateAll(withResults(members, results))}
+          />
+        </>
+      )}
+      <div className="flex items-baseline justify-between gap-2 border-t pt-3">
+        <span className="text-xs text-muted-foreground">A different load per movement?</span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => complex.onUpdateAll(separateLoads(members))}
+        >
+          Separate loads
+        </Button>
+      </div>
     </>
   );
 }

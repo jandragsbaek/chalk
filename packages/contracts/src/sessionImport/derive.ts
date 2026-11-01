@@ -28,6 +28,8 @@ export interface DerivedItem {
   readonly sets: ReadonlyArray<DerivedSet>;
   /** What was lifted, set by set; empty without a valid result. */
   readonly performed: ReadonlyArray<PerformedSet>;
+  /** Every set the result lists, a missed one (0 reps) included; empty without a valid result. */
+  readonly listed: ReadonlyArray<PerformedSet>;
   /** How it was done, when the athlete said; `undefined` while it has a problem. */
   readonly performance: Performance | undefined;
   /** How the athlete planned to do it; `undefined` without a plan or while it has a problem. */
@@ -169,8 +171,11 @@ const MAX_LOAD_KG = 1000;
 
 const roundKg = (kg: number) => Math.round(kg * 100) / 100;
 
-/** The sets a result stands for, in order: a ramp of 6 from 50 by 2.5 ends at 62.5. */
-export const performedSets = (result: LiftResult): ReadonlyArray<PerformedSet> => {
+/**
+ * Every set a result lists, in order, a missed one (0 reps) included: a ramp of 6 from 50 by 2.5
+ * ends at 62.5.
+ */
+export const resultSets = (result: LiftResult): ReadonlyArray<PerformedSet> => {
   if (result._tag === "each") return result.sets.slice(0, MAX_COUNT);
   const count = Math.max(0, Math.min(MAX_COUNT, Math.floor(result.sets)));
   return Array.from({ length: count }, (_, index) => ({
@@ -179,6 +184,10 @@ export const performedSets = (result: LiftResult): ReadonlyArray<PerformedSet> =
       result._tag === "fixed" ? result.loadKg : roundKg(result.startKg + index * result.stepKg),
   }));
 };
+
+/** The sets a result stands for: what was lifted, missed sets left out. */
+export const performedSets = (result: LiftResult): ReadonlyArray<PerformedSet> =>
+  resultSets(result).filter((set) => set.reps > 0);
 
 /** Total kilograms moved: reps × load, summed. */
 export const tonnageOf = (
@@ -202,10 +211,15 @@ const resultProblem = (result: LiftResult): string | undefined => {
   const sets = result._tag === "each" ? result.sets.length : result.sets;
   if (!Number.isInteger(sets) || sets < 1 || sets > MAX_COUNT)
     return `a result needs 1 to ${MAX_COUNT} sets`;
-  const performed = performedSets(result);
-  if (performed.some((set) => !Number.isInteger(set.reps) || set.reps < 1 || set.reps > MAX_COUNT))
-    return `reps must be 1 to ${MAX_COUNT}`;
-  if (performed.some((set) => !(set.loadKg > 0) || set.loadKg > MAX_LOAD_KG))
+  const listed = resultSets(result);
+  // Set by set, a set can be missed (0 reps); every set of a fixed or ramped result was lifted.
+  const fewest = result._tag === "each" ? 0 : 1;
+  if (
+    listed.some((set) => !Number.isInteger(set.reps) || set.reps < fewest || set.reps > MAX_COUNT)
+  )
+    return `reps must be ${fewest} to ${MAX_COUNT}`;
+  if (!listed.some((set) => set.reps > 0)) return "a result needs at least one set lifted";
+  if (listed.some((set) => !(set.loadKg > 0) || set.loadKg > MAX_LOAD_KG))
     return `every load must be above 0 and at most ${MAX_LOAD_KG} kg`;
   return undefined;
 };
@@ -508,10 +522,10 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     return Array.from(sets, ([line, quantities]) => ({ line, quantities }));
   };
 
-  const performedOf = (movement: SpanOf<"movement">): ReadonlyArray<PerformedSet> => {
+  const listedOf = (movement: SpanOf<"movement">): ReadonlyArray<PerformedSet> => {
     if (movement.result === undefined) return [];
     const problem = resultProblem(movement.result);
-    if (problem === undefined) return performedSets(movement.result);
+    if (problem === undefined) return resultSets(movement.result);
     const name =
       (movement.movementId === undefined ? undefined : nameOf(movement.movementId)) ??
       slice(movement);
@@ -544,16 +558,20 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     return undefined;
   };
 
-  const toItem = (movement: SpanOf<"movement">): DerivedItem => ({
-    spanId: movement.id,
-    movementId: movement.movementId,
-    text: slice(movement),
-    sets: setsOf(movement),
-    performed: performedOf(movement),
-    performance: checkedPerformance(movement, movement.performance, ""),
-    plan: checkedPerformance(movement, movement.plan, " (plan)"),
-    alternatives: (alternativesOf.get(movement.id) ?? []).map(toItem),
-  });
+  const toItem = (movement: SpanOf<"movement">): DerivedItem => {
+    const listed = listedOf(movement);
+    return {
+      spanId: movement.id,
+      movementId: movement.movementId,
+      text: slice(movement),
+      sets: setsOf(movement),
+      performed: listed.filter((set) => set.reps > 0),
+      listed,
+      performance: checkedPerformance(movement, movement.performance, ""),
+      plan: checkedPerformance(movement, movement.plan, " (plan)"),
+      alternatives: (alternativesOf.get(movement.id) ?? []).map(toItem),
+    };
+  };
   const itemTonnage = (item: DerivedItem): number =>
     tonnageOf(item.performed) +
     item.alternatives.reduce((total, alternative) => total + itemTonnage(alternative), 0);
@@ -636,6 +654,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
         text: nameOf(item.movementId) ?? item.movementId,
         sets: item.quantities.length === 0 ? [] : [{ line, quantities: item.quantities }],
         performed: [],
+        listed: [],
         performance: undefined,
         plan: undefined,
         alternatives: (item.alternatives ?? []).map((alternative, index) =>

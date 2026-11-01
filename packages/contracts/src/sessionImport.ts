@@ -98,7 +98,8 @@ export type PerformedSet = typeof PerformedSet.Type;
 /**
  * What the athlete lifted for one programmed movement, entered after the fact. `fixed`: every
  * set at one load. `ramp`: the first set at `startKg`, each next set `stepKg` heavier. `each`:
- * set by set. `deriveSession` checks the ranges, so the editor can report them.
+ * set by set, where a set of 0 reps is one missed at that load. `deriveSession` checks the
+ * ranges, so the editor can report them.
  */
 export const LiftResult = Schema.TaggedUnion({
   fixed: { sets: Count, reps: Count, loadKg: NonNegative },
@@ -139,6 +140,11 @@ export const Span = Schema.TaggedUnion({
     performance: Schema.optionalKey(Performance),
     /** How the athlete means to do it, set when planning; empty = as prescribed. */
     plan: Schema.optionalKey(Performance),
+    /**
+     * A movement of a complex ("1 power clean + 2 hang power clean": one bar) lifted at its own
+     * load instead; the complex's other movements then keep their own too.
+     */
+    separateLoad: Schema.optionalKey(Schema.Boolean),
   },
   quantity: { ...spanFields, ...Quantity.fields, attachedTo: Schema.optionalKey(SpanId) },
   /** A score as written ("12+5", "8:32"); attached to the block or benchmark it scores. */

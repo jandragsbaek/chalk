@@ -9,6 +9,7 @@ const item = (id: string, extra: Partial<DerivedItem> = {}): DerivedItem => ({
   text: id,
   sets: [],
   performed: [],
+  listed: [],
   performance: undefined,
   plan: undefined,
   alternatives: [],

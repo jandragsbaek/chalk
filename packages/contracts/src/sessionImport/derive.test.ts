@@ -9,6 +9,7 @@ import {
   formatPerformed,
   formatQuantity,
   performedSets,
+  resultSets,
   type DerivedItem,
 } from "./derive.ts";
 import {
@@ -337,6 +338,24 @@ describe("lift results", () => {
     expect(messages({ _tag: "ramp", sets: 6, reps: 2, startKg: 10, stepKg: -5 })).toEqual([
       ["numbers", "Snatch: every load must be above 0 and at most 1000 kg."],
     ]);
+    expect(messages({ _tag: "each", sets: [{ reps: 0, loadKg: 90 }] })).toEqual([
+      ["numbers", "Snatch: a result needs at least one set lifted."],
+    ]);
+  });
+
+  it("keeps a missed set (0 reps) in the result but lifts nothing from it", () => {
+    const result: LiftResult = {
+      _tag: "each",
+      sets: [
+        { reps: 2, loadKg: 70 },
+        { reps: 0, loadKg: 80 },
+      ],
+    };
+    expect(resultSets(result)).toHaveLength(2);
+    expect(performedSets(result)).toEqual([{ reps: 2, loadKg: 70 }]);
+    const session = deriveSession(withResults(SNATCH_EVERY, { snatch: result }), nameOf);
+    expect(blockingIssues(session)).toEqual([]);
+    expect(session.parts[0]?.blocks[0]?.tonnageKg).toBe(140);
   });
 });
 

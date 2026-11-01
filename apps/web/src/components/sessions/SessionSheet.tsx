@@ -32,6 +32,7 @@ import { useState } from "react";
 
 import { formatKg } from "../../lib/blockLabels.ts";
 import { gradeSession } from "../../lib/levelGrades.ts";
+import { findComplexes } from "../../lib/complexes.ts";
 import type { PartEchoGroup } from "../../lib/similar.ts";
 import { formatDay } from "../../lib/utils.ts";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
@@ -219,11 +220,17 @@ function ImportedProtocol({
       };
       const session = deriveSession(stored.document, nameOf);
       const grades = gradeSession(session, names.catalog);
+      const complexes = findComplexes(session, stored.document, (id) => byId.get(id)?.category);
       return (
         <>
           <SessionProtocol
             session={session}
-            names={{ nameOf, coreOf, gradeOf: (id) => grades.byItem.get(id) }}
+            names={{
+              nameOf,
+              coreOf,
+              gradeOf: (id) => grades.byItem.get(id),
+              complexOf: (id) => complexes.get(id),
+            }}
           />
           {stored.document.debrief ? <DebriefRead debrief={stored.document.debrief} /> : null}
         </>
