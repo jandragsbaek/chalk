@@ -11,6 +11,7 @@ import {
   loadRungLabel,
   majorityLevel,
   nextLevel,
+  prescribedReps,
   type GradableMovement,
   type LevelFamilyId,
   type LoadFamily,
@@ -303,5 +304,17 @@ describe("nextLevel", () => {
     expect(nextLevel(load("bb-snatch"), undefined)).toBe("intermediate");
     expect(nextLevel(load("bb-clean"), "scaled")).toBe("intermediate");
     expect(nextLevel(variants("hspu"), "rx")).toBeUndefined();
+  });
+});
+
+describe("prescribedReps", () => {
+  it("counts every set: 5 x 5 is 25", () => {
+    const line = (quantities: ReadonlyArray<Quantity>) => ({ quantities });
+    const count = (measure: Quantity["measure"], value: number): Quantity => ({
+      measure,
+      amount: { min: value, max: value },
+    });
+    expect(prescribedReps([line([count("sets", 5), count("reps", 5)])])).toBe(25);
+    expect(prescribedReps([line([count("reps", 10)]), line([count("reps", 5)])])).toBe(15);
   });
 });

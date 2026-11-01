@@ -105,7 +105,10 @@ const erg: WorkModel = {
   perCalorie: () => JOULES_PER_CALORIE,
   perMeter: () => ERG_JOULES_PER_METRE,
 };
-const run: WorkModel = { perMeter: (b) => RUN_JOULES_PER_KG_METRE * b.massKg };
+const runMetre = (b: Body) => RUN_JOULES_PER_KG_METRE * b.massKg;
+const run: WorkModel = { perMeter: runMetre };
+/** One shuttle at the box when the board writes no length; "10 m" on the board wins. */
+export const SHUTTLE_LENGTH_M = 7.5;
 
 const CARRY = "A carry moves the load sideways, which is no work against gravity.";
 const HOLD = "A hold moves nothing, so it does no work.";
@@ -273,6 +276,8 @@ export const WORK_MODELS: Readonly<Record<string, WorkModel>> = {
   "double-crossover": bodyweight((b) => joules(b.massKg, 0.1)),
   "triple-under": bodyweight((b) => joules(b.massKg, 0.15)),
   "wall-walk": bodyweight((b) => joules(b.massKg, 0.5 * b.heightM)),
+  // Back up from a plank: less than a get-up from the floor.
+  "walk-out": bodyweight((b) => joules(b.massKg, 0.35 * b.heightM)),
   "forward-roll": bodyweight((b) => joules(b.massKg, 0.25 * b.heightM)),
   // Lunges.
   "walking-lunge": lungeModel(false),
@@ -284,7 +289,8 @@ export const WORK_MODELS: Readonly<Record<string, WorkModel>> = {
   "ski-erg": erg,
   bike: { perCalorie: () => JOULES_PER_CALORIE, perMeter: () => BIKE_JOULES_PER_METRE },
   run,
-  "shuttle-run": run,
+  // A rep is one length of the shuttle.
+  "shuttle-run": { ...run, perRep: (b) => SHUTTLE_LENGTH_M * runMetre(b) },
   "sled-push": { perMeter: (_b, kg) => joules(SLED_FRICTION * kg, 1), loaded: true },
   "sled-pull": { perMeter: (_b, kg) => joules(SLED_FRICTION * kg, 1), loaded: true },
   // No work against gravity.

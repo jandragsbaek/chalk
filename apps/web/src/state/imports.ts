@@ -32,6 +32,8 @@ export const setVariationOfAtom = AdminClient.mutation("movements", "setVariatio
 
 export const setLevelsAtom = AdminClient.mutation("movements", "setLevels");
 
+export const setScalingsAtom = AdminClient.mutation("movements", "setScalings");
+
 export const importsAtom = AdminClient.query("imports", "list", {
   reactivityKeys: [IMPORTS_REACTIVITY_KEY],
 });

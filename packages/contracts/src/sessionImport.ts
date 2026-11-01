@@ -196,6 +196,11 @@ export const CatalogMovement = Schema.Struct({
   complements: Schema.optionalKey(Schema.Array(Complement)),
   /** Level families an accessory builds toward (gorilla rows for pull-ups). */
   supports: Schema.optionalKey(Schema.Array(LevelFamilyId)),
+  /**
+   * Movements done instead when it is scaled, first offered first: ring rows and jumping
+   * pull-ups for pull-ups, walk-outs for wall walks. See `scalingOptions`.
+   */
+  scalings: Schema.optionalKey(Schema.Array(MovementId)),
 }).annotate({ identifier: "CatalogMovement" });
 export type CatalogMovement = typeof CatalogMovement.Type;
 
@@ -219,6 +224,10 @@ export const SetMovementLevelsInput = Schema.Struct({
   supports: Schema.Array(LevelFamilyId),
 });
 export type SetMovementLevelsInput = typeof SetMovementLevelsInput.Type;
+
+/** The movements a movement scales to, first offered first; empty clears them. */
+export const SetMovementScalingsInput = Schema.Struct({ scalings: Schema.Array(MovementId) });
+export type SetMovementScalingsInput = typeof SetMovementScalingsInput.Type;
 
 export const AddAliasInput = Schema.Struct({ alias: TrimmedNonEmptyString });
 export type AddAliasInput = typeof AddAliasInput.Type;

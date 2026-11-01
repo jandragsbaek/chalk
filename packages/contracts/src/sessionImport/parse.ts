@@ -31,9 +31,17 @@ export const lineIndexAt = (lines: ReadonlyArray<Line>, offset: number): number 
   return low;
 };
 
-/** Parenthesized asides ("(heavy)", "(4 af hver)") hold no prescription; blank them, keep offsets. */
+/** "(7,5 m)": a bracket holding only a distance, the length of one shuttle or lunge block. */
+const DISTANCE_ASIDE = /^\(\s*\d+(?:[.,]\d+)?\s*(?:m|meters?|metres?)\s*\)$/iu;
+
+/**
+ * Parenthesized asides ("(heavy)", "(4 af hver)") hold no prescription; blank them, keep
+ * offsets. A distance alone in brackets is kept, without its brackets.
+ */
 export const maskParentheses = (text: string): string =>
-  text.replace(/\([^)]*\)?/g, (aside) => " ".repeat(aside.length));
+  text.replace(/\([^)]*\)?/g, (aside) =>
+    DISTANCE_ASIDE.test(aside) ? ` ${aside.slice(1, -1)} ` : " ".repeat(aside.length),
+  );
 
 const toNumber = (raw: string) => Number(raw.replace(",", "."));
 
@@ -119,6 +127,27 @@ const RECOGNIZERS: ReadonlyArray<Recognizer> = [
       "giu",
     ),
     read: (match) => whole(match, quantityOf("rpe", (match[1] ?? match[2])!)),
+  },
+  {
+    // "10 x 7.5 m", "4 x 10m": sets of a distance (shuttles, lunge blocks, intervals).
+    pattern: new RegExp(
+      String.raw`(?<![\p{L}\d])(\d+)\s*[x×]\s*(${R})\s*(km|m|meters?|metres?)(?!\p{L})`,
+      "giu",
+    ),
+    read: (match) => {
+      const sets = match[1]!;
+      const setsEnd = match.index + match[0].indexOf(sets) + sets.length;
+      const distanceStart = match.index + match[0].lastIndexOf(match[2]!);
+      const factor = match[3]!.toLowerCase() === "km" ? 1000 : 1;
+      return [
+        { start: match.index, end: setsEnd, quantity: quantityOf("sets", sets) },
+        {
+          start: distanceStart,
+          end: match.index + match[0].length,
+          quantity: quantityOf("distance_m", match[2]!, undefined, factor),
+        },
+      ];
+    },
   },
   {
     // "5x5", "3 x 8-10": sets then reps, unless the second number carries a unit.

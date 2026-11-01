@@ -235,6 +235,66 @@ describe("estimateBlockWork", () => {
     expect(jumping.joules).toBeLessThan(pullUps(undefined).joules);
   });
 
+  it("counts shuttle runs as lengths: 7.5 m unless the board writes the length", () => {
+    const catalog: ReadonlyArray<CatalogMovement> = [
+      {
+        id: MovementId.make("shuttle-run"),
+        name: "Shuttle run",
+        category: "monostructural",
+        aliases: [],
+      },
+      {
+        id: MovementId.make("walking-lunge"),
+        name: "Walking lunge",
+        category: "gymnastics",
+        aliases: [],
+      },
+    ];
+    const shuttles = makeMovementMatcher(catalog);
+    const joulesOf = (line: string) => {
+      const text = `For time\n${line}\n`;
+      let next = 0;
+      const session = deriveSession(
+        { text, spans: suggestSpans(text, shuttles, () => `s${++next}`) },
+        (id) => id,
+      );
+      return estimateSessionWork(session, jan, modelOf).parts[0]!.blocks[0]!.work.joules;
+    };
+    // Running work is 1 J per kg per metre, so an 85 kg athlete's joules / 85 are metres.
+    const metres = (line: string) => joulesOf(line) / 85;
+    expect(metres("10 shuttle runs")).toBeCloseTo(75);
+    expect(metres("10 shuttle runs 10m")).toBeCloseTo(100);
+    expect(metres("10 shuttle runs (7,5 m)")).toBeCloseTo(75);
+    expect(metres("10 x 10 m shuttle run")).toBeCloseTo(100);
+    // A count each round is in reps, so 8 shuttles of 10 m a round are 80 m.
+    const amrap = (perRound: number) =>
+      estimateBlockWork(
+        {
+          format: "amrap",
+          params: { durationSeconds: 600 },
+          items: [
+            item("shuttle-run", {
+              sets: [
+                {
+                  quantities: [
+                    { measure: "reps", amount: { min: 10, max: 10 } },
+                    { measure: "distance_m", amount: { min: 10, max: 10 } },
+                  ],
+                },
+              ],
+              performance: { perRound: { min: perRound, max: perRound } },
+            }),
+          ],
+          scores: ["5+0"],
+        },
+        jan,
+        modelOf,
+      );
+    expect(amrap(8).items.map((counted) => [counted.unit, counted.amount])).toEqual([["m", 400]]);
+    // Sets of a distance hold for any movement counted in metres.
+    expect(joulesOf("4 x 10m walking lunges")).toBeCloseTo(joulesOf("40 m walking lunges"));
+  });
+
   it("reads the female side of a split for a female athlete", () => {
     const her = bodyOf({ sex: "f", heightCm: 180, bodyweightKg: 85 });
     const work = estimateBlockWork(

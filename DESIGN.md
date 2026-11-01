@@ -287,6 +287,9 @@ The Workouts page (the session register) owns the viewport below the band like t
 workbench, in three ruled columns that scroll on their own: an 8.5rem month rail, a 27.5rem
 register, and the open session's sheet in the rest.
 
+The Movements page (the catalog) uses the same three ruled columns: a 10rem rail, a 26rem
+register, and the open movement's sheet in the rest.
+
 The Calendar page owns the viewport below the band too: a fresh-sheet rail of 16rem (18rem from
 the 2xl width) ruled off on its right, beside a column that stacks the title strip, the lanes
 ruler, the board (taking the rest of the height) and the drafts tray; the rail and each week's day
@@ -338,6 +341,7 @@ Printed and decisive: square, semi-bold, no gradient.
 - **Style:** carbonless fill with a 2px inset ink underline of the same hue. Prescription chips sit inside attempt boxes in the protocol; marks sit inline in the Courier source.
 - **Variants:** blocks are a 1px ink outline on no fill; parts are a solid ink block with paper text; scores carry a double underline; date, session and notes use a 2px dotted underline.
 - **State:** hover or linked deepens the fill toward its ink (26%); open drops the fill for a 1.5px dashed outline; selected adds a 3px double outline offset 1px.
+- **Offered:** a movement chip Chalk derives rather than one the athlete set (a scaling offered by the core movement or the level sheet) drops the fill for the same 1.5px dashed outline (`data-derived`).
 
 ### Cards / Containers
 
@@ -355,7 +359,7 @@ Printed and decisive: square, semi-bold, no gradient.
 
 ### Navigation
 
-- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Calendar, Plan, Log, Strength, Benchmarks, Levels, Workouts, Import, Coach, Settings); Today is the front page, Calendar the programmed weeks, Log the manual entry page, Workouts the session register and Settings the athlete's profile. Settings carries its own tab strip under its title (Profile, Connections): condensed caps tabs on a 1px rule, the active one in ink with a 2px ink inset underline, like the level groups' tabs. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
+- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Calendar, Plan, Log, Strength, Benchmarks, Levels, Movements, Power, Workouts, Import, Coach, Settings); Today is the front page, Calendar the programmed weeks, Log the manual entry page, Workouts the session register and Settings the athlete's profile. Settings carries its own tab strip under its title (Profile, Connections): condensed caps tabs on a 1px rule, the active one in ink with a 2px ink inset underline, like the level groups' tabs. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
 
 ### Protocol Field Box
 
@@ -438,6 +442,21 @@ outline; up and down walk the register. The sheet is the protocol read back: a t
 its actions, a strip of protocol field boxes, then the importer's protocol without its editing
 affordances (rows do not tint or select), the debrief as the coach reads it, and typed notes in
 Courier.
+
+### Movement Catalog (rail, register, sheet)
+
+`/movements` reads the catalog like the session register reads sessions. The rail prints
+"Category" and "Scalings" in title caps over ruled tabs with counts; the chosen tab is an ink
+tab with paper text. Register rows (at least 48px) carry the name over its core, variations and
+sheet row in pencil grey, and the movement's own scalings as copy-blue chips (two, then "+n"; an
+empty-cell rule without any), under sticky category heads on a 2px ink rule; the open row takes
+the ruled tint and the double outline, and up and down walk the register. The sheet is the
+movement's protocol header (Core, Sheet row, In sessions, Done scaled), then sections under
+section heads: Scales to (a numbered ruled list, first offered first, each with how often it
+stood in and ghost up, down and remove buttons, an add select, then the dashed offered chips),
+Scaled from (chips linking to the movements that offer this one), Aliases (Courier entries on a
+dotted underline and an add field), and Core and levels (the importer's catalog fields). The
+importer's inspector uses the same Scales to list.
 
 ### Coach Conversation
 

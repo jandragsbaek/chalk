@@ -113,17 +113,29 @@ interface RoundCount {
 const roundCount = (item: WorkItem, block: WorkBlock, body: Body): RoundCount | undefined => {
   let unit: WorkUnit | undefined;
   let amount = 0;
+  /** Metres per rep, when reps are written with a length. */
+  let length: number | undefined;
   for (const set of item.sets) {
-    const count = set.quantities.find((quantity) => COUNT_UNITS[quantity.measure] !== undefined);
+    // "10 shuttle runs 10 m": reps of a written length, so metres.
+    const reps = set.quantities.find((quantity) => quantity.measure === "reps");
+    const distance = set.quantities.find((quantity) => quantity.measure === "distance_m");
+    const count =
+      distance !== undefined && reps !== undefined
+        ? distance
+        : set.quantities.find((quantity) => COUNT_UNITS[quantity.measure] !== undefined);
     if (count === undefined) continue;
     const countUnit = COUNT_UNITS[count.measure]!;
     if (unit !== undefined && unit !== countUnit) continue;
     unit = countUnit;
     const sets = set.quantities.find((quantity) => quantity.measure === "sets");
-    amount += amountFor(count, body) * (sets === undefined ? 1 : mid(sets.amount));
+    const lengths = count === distance && reps !== undefined ? amountFor(reps, body) : 1;
+    if (count === distance && reps !== undefined) length = amountFor(distance, body);
+    amount += amountFor(count, body) * lengths * (sets === undefined ? 1 : mid(sets.amount));
   }
+  // The count each round is in reps; reps of a written length are metres.
   const perRound = item.performance?.perRound;
-  if (unit !== undefined && perRound !== undefined) return { amount: mid(perRound), unit };
+  if (unit !== undefined && perRound !== undefined)
+    return { amount: mid(perRound) * (length ?? 1), unit };
   if (unit !== undefined) return { amount, unit };
   // "21-15-9 thrusters and pull-ups": the block's scheme is every item's reps.
   const scheme = block.params.scheme;

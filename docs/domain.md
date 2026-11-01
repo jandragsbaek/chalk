@@ -69,9 +69,21 @@ Named, per-movement ways to make a movement easier. Four kinds:
 | `load`         | 30 kg thrusters instead of 43 kg    | Performed load is below prescribed load        |
 | `volume`       | 15-12-9 instead of 21-15-9          | Performed reps are below prescribed reps       |
 
-Substitutions and modifications are catalog entries (`ScalingOption { id, movementId, name, kind,
-rank }`); `rank` orders them from most to least scaled, so "banded (green) → banded (purple) →
-kipping → Rx" is a progression Chalk can chart. Load and volume scaling fall out of comparing
+**Substitutions (built).** `movements.scalings` (JSON `[movementId]`, first offered first) lists
+what a movement is done as instead: ring rows and jumping pull-ups for pull-ups, walk-outs for
+wall walks. `scalingOptions` offers those, then the core movement's, then for a movement on a
+variant level row the easier rungs of that row (closest first) and the row's `below`. The
+importer shows them as one-click "Scale to" options under Plan / Done as; one sets every
+prescribed rep to that movement in `variants`, so grading and power count the swap. The list is
+edited per movement in the importer ("Scales to") and on the Movements page (`/movements`),
+which lists the catalog with each movement's scalings, how often it was programmed and done
+scaled (from the levels overview), what scales to it, its aliases, core and level row. Migration `021_Scalings` adds the Walk-out
+movement and seeds the usual swaps for gymnastics, skipping rope, box jumps and running.
+
+Modifications (and a ranked progression of substitutions) are still the target: catalog
+entries (`ScalingOption { id, movementId, name, kind, rank }`); `rank` orders them from most to
+least scaled, so "banded (green) → banded (purple) → kipping → Rx" is a progression Chalk can
+chart. Load and volume scaling fall out of comparing
 numbers, so they need no catalog entry.
 
 **Rx is derived**, not a checkbox: a part is Rx when every performed item matches its prescription
@@ -122,6 +134,11 @@ muscle-up). The sheet is data in `packages/contracts/src/levels.ts` (`LEVEL_FAMI
   Seeded with whiteboard aliases ("SN pull", "SGDL") by migration `012_LiftingAccessories`.
   Later: a `percentOf` movement for "snatch pull @ 110 %" (of the snatch 1RM), since
   `supports` names sheet rows, not movements.
+- **Shuttles and blocks of distance**: a shuttle run rep is one length of the box's shuttle,
+  7.5 m unless the board writes it ("10 shuttle runs 10 m", "10 shuttle runs (7,5 m)"); reps
+  written with a distance count reps × that distance in metres for power, and "4 x 10 m KB
+  walking lunges" reads as 4 sets of 10 m. A distance alone in brackets is the one bracketed
+  aside the importer reads.
 - Not graded: wall walks (hand distance not recorded), D-ball and sandbag, endurance. Box
   height is not recorded, so box jumps stop at Scaled.
 

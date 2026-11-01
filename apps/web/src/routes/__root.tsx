@@ -10,6 +10,7 @@ type NavTarget =
   | "/strength"
   | "/benchmarks"
   | "/levels"
+  | "/movements"
   | "/power"
   | "/workouts"
   | "/import"
@@ -24,6 +25,7 @@ const NAV: ReadonlyArray<{ to: NavTarget; label: string; exact?: boolean }> = [
   { to: "/strength", label: "Strength" },
   { to: "/benchmarks", label: "Benchmarks" },
   { to: "/levels", label: "Levels" },
+  { to: "/movements", label: "Movements" },
   { to: "/power", label: "Power" },
   { to: "/workouts", label: "Workouts" },
   { to: "/import", label: "Import" },
@@ -32,10 +34,18 @@ const NAV: ReadonlyArray<{ to: NavTarget; label: string; exact?: boolean }> = [
 ];
 
 /**
- * Desk pages lay out their own width under the band; the calendar, the import and plan
- * workbench and the coach own the viewport. Settings lays out its own two columns.
+ * Desk pages lay out their own width under the band; the calendar, the movement catalog, the
+ * import and plan workbench and the coach own the viewport. Settings lays out its own two columns.
  */
-const OWN_LAYOUT_PREFIXES = ["/calendar", "/workouts", "/import", "/plan", "/coach", "/settings"];
+const OWN_LAYOUT_PREFIXES = [
+  "/calendar",
+  "/movements",
+  "/workouts",
+  "/import",
+  "/plan",
+  "/coach",
+  "/settings",
+];
 /** Pages that lay out wide tables and rulers get the desk's full width. */
 const WIDE_PREFIXES = ["/levels", "/benchmarks"];
 

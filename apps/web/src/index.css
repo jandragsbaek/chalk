@@ -260,6 +260,13 @@ kbd[data-key] {
   background: var(--tag);
   box-shadow: inset 0 -0.125rem 0 var(--tag-ink);
 }
+/* Offered by the level sheet or a core movement, not set here: open, so dashed. */
+[data-chip][data-derived] {
+  background: transparent;
+  box-shadow: none;
+  outline: 1.5px dashed var(--tag-ink);
+  outline-offset: -1.5px;
+}
 [data-empty]::before {
   content: "";
   display: inline-block;

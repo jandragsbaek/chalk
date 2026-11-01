@@ -22,6 +22,7 @@ import {
   MovementExistsError,
   SaveImportInput,
   SetMovementLevelsInput,
+  SetMovementScalingsInput,
   SetVariationOfInput,
   StoredImport,
   VariationInvalidError,
@@ -108,6 +109,12 @@ export const AdminMovementsGroup = HttpApiGroup.make("movements")
     HttpApiEndpoint.put("setLevels", "/:id/levels", {
       params: { id: MovementId },
       payload: SetMovementLevelsInput,
+      success: CatalogMovement,
+      error: [CatalogNotFoundError, ImportStorageError],
+    }),
+    HttpApiEndpoint.put("setScalings", "/:id/scalings", {
+      params: { id: MovementId },
+      payload: SetMovementScalingsInput,
       success: CatalogMovement,
       error: [CatalogNotFoundError, ImportStorageError],
     }),
