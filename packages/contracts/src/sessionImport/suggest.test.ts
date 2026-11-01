@@ -216,6 +216,19 @@ describe("suggestSpans on plain text", () => {
     expect(rows("Notes\nFelt heavy today\nBack squat 100 kg")).not.toContainEqual(
       expect.stringMatching(/^part /),
     );
+    expect(rows("Back squat\n\n21-15\n5 reps @40%")).not.toContainEqual(
+      expect.stringMatching(/^part /),
+    );
+  });
+
+  it("leaves org pastes to their stars, even with plain lines under a heading", () => {
+    const text = "**** Strength\nBack squat\n\nBuild gradually\n5 reps @40%";
+    expect(rows(text)).toEqual([
+      "part Strength",
+      "movement Back squat = back-squat",
+      "quantity 5 reps = 5 reps -> Back squat",
+      "quantity @40% = 40 % -> Back squat",
+    ]);
   });
 });
 

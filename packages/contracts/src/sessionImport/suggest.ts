@@ -336,7 +336,7 @@ export const suggestSpans = (
     if ([PLAIN_DATED, NOTES_HEADING, CONTAINER_HEADING].some((pattern) => pattern.test(content)))
       return true;
     if (region === "notes" || !paragraphStart || !followed) return false;
-    if (/[.!?]$/.test(content) || /^[*#]/.test(content)) return false;
+    if (/[.!?]$/.test(content) || /^[*#]/.test(content) || !/\p{L}/u.test(content)) return false;
     const masked = maskParentheses(content);
     return (
       parseBlockFormat(masked) === undefined &&
@@ -349,13 +349,15 @@ export const suggestSpans = (
   };
 
   const lines = splitLines(text);
+  /** Org text heads with stars only; reading plain headings there would change its parts. */
+  const org = lines.some((line) => HEADING.test(line.text));
   /** The line before was blank, or a session, notes or container heading: a paragraph starts. */
   let paragraphStart = true;
   for (const [index, line] of lines.entries()) {
     const startsParagraph = paragraphStart;
     paragraphStart = line.text.trim() === "";
     const orgHeading = line.text.match(HEADING);
-    const plain = orgHeading || BULLET.test(line.text) ? undefined : line.text.trim();
+    const plain = org || BULLET.test(line.text) ? undefined : line.text.trim();
     const heading = orgHeading
       ? { content: orgHeading[2]!.trimEnd(), at: line.text.indexOf(orgHeading[2]!) }
       : plain && plainHeading(plain, startsParagraph, (lines[index + 1]?.text.trim() ?? "") !== "")
