@@ -50,6 +50,7 @@ import {
 import { formatKg } from "../../lib/blockLabels.ts";
 import { gradeSession } from "../../lib/levelGrades.ts";
 import { asPlanned, planTitle, withPlannedLoad } from "../../lib/plan.ts";
+import { complexPartners, resultAtReps } from "../../lib/complex.ts";
 import { resultDefaults } from "../../lib/resultDraft.ts";
 import { SAVE_REACTIVITY_KEYS, saveImportAtom } from "../../state/imports.ts";
 import { PLANS_REACTIVITY_KEY, savePlanAtom } from "../../state/plans.ts";
@@ -58,6 +59,7 @@ import { DebriefSheet } from "./DebriefSheet.tsx";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { FieldBox } from "../FieldBox.tsx";
 import { countItems, SessionProtocol } from "./SessionProtocol.tsx";
+import type { ComplexAction } from "./ResultEditor.tsx";
 import { SpanInspector } from "./SpanInspector.tsx";
 import { KeySwatch, TAG_ACTIONS, TagBar } from "./TagBar.tsx";
 
@@ -202,6 +204,30 @@ export function ImportWorkbench({
   const errors = session.issues.filter((issue) => issue.severity === "error");
   const selected = state.spans.find((span) => span.id === state.selectedId);
   const programmed = selected?._tag === "movement" ? findItem(session, selected.id) : undefined;
+  /** The rest of the selected movement's complex that can take a result. */
+  const partners =
+    selected?._tag === "movement" && programmed !== undefined
+      ? complexPartners(state.text, state.spans, selected).flatMap((span) => {
+          const found = findItem(session, span.id);
+          return found === undefined
+            ? []
+            : [{ span, reps: resultDefaults(found.item, found.block).reps }];
+        })
+      : [];
+  const complex: ComplexAction | undefined =
+    partners.length === 0
+      ? undefined
+      : {
+          names: partners.map(({ span }) =>
+            span.movementId === undefined
+              ? state.text.slice(span.start, span.end)
+              : (nameOf(span.movementId) ?? state.text.slice(span.start, span.end)),
+          ),
+          onApply: (result) => {
+            for (const { span, reps } of partners)
+              dispatch({ type: "update", span: { ...span, result: resultAtReps(result, reps) } });
+          },
+        };
   const items = programmedItems(session);
   /** Movements with a plan and nothing recorded yet: what "Log all as planned" fills. */
   const unloggedPlans = planning
@@ -734,6 +760,7 @@ export function ImportWorkbench({
                           selected?._tag === "movement" ? selected.plan : undefined,
                         ),
                         grade: grades.byItem.get(programmed.item.spanId),
+                        complex,
                       }
                 }
                 onUpdate={(span) => dispatch({ type: "update", span })}
