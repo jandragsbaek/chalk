@@ -11,7 +11,7 @@ Scope: new Coach tab. Operate mode. One athlete at the desk after training: asks
 
 Phase 1 (core): open conversations with tool receipts. Phase 2: check-in rail group + structured question boxes that write the existing Debrief.
 
-Model: OpenRouter via @effect/ai-openrouter, `OPENROUTER_API_KEY` + `CHALK_COACH_MODEL`. Without a key the page says so; no hidden failure.
+Model: OpenRouter via @effect/ai-openrouter, `OPENROUTER_API_KEY` + `CHALK_COACH_MODEL` (the default). The athlete picks the model per message from a short allowlist (`COACH_MODELS`): the model is a select inside the composer's privacy line ("Your log goes to [Claude Sonnet 5.5] through OpenRouter."), its popup a flat sheet on a 1px ink stroke listing label and price per million tokens. Each coach turn's meta names the model that wrote it ("Claude Haiku 5.5 · 3 reads · 16:45"), and the field-box strip's Model box shows the last one. Without a key the page says so; no hidden failure.
 
 ## Direction contract
 

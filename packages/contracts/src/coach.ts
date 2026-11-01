@@ -13,6 +13,35 @@ const makeId = <Brand extends string>(brand: Parameters<typeof Schema.brand<Bran
 export const CoachThreadId = makeId("CoachThreadId");
 export type CoachThreadId = typeof CoachThreadId.Type;
 
+/** One model the coach can answer with: its OpenRouter slug, a name to print, and a price hint. */
+export const CoachModelOption = Schema.Struct({
+  /** The OpenRouter slug, like "anthropic/claude-sonnet-5.5". */
+  slug: Schema.String,
+  label: Schema.String,
+  /** Dollars per million tokens in / out, like "$2 / $10"; null when Chalk does not know it. */
+  price: Schema.NullOr(Schema.String),
+}).annotate({ identifier: "CoachModelOption" });
+export type CoachModelOption = typeof CoachModelOption.Type;
+
+/**
+ * The models the athlete may pick from, in menu order: priced low enough to ask freely, and
+ * reliable at tool calls, since the coach reads the log through tools. The server answers with
+ * these and nothing else the browser asks for. Prices are OpenRouter's, per million tokens in /
+ * out, as of November 2026; why each is here is in docs/coaching.md.
+ */
+export const COACH_MODELS: ReadonlyArray<CoachModelOption> = [
+  { slug: "anthropic/claude-sonnet-5.5", label: "Claude Sonnet 5.5", price: "$2 / $10" },
+  { slug: "anthropic/claude-haiku-5.5", label: "Claude Haiku 5.5", price: "$0.10 / $0.50" },
+  { slug: "openai/gpt-6.1-terra", label: "GPT-6.1 Terra", price: "$1 / $5" },
+  { slug: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", price: "$0.83 / $4.13" },
+  { slug: "z-ai/glm-5.3", label: "GLM 5.3", price: "$0.08 / $3.60" },
+  { slug: "deepseek/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", price: "$0.05 / $0.50" },
+];
+
+/** A model's name to print: its label when Chalk knows the slug, else the slug without its provider. */
+export const coachModelLabel = (slug: string): string =>
+  COACH_MODELS.find((option) => option.slug === slug)?.label ?? slug.split("/").at(-1) ?? slug;
+
 /** What the athlete typed; long enough for a paragraph, short enough to stay a question. */
 export const CoachMessageText = TrimmedNonEmptyString.check(Schema.isMaxLength(4000));
 
@@ -54,6 +83,8 @@ export const CoachTurn = Schema.Struct({
   text: Schema.String,
   /** The coach's reads for this reply, in call order; always empty on the athlete's turns. */
   receipts: Schema.Array(CoachReceipt),
+  /** The model slug that wrote this reply; on coach turns only, and absent on replies saved before models could be picked. */
+  model: Schema.optionalKey(Schema.String),
   /** Set when the coach stopped early: the read budget ran out, or the model failed. */
   stopped: Schema.optionalKey(Schema.Literals(["read-limit", "step-limit", "model-error"])),
   createdAt: IsoDateTime,
@@ -80,10 +111,16 @@ export const CoachThreadDetail = Schema.Struct({
 }).annotate({ identifier: "CoachThreadDetail" });
 export type CoachThreadDetail = typeof CoachThreadDetail.Type;
 
-/** Whether the coach can answer here, and with which model; the key itself never leaves the server. */
+/**
+ * Whether the coach can answer here, and with which models; the key itself never leaves the
+ * server. Without a key there is no default and no models.
+ */
 export const CoachStatus = Schema.Struct({
   available: Schema.Boolean,
-  model: Schema.NullOr(Schema.String),
+  /** The slug a message without a pick is answered with: `CHALK_COACH_MODEL`. */
+  defaultModel: Schema.NullOr(Schema.String),
+  /** What the athlete may pick: `COACH_MODELS`, plus the default when the server set one outside it. */
+  models: Schema.Array(CoachModelOption),
 }).annotate({ identifier: "CoachStatus" });
 export type CoachStatus = typeof CoachStatus.Type;
 
@@ -91,6 +128,8 @@ export const CoachSendInput = Schema.Struct({
   /** Absent to start a new thread. */
   threadId: Schema.optionalKey(CoachThreadId),
   text: CoachMessageText,
+  /** The slug to answer with; absent for the server's default. Anything not offered is refused. */
+  model: Schema.optionalKey(TrimmedNonEmptyString.check(Schema.isMaxLength(200))),
 });
 export type CoachSendInput = typeof CoachSendInput.Type;
 
@@ -116,6 +155,16 @@ export class CoachUnavailableError extends Schema.TaggedError<CoachUnavailableEr
 ) {
   override get message(): string {
     return "The coach is not set up: the server has no OPENROUTER_API_KEY.";
+  }
+}
+
+/** The browser asked for a model the server does not offer. */
+export class CoachModelNotAllowedError extends Schema.TaggedError<CoachModelNotAllowedError>()(
+  "CoachModelNotAllowedError",
+  { model: Schema.String },
+) {
+  override get message(): string {
+    return `The coach does not answer with ${this.model}; pick one of the offered models.`;
   }
 }
 

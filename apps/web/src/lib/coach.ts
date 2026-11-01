@@ -2,6 +2,7 @@ import type {
   CoachEvent,
   CoachReceipt,
   CoachRequestPart,
+  CoachStatus,
   CoachThread,
   CoachTurn,
   LiftSet,
@@ -9,6 +10,16 @@ import type {
   MovementId,
   Workout,
 } from "@chalk/contracts";
+
+/**
+ * The model a conversation's next message goes to until the athlete picks one: the model that
+ * last answered it while the server still offers it, else the server's default.
+ */
+export function threadModel(status: CoachStatus, lastModel: string | undefined): string | null {
+  return lastModel !== undefined && status.models.some((option) => option.slug === lastModel)
+    ? lastModel
+    : status.defaultModel;
+}
 
 /** A read the coach has started; `receipt` lands when it finishes. */
 export interface LiveRead {

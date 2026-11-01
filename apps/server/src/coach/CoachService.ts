@@ -1,7 +1,11 @@
 import {
+  COACH_MODELS,
+  coachModelLabel,
+  CoachModelNotAllowedError,
   CoachStorageError,
   CoachUnavailableError,
   type CoachEvent,
+  type CoachModelOption,
   type CoachReceipt,
   type CoachSendInput,
   type CoachStatus,
@@ -43,32 +47,59 @@ const REPLY_TIMEOUT = Duration.seconds(120);
 
 const DEFAULT_MODEL = "anthropic/claude-sonnet-5.5";
 
-/** The model the coach answers with, or none when the server has no key. */
+/**
+ * What the athlete may pick, the default first when it is not on Chalk's list: the server's own
+ * `CHALK_COACH_MODEL` is trusted (whoever sets it chose that model on purpose), the browser
+ * only gets to choose from the list.
+ */
+export const modelOptions = (defaultModel: string): ReadonlyArray<CoachModelOption> =>
+  COACH_MODELS.some((option) => option.slug === defaultModel)
+    ? COACH_MODELS
+    : [{ slug: defaultModel, label: coachModelLabel(defaultModel), price: null }, ...COACH_MODELS];
+
+/** A model the athlete may pick, ready to answer. */
+export interface CoachModelChoice extends CoachModelOption {
+  readonly languageModel: LanguageModel.LanguageModel;
+}
+
+/** The models the coach answers with, or none when the server has no key. */
 export class CoachModel extends Context.Service<
   CoachModel,
   {
-    readonly model: Option.Option<{
-      readonly name: string;
-      readonly languageModel: LanguageModel.LanguageModel;
+    readonly models: Option.Option<{
+      /** The slug a message without a pick is answered with. */
+      readonly defaultModel: string;
+      /** Every model the athlete may pick, in menu order; the default is one of them. */
+      readonly choices: ReadonlyArray<CoachModelChoice>;
     }>;
   }
 >()("chalk/coach/CoachModel") {}
 
-/** OpenRouter from `OPENROUTER_API_KEY` and `CHALK_COACH_MODEL`; no key, no coach. */
+/**
+ * OpenRouter from `OPENROUTER_API_KEY`, one model per pickable slug, `CHALK_COACH_MODEL` the
+ * default. No key, no coach.
+ */
 export const layerModel = Layer.effect(
   CoachModel,
   Effect.gen(function* () {
     const apiKey = yield* Config.Redacted("OPENROUTER_API_KEY").pipe(Config.option);
-    const name = yield* Config.String("CHALK_COACH_MODEL").pipe(Config.withDefault(DEFAULT_MODEL));
-    if (Option.isNone(apiKey)) return CoachModel.of({ model: Option.none() });
-    const languageModel = yield* OpenRouterLanguageModel.make({ model: name }).pipe(
-      Effect.provide(
-        OpenRouterClient.layer({ apiKey: apiKey.value, siteTitle: "Chalk" }).pipe(
-          Layer.provide(FetchHttpClient.layer),
-        ),
-      ),
+    const defaultModel = yield* Config.String("CHALK_COACH_MODEL").pipe(
+      Config.withDefault(DEFAULT_MODEL),
     );
-    return CoachModel.of({ model: Option.some({ name, languageModel }) });
+    if (Option.isNone(apiKey)) return CoachModel.of({ models: Option.none() });
+    if (!COACH_MODELS.some((option) => option.slug === defaultModel))
+      yield* Effect.logWarning(
+        `CHALK_COACH_MODEL=${defaultModel} is not on Chalk's model list; the coach offers it as the default, ahead of the list.`,
+      );
+    const client = OpenRouterClient.layer({ apiKey: apiKey.value, siteTitle: "Chalk" }).pipe(
+      Layer.provide(FetchHttpClient.layer),
+    );
+    const choices = yield* Effect.forEach(modelOptions(defaultModel), (option) =>
+      OpenRouterLanguageModel.make({ model: option.slug }).pipe(
+        Effect.map((languageModel): CoachModelChoice => ({ ...option, languageModel })),
+      ),
+    ).pipe(Effect.provide(client));
+    return CoachModel.of({ models: Option.some({ defaultModel, choices }) });
   }),
 );
 
@@ -96,7 +127,11 @@ const titleOf = (text: string) => {
   return `${cut.slice(0, cut.lastIndexOf(" ") > 40 ? cut.lastIndexOf(" ") : 80)}…`;
 };
 
-type SendError = CoachUnavailableError | CoachThreadNotFoundError | CoachStorageError;
+type SendError =
+  | CoachUnavailableError
+  | CoachModelNotAllowedError
+  | CoachThreadNotFoundError
+  | CoachStorageError;
 
 export class CoachService extends Context.Service<
   CoachService,
@@ -118,16 +153,22 @@ const reportStorageError = (error: CoachStore.CoachPersistenceError) =>
   );
 
 const make = Effect.gen(function* () {
-  const { model } = yield* CoachModel;
+  const { models } = yield* CoachModel;
   const store = yield* CoachStore.CoachStore;
   const workouts = yield* WorkoutStore.WorkoutStore;
   const strength = yield* StrengthStore.StrengthStore;
 
   const status = () =>
-    Effect.succeed({
-      available: Option.isSome(model),
-      model: Option.match(model, { onNone: () => null, onSome: ({ name }) => name }),
-    });
+    Effect.succeed(
+      Option.match(models, {
+        onNone: (): CoachStatus => ({ available: false, defaultModel: null, models: [] }),
+        onSome: ({ defaultModel, choices }): CoachStatus => ({
+          available: true,
+          defaultModel,
+          models: choices.map(({ slug, label, price }) => ({ slug, label, price })),
+        }),
+      }),
+    );
 
   const threads = () =>
     store.threads().pipe(Effect.catchTags({ CoachPersistenceError: reportStorageError }));
@@ -137,7 +178,7 @@ const make = Effect.gen(function* () {
 
   /** Runs the model until it answers without reading, or a limit stops it. */
   const reply = Effect.fnUntraced(function* (options: {
-    readonly languageModel: LanguageModel.LanguageModel;
+    readonly model: CoachModelChoice;
     readonly history: string;
     readonly text: string;
     readonly firstReceipt: number;
@@ -195,7 +236,7 @@ const make = Effect.gen(function* () {
         if (last) stopped = "step-limit";
       }
     }).pipe(
-      Effect.provideService(LanguageModel.LanguageModel, options.languageModel),
+      Effect.provideService(LanguageModel.LanguageModel, options.model.languageModel),
       Effect.timeout(REPLY_TIMEOUT),
       Effect.catch((error) =>
         Effect.logError("Coach reply failed", error).pipe(
@@ -224,6 +265,7 @@ const make = Effect.gen(function* () {
         role: "coach" as const,
         text: text === "" ? "The coach read your log but wrote no answer." : text,
         receipts,
+        model: options.model.slug,
         ...(stopped === undefined ? {} : { stopped }),
       },
       history,
@@ -233,8 +275,10 @@ const make = Effect.gen(function* () {
   const send = (input: CoachSendInput): Stream.Stream<CoachEvent, SendError> =>
     Stream.callback<CoachEvent, SendError>((queue) =>
       Effect.gen(function* () {
-        if (Option.isNone(model)) return yield* new CoachUnavailableError();
-        const { name, languageModel } = model.value;
+        if (Option.isNone(models)) return yield* new CoachUnavailableError();
+        const name = input.model ?? models.value.defaultModel;
+        const model = models.value.choices.find((choice) => choice.slug === name);
+        if (model === undefined) return yield* new CoachModelNotAllowedError({ model: name });
         const emit = (event: CoachEvent) => Queue.offer(queue, event);
 
         const started =
@@ -255,7 +299,7 @@ const make = Effect.gen(function* () {
         const replying = yield* Effect.forkDetach(
           Effect.gen(function* () {
             const answer = yield* reply({
-              languageModel,
+              model,
               history,
               text: input.text,
               firstReceipt: started.reads + 1,
