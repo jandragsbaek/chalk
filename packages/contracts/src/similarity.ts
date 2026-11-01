@@ -90,6 +90,8 @@ export const PartEchoes = Schema.Struct({
   matches: Schema.Array(PartMatch),
   /** Every match, shown or not. */
   total: Schema.Int,
+  /** The latest part from an earlier day this one repeats, shown or not. */
+  earlierRepeat: Schema.NullOr(TrimmedNonEmptyString),
 }).annotate({ identifier: "PartEchoes" });
 export type PartEchoes = typeof PartEchoes.Type;
 
@@ -165,6 +167,8 @@ function greedyPairs(
   left: number,
   right: number,
   weigh: (i: number, j: number) => number,
+  /** Among equal weights, pairs this returns true for go first. */
+  prefer: (i: number, j: number) => boolean = () => false,
 ): ReadonlyArray<readonly [i: number, j: number, weight: number]> {
   const candidates: Array<readonly [number, number, number]> = [];
   for (let i = 0; i < left; i++)
@@ -172,7 +176,12 @@ function greedyPairs(
       const weight = weigh(i, j);
       if (weight > 0) candidates.push([i, j, weight]);
     }
-  candidates.sort((a, b) => b[2] - a[2] || Math.abs(a[0] - a[1]) - Math.abs(b[0] - b[1]));
+  candidates.sort(
+    (a, b) =>
+      b[2] - a[2] ||
+      Number(prefer(b[0], b[1])) - Number(prefer(a[0], a[1])) ||
+      Math.abs(a[0] - a[1]) - Math.abs(b[0] - b[1]),
+  );
   const usedLeft = new Set<number>();
   const usedRight = new Set<number>();
   const pairs: Array<readonly [number, number, number]> = [];
@@ -191,6 +200,8 @@ interface Prepared {
     ShapeBlock & { readonly paramsKey: string; readonly setsKeys: ReadonlyArray<string> }
   >;
   readonly itemCount: number;
+  /** Distinct programmed movements. */
+  readonly movementCount: number;
   /** Core movements of every item, for skipping parts with nothing in common. */
   readonly cores: ReadonlySet<MovementId>;
 }
@@ -214,11 +225,16 @@ function compareBlocks(
   const format = formatScore(here.format, there.format);
   const sameParams = format === 1 && here.paramsKey === there.paramsKey;
   const params = sameParams ? 1 : format === 1 ? 0.5 : 0;
-  const pairs = greedyPairs(here.items.length, there.items.length, (i, j) => {
-    const left = here.items[i]!.movementId;
-    const right = there.items[j]!.movementId;
-    return left === right ? 1 : coreOf(left) === coreOf(right) ? FAMILY_CREDIT : 0;
-  });
+  const pairs = greedyPairs(
+    here.items.length,
+    there.items.length,
+    (i, j) => {
+      const left = here.items[i]!.movementId;
+      const right = there.items[j]!.movementId;
+      return left === right ? 1 : coreOf(left) === coreOf(right) ? FAMILY_CREDIT : 0;
+    },
+    (i, j) => here.setsKeys[i] === there.setsKeys[j],
+  );
   const differences: Array<PartDifference> = [];
   if (!sameParams)
     differences.push({ _tag: "format", here: headlineOf(here), there: headlineOf(there) });
@@ -275,6 +291,8 @@ function prepare(shape: PartShape, coreOf: (id: MovementId) => MovementId): Prep
     shape,
     blocks,
     itemCount: blocks.reduce((sum, block) => sum + block.items.length, 0),
+    movementCount: new Set(blocks.flatMap((block) => block.items.map((item) => item.movementId)))
+      .size,
     cores: new Set(blocks.flatMap((block) => block.items.map((item) => coreOf(item.movementId)))),
   };
 }
@@ -302,7 +320,7 @@ function compareParts(
     pairs.length === here.blocks.length &&
     pairs.every(([i, j]) => comparisons.get(`${i}:${j}`)!.exact);
   if (exact) return { other, kind: "repeat", score: 1, differences: [] };
-  if (Math.min(here.itemCount, there.itemCount) < 2) return undefined;
+  if (Math.min(here.movementCount, there.movementCount) < 2) return undefined;
 
   let weighted = 0;
   const differences: Array<PartDifference> = [];
@@ -358,10 +376,15 @@ export function findSimilarParts(
         right.score - left.score ||
         distance(left) - distance(right),
     );
+    const dayOf = (match: PartMatch) => byId.get(match.other)!.performedOn;
+    const earlier = matches
+      .filter((match) => match.kind === "repeat" && dayOf(match) < here.shape.performedOn)
+      .sort((left, right) => dayOf(right).localeCompare(dayOf(left)));
     echoes.push({
       part: here.shape.id,
       matches: matches.slice(0, MAX_MATCHES),
       total: matches.length,
+      earlierRepeat: earlier[0]?.other ?? null,
     });
   }
   return echoes;

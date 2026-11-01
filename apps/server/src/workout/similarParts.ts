@@ -187,8 +187,6 @@ function similarParts(
     if (list) list.push(shape);
     else partsByWorkout.set(shape.workoutId, [shape]);
   }
-  // Parts come newest first; within a workout they keep their position order.
-  for (const list of partsByWorkout.values()) list.reverse();
   const partProgramming = (shape: PartShape, movementId: MovementId) =>
     shape.blocks.some((block) => block.items.some((item) => item.movementId === movementId));
   for (const lift of lifts) {
@@ -202,7 +200,13 @@ function similarParts(
   }
 
   const echoes = findSimilarParts(shapes, coreOf);
-  const named = new Set(echoes.flatMap((echo) => [echo.part, ...echo.matches.map((m) => m.other)]));
+  const named = new Set(
+    echoes.flatMap((echo) => [
+      echo.part,
+      ...echo.matches.map((match) => match.other),
+      ...(echo.earlierRepeat === null ? [] : [echo.earlierRepeat]),
+    ]),
+  );
 
   const refs = parts
     .filter((part) => named.has(part.id))

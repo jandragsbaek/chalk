@@ -35,6 +35,7 @@ export interface SimilarIndex {
 export function indexSimilar(similar: SimilarParts): SimilarIndex {
   const refs = new Map(similar.parts.map((part) => [part.id, part]));
   const byWorkout = new Map<string, Array<PartEchoGroup>>();
+  const earlierByWorkout = new Map<string, PartRef>();
   const group = (echo: PartEchoes): PartEchoGroup | undefined => {
     const part = refs.get(echo.part);
     if (part === undefined) return undefined;
@@ -50,24 +51,17 @@ export function indexSimilar(similar: SimilarParts): SimilarIndex {
     const list = byWorkout.get(entry.part.workoutId);
     if (list) list.push(entry);
     else byWorkout.set(entry.part.workoutId, [entry]);
+    const earlier = echo.earlierRepeat === null ? undefined : refs.get(echo.earlierRepeat);
+    const latest = earlierByWorkout.get(entry.part.workoutId);
+    if (earlier && (latest === undefined || earlier.performedOn > latest.performedOn))
+      earlierByWorkout.set(entry.part.workoutId, earlier);
   }
   for (const list of byWorkout.values())
     list.sort((left, right) => left.part.position - right.part.position);
 
   return {
     ofWorkout: (workoutId) => byWorkout.get(workoutId) ?? [],
-    repeatsEarlier: (workoutId) => {
-      let latest: PartRef | undefined;
-      for (const { part, echoes } of byWorkout.get(workoutId) ?? [])
-        for (const { match, other } of echoes)
-          if (
-            match.kind === "repeat" &&
-            other.performedOn < part.performedOn &&
-            (latest === undefined || other.performedOn > latest.performedOn)
-          )
-            latest = other;
-      return latest;
-    },
+    repeatsEarlier: (workoutId) => earlierByWorkout.get(workoutId),
   };
 }
 

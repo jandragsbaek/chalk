@@ -2483,12 +2483,25 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "earlierRepeat": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "part",
           "matches",
-          "total"
+          "total",
+          "earlierRepeat"
         ],
         "additionalProperties": false
       },

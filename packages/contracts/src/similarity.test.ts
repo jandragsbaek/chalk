@@ -141,4 +141,52 @@ describe("findSimilarParts", () => {
     const echoes = findSimilarParts([fran("a", "2026-01-01"), fran("b", "2026-06-01")], coreOf);
     expect(echoes.map((echo) => echo.matches[0]?.kind)).toEqual(["repeat", "repeat"]);
   });
+  it("pairs a movement written twice by its numbers, so a reordered block still repeats", () => {
+    const echoes = findSimilarParts(
+      [
+        ...partsOf(
+          "a",
+          "2026-09-01",
+          "**** Workout #1\n- Amrap 10\n- 5 Back squats\n- 10 Back squats\n- 20 Cal row",
+        ),
+        ...partsOf(
+          "b",
+          "2026-10-01",
+          "**** Workout #1\n- Amrap 10\n- 10 Back squats\n- 20 Cal row\n- 5 Back squats",
+        ),
+      ],
+      coreOf,
+    );
+    expect(echoes.map((echo) => echo.matches.map((match) => match.kind))).toEqual([
+      ["repeat"],
+      ["repeat"],
+    ]);
+  });
+
+  it("counts movements, not lines, for the single-lift rule", () => {
+    const squats = (reps: number) =>
+      `**** Workout #1\n- 5 Back squats @80kg\n- ${reps} Back squats @70kg`;
+    const echoes = findSimilarParts(
+      [...partsOf("a", "2026-09-01", squats(8)), ...partsOf("b", "2026-10-01", squats(10))],
+      coreOf,
+    );
+    expect(echoes).toEqual([]);
+  });
+
+  it("keeps the latest earlier repeat when the listed matches leave it out", () => {
+    const later = [1, 2, 3, 4, 5, 6].map((month) =>
+      partsOf(`later${month}`, `2027-0${month}-01`, SESSION_167),
+    );
+    const echoes = findSimilarParts(
+      [
+        ...partsOf("old", "2026-01-01", SESSION_167),
+        ...partsOf("now", "2026-12-01", SESSION_167),
+        ...later.flat(),
+      ],
+      coreOf,
+    );
+    const now = echoes.find((echo) => echo.part === "now/1");
+    expect(now?.matches.map((match) => match.other)).not.toContain("old/1");
+    expect(now?.earlierRepeat).toBe("old/1");
+  });
 });

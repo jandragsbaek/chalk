@@ -21,7 +21,7 @@ const part = (id: string, workoutId: string, performedOn: string, position = 0):
 const repeat = { kind: "repeat", score: 1, differences: [] } as const;
 
 describe("indexSimilar", () => {
-  it("names the latest earlier session a session repeats, never a later one", () => {
+  it("names the latest earlier session a session repeats, even one not listed", () => {
     const similar = {
       parts: [
         part("july/0", "july", "2026-07-01"),
@@ -33,13 +33,16 @@ describe("indexSimilar", () => {
         {
           part: "now/1",
           total: 3,
-          matches: [
-            { other: "dec/0", ...repeat },
-            { other: "july/0", ...repeat },
-            { other: "sept/0", ...repeat },
-          ],
+          // Only the later repeat is listed; September is beyond the shown matches.
+          matches: [{ other: "dec/0", ...repeat }],
+          earlierRepeat: "sept/0",
         },
-        { part: "july/0", total: 1, matches: [{ other: "now/1", ...repeat }] },
+        {
+          part: "july/0",
+          total: 1,
+          matches: [{ other: "now/1", ...repeat }],
+          earlierRepeat: null,
+        },
       ],
     } as unknown as SimilarParts;
     const index = indexSimilar(similar);
@@ -47,7 +50,7 @@ describe("indexSimilar", () => {
     expect(index.repeatsEarlier("july")).toBeUndefined();
     expect(
       index.ofWorkout("now").map((group) => group.echoes.map((echo) => echo.other.id)),
-    ).toEqual([["dec/0", "july/0", "sept/0"]]);
+    ).toEqual([["dec/0"]]);
   });
 });
 
