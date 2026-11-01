@@ -4,6 +4,7 @@ import * as AiError from "effect/ai/AiError";
 import * as LanguageModel from "effect/ai/LanguageModel";
 import type * as Response from "effect/ai/Response";
 import * as SecureRandom from "effect/crypto/SecureRandom";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -68,11 +69,14 @@ const noModel = Layer.succeed(
   CoachService.CoachModel.of({ model: Option.none() }),
 );
 
-const layerWith = (model: Layer.Layer<CoachService.CoachModel>) =>
+const layerWith = (
+  model: Layer.Layer<CoachService.CoachModel>,
+  coachStore: typeof CoachStore.layer = CoachStore.layer,
+) =>
   CoachService.layer.pipe(
     Layer.provide(model),
     Layer.provideMerge(
-      Layer.mergeAll(CoachStore.layer, StrengthStore.layer, WorkoutStore.layer).pipe(
+      Layer.mergeAll(coachStore, StrengthStore.layer, WorkoutStore.layer).pipe(
         Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)),
         Layer.provide(ServerConfig.layerTest()),
       ),
@@ -230,7 +234,62 @@ describe("CoachService", () => {
       expect(reply.turn).toMatchObject({ role: "coach", stopped: "model-error", receipts: [] });
       expect(reply.turn.text).toContain("could not answer");
       expect(reply.thread).toMatchObject({ turns: 2, unanswered: true });
+
+      // Asking again in the thread: the model is shown the question that failed, too.
+      yield* send({ threadId: reply.thread.id, text: "Still there?" });
+      const said = JSON.stringify(failing.calls.at(-1)?.prompt.content);
+      expect(said).toContain("Anything?");
+      expect(said).toContain("Still there?");
     }).pipe(Effect.provide(layerWith(failing.model))),
+  );
+
+  const gate = Deferred.makeUnsafe<void>();
+  const slowAnswer = scriptedModel((options) =>
+    options.prompt.content.at(-1)?.role === "tool"
+      ? Deferred.await(gate).pipe(Effect.as(text("Done reading (R1).")))
+      : Effect.succeed(toolCalls([{ name: "list_movements", params: {} }])),
+  );
+  /** Completes once the coach's reply is saved. */
+  const replySaved = Deferred.makeUnsafe<void>();
+  const tappedStore = Layer.effect(
+    CoachStore.CoachStore,
+    Effect.gen(function* () {
+      const store = yield* CoachStore.CoachStore;
+      return CoachStore.CoachStore.of({
+        ...store,
+        append: (id, turn, stamp) =>
+          store
+            .append(id, turn, stamp)
+            .pipe(
+              Effect.tap(() =>
+                turn.role === "coach" ? Deferred.succeed(replySaved, undefined) : Effect.void,
+              ),
+            ),
+      });
+    }),
+  ).pipe(Layer.provide(CoachStore.layer));
+
+  it.effect("finishes and saves the reply when the page stops listening mid-reply", () =>
+    Effect.gen(function* () {
+      const coach = yield* CoachService.CoachService;
+      // The page goes away once the first read lands, while the model is still writing.
+      const seen = Array.from(
+        yield* Stream.runCollect(
+          coach
+            .send({ text: "Read the catalog." })
+            .pipe(Stream.takeUntil((event) => event._tag === "ReadFinished")),
+        ),
+      );
+      const thread = (seen[0] as Extract<CoachEvent, { _tag: "AthleteTurn" }>).thread;
+      yield* Deferred.succeed(gate, undefined);
+      yield* Deferred.await(replySaved);
+
+      const detail = yield* coach.thread(thread.id);
+      expect(detail.turns.map((turn) => [turn.role, turn.text, turn.receipts.length])).toEqual([
+        ["athlete", "Read the catalog.", 0],
+        ["coach", "Done reading (R1).", 1],
+      ]);
+    }).pipe(Effect.provide(layerWith(slowAnswer.model, tappedStore))),
   );
 
   it.effect("refuses a thread that does not exist", () =>

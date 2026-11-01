@@ -21,6 +21,7 @@ import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -173,7 +174,11 @@ const make = Effect.gen(function* () {
     const chat = yield* options.history === ""
       ? Chat.empty
       : Chat.fromJson(options.history).pipe(Effect.orDie);
-    yield* Ref.update(chat.history, Prompt.setSystem(systemPrompt(today)));
+    // The athlete's message joins the transcript up front: Chat only commits a prompt once a
+    // generation succeeds, and a failed reply must not drop the question from the thread.
+    yield* Ref.update(chat.history, (history) =>
+      Prompt.concat(Prompt.setSystem(history, systemPrompt(today)), Prompt.make(options.text)),
+    );
 
     const texts: Array<string> = [];
     let stopped: CoachTurn["stopped"];
@@ -181,7 +186,7 @@ const make = Effect.gen(function* () {
       for (let step = 0; step < MAX_STEPS; step++) {
         const last = step === MAX_STEPS - 1;
         const response = yield* chat.generateText({
-          prompt: step === 0 ? options.text : [],
+          prompt: [],
           toolkit,
           toolChoice: last ? "none" : "auto",
         });
@@ -245,18 +250,25 @@ const make = Effect.gen(function* () {
         );
         yield* emit({ _tag: "AthleteTurn", thread: athlete.thread, turn: athlete.turn });
 
-        const answer = yield* reply({
-          languageModel,
-          history,
-          text: input.text,
-          firstReceipt: started.reads + 1,
-          emit,
-        });
-        const coach = yield* store.append(started.id, answer.turn, {
-          model: name,
-          history: answer.history,
-        });
-        yield* emit({ _tag: "CoachTurn", thread: coach.thread, turn: coach.turn });
+        // The reply runs detached from the request: if the page goes away mid-reply, the coach
+        // still finishes and saves it, and the thread shows it on the next visit.
+        const replying = yield* Effect.forkDetach(
+          Effect.gen(function* () {
+            const answer = yield* reply({
+              languageModel,
+              history,
+              text: input.text,
+              firstReceipt: started.reads + 1,
+              emit,
+            });
+            const coach = yield* store.append(started.id, answer.turn, {
+              model: name,
+              history: answer.history,
+            });
+            yield* emit({ _tag: "CoachTurn", thread: coach.thread, turn: coach.turn });
+          }),
+        );
+        yield* Fiber.join(replying);
         yield* Queue.end(queue);
       }).pipe(Effect.catchTags({ CoachPersistenceError: reportStorageError })),
     );

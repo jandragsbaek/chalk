@@ -65,8 +65,11 @@ export function CoachSection({
   open,
   onToggle,
   onCite,
+  cited,
 }: {
   readonly turn: CoachTurn;
+  /** Every receipt number in the thread: a reply may cite a read from an earlier turn. */
+  readonly cited: ReadonlySet<number>;
   readonly open: ReadonlySet<number>;
   readonly onToggle: (number: number) => void;
   readonly onCite: (number: number) => void;
@@ -77,7 +80,6 @@ export function CoachSection({
     request: receipt.request,
     receipt,
   }));
-  const known = new Set(turn.receipts.map((receipt) => receipt.number));
   return (
     <section aria-label="Coach" className="grid gap-3">
       <div>
@@ -107,7 +109,7 @@ export function CoachSection({
                   <Citation
                     key={segment.offset}
                     number={segment.number}
-                    known={known.has(segment.number)}
+                    known={cited.has(segment.number)}
                     onCite={onCite}
                   />
                 ),

@@ -193,6 +193,9 @@ function ThreadPane({
   // Until the server has saved it, the message just sent prints as typed.
   const echo = busy && liveHere?.athlete == null ? sentHere : null;
   const nextSeq = (turns.at(-1)?.seq ?? 0) + 1;
+  const receiptNumbers = new Set(
+    turns.flatMap((turn) => turn.receipts.map((receipt) => receipt.number)),
+  );
 
   // oxlint-disable-next-line chalk/no-unreasoned-state-sync -- keeps the scroll pane pinned to the newest turn as the DOM grows (reads landing, replies saved), unless the athlete scrolled up to read
   useEffect(() => {
@@ -239,6 +242,7 @@ function ThreadPane({
               <CoachSection
                 key={turn.seq}
                 turn={turn}
+                cited={receiptNumbers}
                 open={open}
                 onToggle={toggle}
                 onCite={cite}
