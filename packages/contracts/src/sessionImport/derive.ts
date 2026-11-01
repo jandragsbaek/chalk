@@ -60,6 +60,11 @@ export interface DerivedBlock {
   readonly intents: ReadonlyArray<DerivedIntent>;
   readonly comments: ReadonlyArray<DerivedComment>;
   readonly scores: ReadonlyArray<string>;
+  /**
+   * Numbered lines ("1) 12 cal row", "4) Rest") in an EMOM or every-X block: how many lines it
+   * rotates through, one per interval. Absent when the lines are not numbered.
+   */
+  readonly rotation?: number;
   /** Reps × load over the block's performed sets, alternatives included. */
   readonly tonnageKg: number;
 }
@@ -261,6 +266,9 @@ const kindOf = (parts: ReadonlyArray<DerivedPart>): WorkoutKind => {
   for (const kind of ["for_time", "amrap", "emom"] as const) if (last.includes(kind)) return kind;
   return formats.includes("strength") ? "strength" : "other";
 };
+
+/** "1) 18-15/15-12 cal row": a numbered line of a rotating EMOM. */
+const ROTATION_LINE = /^(\d{1,2})\)\s/;
 
 const stripBullet = (line: string) =>
   line
@@ -690,6 +698,30 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     }));
   };
 
+  // A block's own lines run from its format line to the next block, part, notes or benchmark.
+  const sectionStarts = spans
+    .filter(
+      (span) =>
+        span._tag === "block" ||
+        span._tag === "part" ||
+        span._tag === "notes" ||
+        span._tag === "benchmark",
+    )
+    .map((span) => span.start);
+  const rotationOf = (blockSpanId: SpanId | undefined): number | undefined => {
+    const span = blockSpanId === undefined ? undefined : byId.get(blockSpanId);
+    if (span === undefined) return undefined;
+    const next = sectionStarts.find((start) => start > span.start);
+    const from = lineOf(span.start) + 1;
+    const to = next === undefined ? lines.length : lineOf(next);
+    let rotation = 0;
+    for (const line of lines.slice(from, to)) {
+      const number = ROTATION_LINE.exec(stripBullet(line.text))?.[1];
+      if (number !== undefined) rotation = Math.max(rotation, Number(number));
+    }
+    return rotation > 1 ? rotation : undefined;
+  };
+
   const derivedParts: Array<DerivedPart> = parts.map((part) => {
     let blocks = part.blocks;
     // "Back squat / Max out! / 10 reps @20-30%": the movement comes before its format line.
@@ -749,6 +781,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
       ...base,
       blocks: blocks.map((block, index) => {
         const items = block.items.map(toItem);
+        const rotation = rotationOf(block.spanId);
         return {
           spanId: block.spanId,
           title: block.title,
@@ -761,6 +794,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
             ...(block.spanId === undefined ? [] : (scoresOf.get(block.spanId) ?? [])),
             ...(index === scoredAt ? benchmarkScores : []),
           ],
+          ...(rotation === undefined ? {} : { rotation }),
           tonnageKg: roundKg(items.reduce((total, item) => total + itemTonnage(item), 0)),
         };
       }),

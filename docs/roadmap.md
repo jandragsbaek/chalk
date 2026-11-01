@@ -63,5 +63,9 @@ coach.
   optional arm and inseam lengths, bodyweight over time, on `/settings`. A plain settings page,
   not a setup wizard. RPCs: `profile.get`, `profile.update`, `bodyweights.log`,
   `bodyweights.delete`; migration `013_AthleteProfile`.
+- Work and power (done): estimated work per session and block and average power, from the
+  athlete's body and what each session asked (see domain.md). Session sheet, benchmark
+  attempts, `/power` trend. RPC `power.sessions`. Later: % of 1RM loads from the estimated 1RM,
+  box height and vest per attempt, how a scaled benchmark was done.
 - Desk pages: catalog management (movements, scaling options, templates).
 - Import pasted session text (done: the Import page, see domain.md). Whiteboard photos later.

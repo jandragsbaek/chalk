@@ -2,6 +2,9 @@ import {
   benchmarkById,
   deriveSession,
   describeDebrief,
+  estimateBenchmarkWork,
+  estimateSessionWork,
+  workModelsFor,
   formatPerformed,
   tonnageOf,
   type CatalogMovement,
@@ -35,6 +38,14 @@ import { gradeSession } from "../../lib/levelGrades.ts";
 import { findComplexes } from "../../lib/complexes.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
 import type { PartEchoGroup } from "../../lib/similar.ts";
+import {
+  bodyOn,
+  describeBody,
+  formatClock,
+  formatKj,
+  formatWatts,
+  useProfile,
+} from "../../lib/power.ts";
 import { formatDay } from "../../lib/utils.ts";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { IMPORTS_REACTIVITY_KEY, storedImportAtom } from "../../state/imports.ts";
@@ -43,6 +54,7 @@ import { LIFTS_REACTIVITY_KEY } from "../../state/strength.ts";
 import { WORKOUTS_REACTIVITY_KEY } from "../../state/workouts.ts";
 import { FieldBox } from "../FieldBox.tsx";
 import { SectionHeader, SessionProtocol } from "../import/SessionProtocol.tsx";
+import { WorkSection } from "./WorkSection.tsx";
 import { SimilarSessions } from "./SimilarSessions.tsx";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
@@ -204,6 +216,7 @@ function ImportedProtocol({
 }) {
   const sex = useAthleteSex();
   const result = useAtomValue(storedImportAtom(workoutId));
+  const profile = useProfile();
   return AsyncResult.match(result, {
     onInitial: () => (
       <p className="px-4 py-8 text-sm text-muted-foreground">Reading the protocol...</p>
@@ -223,6 +236,7 @@ function ImportedProtocol({
       const session = deriveSession(stored.document, nameOf);
       const grades = gradeSession(session, names.catalog, sex);
       const complexes = findComplexes(session, stored.document, (id) => byId.get(id)?.category);
+      const body = bodyOn(profile, session.performedOn ?? stored.summary.performedOn);
       return (
         <>
           <SessionProtocol
@@ -234,6 +248,15 @@ function ImportedProtocol({
               complexOf: (id) => complexes.get(id),
             }}
           />
+          <WorkSection
+            work={
+              body === undefined
+                ? undefined
+                : estimateSessionWork(session, body, workModelsFor(names.catalog))
+            }
+            bodyLabel={body === undefined ? "" : describeBody(body)}
+            nameOf={names.nameOf}
+          />
           {stored.document.debrief ? <DebriefRead debrief={stored.document.debrief} /> : null}
         </>
       );
@@ -244,6 +267,12 @@ function ImportedProtocol({
 function LoggedResult({ workout }: { readonly workout: Workout }) {
   const benchmark =
     workout.benchmarkId === undefined ? undefined : benchmarkById(workout.benchmarkId);
+  const body = bodyOn(useProfile(), workout.performedOn);
+  // A scaled attempt's loads are not recorded, so only Rx has a known workload.
+  const work =
+    benchmark === undefined || body === undefined || !workout.rx
+      ? undefined
+      : estimateBenchmarkWork(benchmark, workout.score, body, workModelsFor([]));
   return (
     <section aria-label="Result">
       <SectionHeader title="Result" meta={workout.rx ? "As prescribed" : "Scaled"} />
@@ -262,6 +291,15 @@ function LoggedResult({ workout }: { readonly workout: Workout }) {
           </span>
         )}
         <Badge variant={workout.rx ? "default" : "muted"}>{workout.rx ? "Rx" : "Scaled"}</Badge>
+        {work && body ? (
+          <span className="text-sm tabular-nums" title={`Estimated for ${describeBody(body)}`}>
+            <span className="font-semibold">{formatWatts(work.watts)}</span>
+            <span className="text-muted-foreground">
+              {" "}
+              · {formatKj(work.joules)} in {formatClock(work.seconds)}
+            </span>
+          </span>
+        ) : null}
         {benchmark ? (
           <Link
             to="/benchmarks/$benchmarkId"

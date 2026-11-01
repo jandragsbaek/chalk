@@ -5,6 +5,8 @@ import {
   makeMovementMatcher,
   MovementId,
   normalizeMovementPhrase,
+  WORK_MODELS,
+  workModelsFor,
 } from "@chalk/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -61,6 +63,20 @@ describe("CatalogStore", () => {
             byId.get(movement.variationOf)?.variationOf !== undefined,
         ),
       ).toEqual([]);
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("has a work model for every seeded movement, and none for a movement it lacks", () =>
+    Effect.gen(function* () {
+      const store = yield* CatalogStore.CatalogStore;
+      const catalog = yield* store.list();
+      const ids = new Set<string>(catalog.map((movement) => movement.id));
+      expect(Object.keys(WORK_MODELS).filter((id) => !ids.has(id))).toEqual([]);
+      const modelOf = workModelsFor(catalog);
+      // Swimming and the VersaClimber report nothing that turns into work against gravity.
+      expect(
+        catalog.filter((movement) => modelOf(movement.id) === undefined).map((m) => m.id),
+      ).toEqual(["swim", "versaclimber"]);
     }).pipe(Effect.provide(layer)),
   );
 

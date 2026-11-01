@@ -16,6 +16,7 @@ import {
   CoachUnavailableError,
 } from "./coach.ts";
 import { LevelOverview, LevelStorageError } from "./levelOverview.ts";
+import { PowerSession, PowerStorageError } from "./power/history.ts";
 import {
   AthleteBody,
   AthleteProfile,
@@ -51,6 +52,7 @@ export const RPC_METHODS = {
   liftsRecords: "lifts.records",
   levelsList: "levels.list",
   benchmarksResults: "benchmarks.results",
+  powerSessions: "power.sessions",
   coachStatus: "coach.status",
   coachThreads: "coach.threads",
   coachThread: "coach.thread",
@@ -117,6 +119,12 @@ const BenchmarksResultsRpc = Rpc.make(RPC_METHODS.benchmarksResults, {
   error: WorkoutStorageError,
 });
 
+/** Every saved session work can be estimated for, oldest first: imports and Rx benchmarks. */
+const PowerSessionsRpc = Rpc.make(RPC_METHODS.powerSessions, {
+  success: Schema.Array(PowerSession),
+  error: PowerStorageError,
+});
+
 const CoachStatusRpc = Rpc.make(RPC_METHODS.coachStatus, { success: CoachStatus });
 
 /** Every coach thread, most recently answered first. */
@@ -179,6 +187,7 @@ export const ChalkRpcGroup = RpcGroup.make(
   LiftsRecordsRpc,
   LevelsListRpc,
   BenchmarksResultsRpc,
+  PowerSessionsRpc,
   CoachStatusRpc,
   CoachThreadsRpc,
   CoachThreadRpc,
