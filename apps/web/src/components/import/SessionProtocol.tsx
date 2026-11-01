@@ -8,13 +8,17 @@ import {
   type DerivedSession,
   type ImportIssue,
   type ItemGrade,
+  levelKey,
+  levelName,
   type MovementId,
   type SpanId,
 } from "@chalk/contracts";
+import { LevelBadge } from "@chalk/ui/components/level-ruler.tsx";
 import type { ReactNode } from "react";
 
 import { describeBlock, formatKg } from "../../lib/blockLabels.ts";
 import { describePlan } from "../../lib/plan.ts";
+import { chosenOption } from "../../lib/station.ts";
 import { LevelLine, type GradeSide, type LevelLead } from "./LevelVerdict.tsx";
 
 export interface ProtocolNames {
@@ -49,11 +53,9 @@ const rowState = (editor: ProtocolEditor | undefined, id: SpanId) => ({
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
-export const countItems = (items: ReadonlyArray<DerivedItem>): number =>
-  items.reduce((total, item) => total + 1 + countItems(item.alternatives), 0);
-
-const blockItems = (blocks: ReadonlyArray<DerivedBlock>) =>
-  countItems(blocks.flatMap((block) => block.items));
+/** Stations of the blocks: "60 DU or 90 SU" is one, done one way. */
+const stationCount = (blocks: ReadonlyArray<DerivedBlock>) =>
+  blocks.reduce((total, block) => total + block.items.length, 0);
 
 /**
  * What the row's level line leads with. Planning: the plan. Logging a plan: what was done once
@@ -72,16 +74,26 @@ const leadOf = (item: DerivedItem, names: ProtocolNames): LevelLead | undefined 
     : { label: "Done", text: done, note: `planned ${plan}` };
 };
 
-function ItemRow({
+/**
+ * One way to do a station. The option the station is done (or planned) by gets the full row with
+ * its level line; another option is one compact "or" line with the level the board asks of it,
+ * dimmed once a different option was picked.
+ */
+function OptionRow({
   item,
   names,
   editor,
   alternative,
+  full,
+  passed,
 }: {
   readonly item: DerivedItem;
   readonly names: ProtocolNames;
   readonly editor: ProtocolEditor | undefined;
-  readonly alternative?: boolean;
+  readonly alternative: boolean;
+  readonly full: boolean;
+  /** Another option of the station was picked. */
+  readonly passed: boolean;
 }) {
   const name = item.movementId === undefined ? undefined : names.nameOf(item.movementId);
   const core = item.movementId === undefined ? undefined : names.coreOf(item.movementId);
@@ -94,7 +106,7 @@ function ItemRow({
     item.plan,
   ]);
   const grade = names.gradeOf(item.spanId);
-  const lead = leadOf(item, names);
+  const lead = full ? leadOf(item, names) : undefined;
   const content = (
     <>
       {editor ? <span key={signature} data-flash aria-hidden /> : null}
@@ -142,6 +154,17 @@ function ItemRow({
             </span>
           ))
         )}
+        {!full && grade?.prescribed !== undefined ? (
+          <span className="flex h-7 items-center">
+            <LevelBadge
+              level={levelKey(grade.prescribed.level)}
+              open
+              title={`The board asks ${levelName(grade.prescribed.level)} of this option`}
+            >
+              {levelName(grade.prescribed.level)}
+            </LevelBadge>
+          </span>
+        ) : null}
         {item.performed.length > 0 ? (
           <span
             data-result-box
@@ -167,7 +190,7 @@ function ItemRow({
             )}
           </span>
         ) : null}
-        {grade ? (
+        {full && grade ? (
           <LevelLine
             grade={grade}
             nameOf={names.nameOf}
@@ -179,39 +202,59 @@ function ItemRow({
       </span>
     </>
   );
-  const rowClass =
-    "relative grid w-full grid-cols-[minmax(0,13rem)_minmax(0,1fr)] items-start gap-4 px-4 py-1 text-left";
+  const rowClass = `relative grid w-full grid-cols-[minmax(0,13rem)_minmax(0,1fr)] items-start gap-4 px-4 text-left ${
+    alternative ? "pb-1" : "py-1"
+  } ${passed ? "opacity-55" : ""}`;
+  return editor ? (
+    <button
+      type="button"
+      data-protocol-row
+      data-open={name === undefined ? "" : undefined}
+      data-passed={passed ? "" : undefined}
+      {...rowState(editor, item.spanId)}
+      className={rowClass}
+      onClick={() => editor.onSelect(item.spanId)}
+      onMouseEnter={() => editor.onHover(item.spanId)}
+      onMouseLeave={() => editor.onHover(undefined)}
+    >
+      {content}
+    </button>
+  ) : (
+    <div className={rowClass} data-passed={passed ? "" : undefined}>
+      {content}
+    </div>
+  );
+}
+
+/**
+ * One station of a block: the item, and below it any alternative ("or 90 Single-unders") as a
+ * way to do the same station. The option picked by a plan (or by what was done) carries the
+ * level line; until one is picked, the item does.
+ */
+function StationRow({
+  item,
+  names,
+  editor,
+}: {
+  readonly item: DerivedItem;
+  readonly names: ProtocolNames;
+  readonly editor: ProtocolEditor | undefined;
+}) {
+  const picked = chosenOption(item, names.gradeSide ?? "done");
+  const leading = picked ?? item;
   return (
     <li>
-      {editor ? (
-        <button
-          type="button"
-          data-protocol-row
-          data-open={name === undefined ? "" : undefined}
-          {...rowState(editor, item.spanId)}
-          className={rowClass}
-          onClick={() => editor.onSelect(item.spanId)}
-          onMouseEnter={() => editor.onHover(item.spanId)}
-          onMouseLeave={() => editor.onHover(undefined)}
-        >
-          {content}
-        </button>
-      ) : (
-        <div className={rowClass}>{content}</div>
-      )}
-      {item.alternatives.length > 0 ? (
-        <ul>
-          {item.alternatives.map((alternativeItem) => (
-            <ItemRow
-              key={alternativeItem.spanId}
-              item={alternativeItem}
-              names={names}
-              editor={editor}
-              alternative
-            />
-          ))}
-        </ul>
-      ) : null}
+      {[item, ...item.alternatives].map((option, index) => (
+        <OptionRow
+          key={option.spanId}
+          item={option}
+          names={names}
+          editor={editor}
+          alternative={index > 0}
+          full={option === leading}
+          passed={picked !== undefined && option !== picked}
+        />
+      ))}
     </li>
   );
 }
@@ -351,7 +394,7 @@ export function SessionProtocol({
         <section key={part.spanId ?? `implicit-${partIndex}`} aria-label={part.title}>
           <SectionHeader
             title={part.title}
-            meta={`${part.benchmarkId === undefined ? "" : `${benchmarkById(part.benchmarkId)?.name ?? part.benchmarkId}, `}${plural(part.blocks.length, "block", "blocks")}, ${plural(blockItems(part.blocks), "movement", "movements")}`}
+            meta={`${part.benchmarkId === undefined ? "" : `${benchmarkById(part.benchmarkId)?.name ?? part.benchmarkId}, `}${plural(part.blocks.length, "block", "blocks")}, ${plural(stationCount(part.blocks), "movement", "movements")}`}
           />
           <div
             aria-hidden
@@ -439,7 +482,7 @@ export function SessionProtocol({
               ) : (
                 <ul className="divide-y">
                   {block.items.map((item) => (
-                    <ItemRow key={item.spanId} item={item} names={names} editor={editor} />
+                    <StationRow key={item.spanId} item={item} names={names} editor={editor} />
                   ))}
                 </ul>
               )}

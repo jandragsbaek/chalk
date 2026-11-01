@@ -15,6 +15,7 @@ import {
 } from "@chalk/contracts";
 
 import { resultDefaults, type ResultDefaults } from "./resultDraft.ts";
+import { chosenOption } from "./station.ts";
 import { WORKOUT_KIND_LABELS } from "./workoutKinds.ts";
 
 const kgFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
@@ -92,8 +93,8 @@ export interface PlannedMovement {
 }
 
 /**
- * The plan at a glance: every programmed movement in order with its planned scaling. An
- * alternative ("or 90 single-unders") shows only when a plan picks it.
+ * The plan at a glance: every station in order with its planned scaling. An alternative ("or 90
+ * single-unders") stands in for its item when the plan picks it.
  */
 export function plannedMovements(
   session: DerivedSession,
@@ -106,10 +107,7 @@ export function plannedMovements(
   });
   return session.parts.flatMap((part) =>
     part.blocks.flatMap((block) =>
-      block.items.flatMap((item) => [
-        row(item),
-        ...item.alternatives.filter((alternative) => alternative.plan !== undefined).map(row),
-      ]),
+      block.items.map((item) => row(chosenOption(item, "planned") ?? item)),
     ),
   );
 }

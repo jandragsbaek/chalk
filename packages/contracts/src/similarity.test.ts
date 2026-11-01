@@ -79,7 +79,8 @@ describe("findSimilarParts", () => {
           {
             _tag: "format",
             here: { format: "amrap", params: { durationSeconds: 720 } },
-            there: { format: "amrap", params: { durationSeconds: 900 } },
+            // The 2026-10-28 AMRAP rested 30 s between rounds; the retest does not.
+            there: { format: "amrap", params: { durationSeconds: 900, restSeconds: 30 } },
           },
           {
             _tag: "numbers",
