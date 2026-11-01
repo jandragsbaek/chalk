@@ -1,5 +1,4 @@
 import {
-  BENCHMARK_CATEGORY_NAMES,
   BENCHMARK_SOURCES,
   gradeItem,
   LEVEL_SHORT,
@@ -13,7 +12,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 
-import { historyByBenchmark, historyOf, rxDivision } from "../lib/benchmarks.ts";
+import { benchmarkFacts, historyByBenchmark, historyOf, rxDivision } from "../lib/benchmarks.ts";
 import { catalogLookup, type CatalogLookup } from "../lib/catalog.ts";
 import { useAthleteSex } from "../lib/profile.ts";
 import { formatDay } from "../lib/utils.ts";
@@ -21,17 +20,6 @@ import { benchmarkResultsAtom } from "../state/benchmarks.ts";
 import { levelsAtom } from "../state/strength.ts";
 import { BenchmarkBoard } from "./BenchmarkBoard.tsx";
 import { LogWorkoutForm } from "./LogWorkoutForm.tsx";
-
-const facts = (benchmark: Benchmark) =>
-  [
-    BENCHMARK_CATEGORY_NAMES[benchmark.category],
-    benchmark.firstPosted ? `First posted ${formatDay(benchmark.firstPosted)}` : undefined,
-    benchmark.team ? `Team of ${benchmark.team}` : undefined,
-    benchmark.timeCapSeconds ? `${benchmark.timeCapSeconds / 60} min cap` : undefined,
-    benchmark.vest
-      ? `${benchmark.vest.optional ? "Vest if you have one" : "Vest"}, ${benchmark.vest.kg.m}/${benchmark.vest.kg.f} kg`
-      : undefined,
-  ].filter((fact): fact is string => fact !== undefined);
 
 /** How the Rx prescription grades on GymDanmark's sheet, movement by movement. */
 function RxLevels({
@@ -156,7 +144,7 @@ export function BenchmarkDetail({ benchmark }: { readonly benchmark: Benchmark }
         <h1 className="protocol-title w-fit border-b-2 border-foreground pb-1.5 text-4xl">
           {benchmark.name}
         </h1>
-        <p className="text-sm text-muted-foreground">{facts(benchmark).join(" · ")}</p>
+        <p className="text-sm text-muted-foreground">{benchmarkFacts(benchmark).join(" · ")}</p>
       </header>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem]">
