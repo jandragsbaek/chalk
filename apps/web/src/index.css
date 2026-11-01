@@ -245,6 +245,16 @@ kbd[data-key] {
   border: 1px solid var(--foreground);
   box-shadow: inset 0 -0.1875rem 0 var(--copy-goldenrod);
 }
+/* A plan is what is meant, not what was done: dashed, like the board's level badge. */
+[data-plan-box] {
+  border: 1px dashed var(--input);
+  background: var(--card);
+}
+/* What was done against a plan: solid, the stroke rule's resolved state. */
+[data-done-box] {
+  border: 1px solid var(--foreground);
+  background: var(--card);
+}
 
 /* Referee lamps: white good lift, red no lift. */
 [data-lamps] {

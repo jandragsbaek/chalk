@@ -30,6 +30,8 @@ export interface DerivedItem {
   readonly performed: ReadonlyArray<PerformedSet>;
   /** How it was done, when the athlete said; `undefined` while it has a problem. */
   readonly performance: Performance | undefined;
+  /** How the athlete planned to do it; `undefined` without a plan or while it has a problem. */
+  readonly plan: Performance | undefined;
   readonly alternatives: ReadonlyArray<DerivedItem>;
 }
 
@@ -413,7 +415,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
         });
 
       if (inNotes(span)) {
-        if (span.result !== undefined || span.performance !== undefined)
+        if (span.result !== undefined || span.performance !== undefined || span.plan !== undefined)
           issues.push({
             severity: "warning",
             check: "numbers",
@@ -492,17 +494,21 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     return [];
   };
 
-  const performanceOf = (movement: SpanOf<"movement">): Performance | undefined => {
-    if (movement.performance === undefined) return undefined;
-    const problem = performanceProblem(movement.performance, nameOf);
-    if (problem === undefined) return movement.performance;
+  const checkedPerformance = (
+    movement: SpanOf<"movement">,
+    performance: Performance | undefined,
+    label: string,
+  ): Performance | undefined => {
+    if (performance === undefined) return undefined;
+    const problem = performanceProblem(performance, nameOf);
+    if (problem === undefined) return performance;
     const name =
       (movement.movementId === undefined ? undefined : nameOf(movement.movementId)) ??
       slice(movement);
     issues.push({
       severity: "error",
       check: "numbers",
-      message: `${name}: ${problem}.`,
+      message: `${name}${label}: ${problem}.`,
       spanId: movement.id,
     });
     return undefined;
@@ -514,7 +520,8 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     text: slice(movement),
     sets: setsOf(movement),
     performed: performedOf(movement),
-    performance: performanceOf(movement),
+    performance: checkedPerformance(movement, movement.performance, ""),
+    plan: checkedPerformance(movement, movement.plan, " (plan)"),
     alternatives: (alternativesOf.get(movement.id) ?? []).map(toItem),
   });
   const itemTonnage = (item: DerivedItem): number =>
@@ -593,6 +600,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
         sets: item.quantities.length === 0 ? [] : [{ line, quantities: item.quantities }],
         performed: [],
         performance: undefined,
+        plan: undefined,
         alternatives: (item.alternatives ?? []).map((alternative, index) =>
           toTemplateItem(alternative, `${key}.${index}`),
         ),

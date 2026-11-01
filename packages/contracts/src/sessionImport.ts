@@ -5,6 +5,7 @@ import {
   IsoDate,
   IsoDateTime,
   MovementId,
+  PlanId,
   TrimmedNonEmptyString,
   WorkoutId,
 } from "./baseSchemas.ts";
@@ -120,6 +121,8 @@ export const Span = Schema.TaggedUnion({
     result: Schema.optionalKey(LiftResult),
     /** How it was done (load, reps by variation, biggest unbroken set); empty = as prescribed. */
     performance: Schema.optionalKey(Performance),
+    /** How the athlete means to do it, set when planning; empty = as prescribed. */
+    plan: Schema.optionalKey(Performance),
   },
   quantity: { ...spanFields, ...Quantity.fields, attachedTo: Schema.optionalKey(SpanId) },
   /** A score as written ("12+5", "8:32"); attached to the block or benchmark it scores. */
@@ -191,6 +194,8 @@ export const SaveImportInput = Schema.Struct({
   document: ImportDocument,
   /** The imported session this save replaces (re-import or conflict resolution). */
   replace: Schema.optionalKey(WorkoutId),
+  /** The plan this session was logged from; the save removes it. */
+  fromPlan: Schema.optionalKey(PlanId),
 });
 export type SaveImportInput = typeof SaveImportInput.Type;
 

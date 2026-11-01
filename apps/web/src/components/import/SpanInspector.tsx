@@ -182,6 +182,9 @@ export function SpanInspector({
   onRemove,
   onPick,
   onMovementPicked,
+  mode = "log",
+  outcomeFirst = false,
+  onAsPlanned,
 }: {
   readonly span: Span;
   readonly text: string;
@@ -204,6 +207,15 @@ export function SpanInspector({
     movementId: MovementId,
     learned: boolean,
   ) => void;
+  /** Planning: the movement takes a planned scaling, not what was done or lifted. */
+  readonly mode?: "log" | "plan";
+  /**
+   * Planning or logging a plan: the plan (or how it was done) leads, and a resolved movement's
+   * catalog fields fold away under "Movement".
+   */
+  readonly outcomeFirst?: boolean;
+  /** Logging a plan: take the movement's planned scaling as done. */
+  readonly onAsPlanned?: ((span: SpanOf<"movement">) => void) | undefined;
 }) {
   const phrase = text.slice(span.start, span.end);
   const picked =
@@ -246,50 +258,21 @@ export function SpanInspector({
       </header>
 
       {span._tag === "movement" ? (
-        <>
-          <MovementPicker
-            key={span.id}
-            phrase={phrase}
-            catalog={catalog}
-            value={span.movementId}
-            onPick={(movementId, learned) => onMovementPicked(span, movementId, learned)}
-          />
-          {picked ? <CoreMovementField movement={picked} catalog={catalog} /> : null}
-          {picked ? <MovementLevelsField movement={picked} /> : null}
-          <LinkRow
-            label="Alternative of"
-            target={textOf(span.alternativeOf)}
-            picking={picking === "alternative"}
-            onPick={() => onPick(picking === "alternative" ? undefined : "alternative")}
-            onClear={() => {
-              const { alternativeOf: _old, ...rest } = span;
-              onUpdate(rest);
-            }}
-          />
-          {programmed ? (
-            <PerformanceEditor
-              performance={span.performance}
-              item={programmed.item}
-              grade={programmed.grade}
-              catalog={catalog}
-              onChange={(performance) => {
-                const { performance: _old, ...rest } = span;
-                onUpdate(performance === undefined ? rest : { ...rest, performance });
-              }}
-            />
-          ) : null}
-          {programmed ? (
-            <ResultEditor
-              result={span.result}
-              item={programmed.item}
-              defaults={programmed.defaults}
-              onChange={(result: LiftResult | undefined) => {
-                const { result: _old, ...rest } = span;
-                onUpdate(result === undefined ? rest : { ...rest, result });
-              }}
-            />
-          ) : null}
-        </>
+        <MovementMark
+          span={span}
+          phrase={phrase}
+          catalog={catalog}
+          picked={picked}
+          picking={picking}
+          programmed={programmed}
+          mode={mode}
+          outcomeFirst={outcomeFirst}
+          alternativeOfText={textOf(span.alternativeOf)}
+          onUpdate={onUpdate}
+          onPick={onPick}
+          onMovementPicked={onMovementPicked}
+          onAsPlanned={onAsPlanned}
+        />
       ) : null}
 
       {span._tag === "quantity" ? (
@@ -536,5 +519,135 @@ function BenchmarkField({
         benchmark's blocks and movements; attach a score to it to count the attempt.
       </p>
     </div>
+  );
+}
+
+/** A movement mark: which catalog movement it is, and what was planned, done or lifted. */
+function MovementMark({
+  span,
+  phrase,
+  catalog,
+  picked,
+  picking,
+  programmed,
+  mode,
+  outcomeFirst,
+  alternativeOfText,
+  onUpdate,
+  onPick,
+  onMovementPicked,
+  onAsPlanned,
+}: {
+  readonly span: SpanOf<"movement">;
+  readonly phrase: string;
+  readonly catalog: ReadonlyArray<CatalogMovement>;
+  readonly picked: CatalogMovement | undefined;
+  readonly picking: PickMode | undefined;
+  readonly programmed:
+    | {
+        readonly item: DerivedItem;
+        readonly defaults: ResultDefaults;
+        readonly grade: ItemGrade | undefined;
+      }
+    | undefined;
+  readonly mode: "log" | "plan";
+  readonly outcomeFirst: boolean;
+  readonly alternativeOfText: string | undefined;
+  readonly onUpdate: (span: Span) => void;
+  readonly onPick: (mode: PickMode | undefined) => void;
+  readonly onMovementPicked: (
+    span: SpanOf<"movement">,
+    movementId: MovementId,
+    learned: boolean,
+  ) => void;
+  readonly onAsPlanned: ((span: SpanOf<"movement">) => void) | undefined;
+}) {
+  const identity = (
+    <>
+      <MovementPicker
+        key={span.id}
+        phrase={phrase}
+        catalog={catalog}
+        value={span.movementId}
+        onPick={(movementId, learned) => onMovementPicked(span, movementId, learned)}
+      />
+      {picked ? <CoreMovementField movement={picked} catalog={catalog} /> : null}
+      {picked ? <MovementLevelsField movement={picked} /> : null}
+      <LinkRow
+        label="Alternative of"
+        target={alternativeOfText}
+        picking={picking === "alternative"}
+        onPick={() => onPick(picking === "alternative" ? undefined : "alternative")}
+        onClear={() => {
+          const { alternativeOf: _old, ...rest } = span;
+          onUpdate(rest);
+        }}
+      />
+    </>
+  );
+  const outcome = programmed ? (
+    mode === "plan" ? (
+      <PerformanceEditor
+        mode="plan"
+        performance={span.plan}
+        item={programmed.item}
+        grade={programmed.grade}
+        catalog={catalog}
+        onChange={(plan) => {
+          const { plan: _old, ...rest } = span;
+          onUpdate(plan === undefined ? rest : { ...rest, plan });
+        }}
+      />
+    ) : (
+      <>
+        <PerformanceEditor
+          performance={span.performance}
+          planned={span.plan}
+          onAsPlanned={onAsPlanned === undefined ? undefined : () => onAsPlanned(span)}
+          item={programmed.item}
+          grade={programmed.grade}
+          catalog={catalog}
+          onChange={(performance) => {
+            const { performance: _old, ...rest } = span;
+            onUpdate(performance === undefined ? rest : { ...rest, performance });
+          }}
+        />
+        <ResultEditor
+          result={span.result}
+          item={programmed.item}
+          defaults={programmed.defaults}
+          onChange={(result: LiftResult | undefined) => {
+            const { result: _old, ...rest } = span;
+            onUpdate(result === undefined ? rest : { ...rest, result });
+          }}
+        />
+      </>
+    )
+  ) : null;
+
+  // An unresolved movement has to be picked before anything else counts.
+  if (!outcomeFirst || picked === undefined)
+    return (
+      <>
+        {identity}
+        {outcome}
+      </>
+    );
+  return (
+    <>
+      {outcome}
+      <details data-disclosure className="group border-t pt-3">
+        <summary className="flex cursor-pointer list-none items-baseline justify-between gap-2">
+          <span className="form-label text-muted-foreground">Movement</span>
+          <span className="flex min-w-0 items-baseline gap-1.5 text-sm">
+            <span className="truncate font-medium">{picked.name}</span>
+            <span aria-hidden className="text-xs text-muted-foreground group-open:hidden">
+              Change
+            </span>
+          </span>
+        </summary>
+        <div className="grid gap-4 pt-3">{identity}</div>
+      </details>
+    </>
   );
 }

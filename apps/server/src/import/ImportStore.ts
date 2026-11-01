@@ -85,7 +85,8 @@ export class ImportStore extends Context.Service<
     ) => Effect.Effect<StoredImport, ImportNotFoundError | ImportPersistenceError>;
     /**
      * Derives the session from the document and stores it: workout, parts, blocks, items, lift
-     * sets from the notes and from the items' results, and the debrief. The derivation runs
+     * sets from the notes and from the items' results, and the debrief; logged from a plan, it
+     * removes the plan. The derivation runs
      * here too, so the client cannot save something the editor would have refused.
      */
     readonly save: (
@@ -217,6 +218,9 @@ const make = Effect.gen(function* () {
       if (clash) return yield* new ImportConflictError({ existing: clash });
 
       if (input.replace !== undefined) yield* deleteWorkoutRows(sql, input.replace);
+      // Logged from a plan: the session now stands for it, so the plan goes in the same write.
+      if (input.fromPlan !== undefined)
+        yield* sql`DELETE FROM session_plans WHERE id = ${input.fromPlan}`;
 
       const workoutId = WorkoutId.make(yield* newId);
       const now = DateTime.formatIso(yield* DateTime.now);

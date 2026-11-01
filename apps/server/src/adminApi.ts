@@ -4,6 +4,7 @@ import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 
 import * as CatalogStore from "./catalog/CatalogStore.ts";
 import * as ImportStore from "./import/ImportStore.ts";
+import * as PlanStore from "./plan/PlanStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
 // Persistence causes stay in the server log; clients only see which operation failed.
@@ -13,7 +14,10 @@ const reportStorageError = (error: WorkoutStore.WorkoutPersistenceError) =>
   );
 
 const reportImportStorageError = (
-  error: CatalogStore.CatalogPersistenceError | ImportStore.ImportPersistenceError,
+  error:
+    | CatalogStore.CatalogPersistenceError
+    | ImportStore.ImportPersistenceError
+    | PlanStore.PlanPersistenceError,
 ) =>
   Effect.logError(error.message, error.cause).pipe(
     Effect.andThen(Effect.fail(new ImportStorageError({ operation: error.operation }))),
@@ -86,6 +90,30 @@ export const layerImports = HttpApiBuilder.group(
         store
           .save(payload)
           .pipe(Effect.catchTags({ ImportPersistenceError: reportImportStorageError })),
+    });
+  }),
+);
+
+export const layerPlans = HttpApiBuilder.group(
+  ChalkAdminApi,
+  "plans",
+  Effect.fn("AdminApi.plans")(function* (handlers) {
+    const store = yield* PlanStore.PlanStore;
+    return handlers.handleAll({
+      list: () =>
+        store.list().pipe(Effect.catchTags({ PlanPersistenceError: reportImportStorageError })),
+      get: ({ params }) =>
+        store
+          .get(params.id)
+          .pipe(Effect.catchTags({ PlanPersistenceError: reportImportStorageError })),
+      save: ({ payload }) =>
+        store
+          .save(payload)
+          .pipe(Effect.catchTags({ PlanPersistenceError: reportImportStorageError })),
+      remove: ({ params }) =>
+        store
+          .remove(params.id)
+          .pipe(Effect.catchTags({ PlanPersistenceError: reportImportStorageError })),
     });
   }),
 );

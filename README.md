@@ -14,7 +14,9 @@ Chalk's own Elite): the importer records how it was done, and `/levels` draws a 
 movement family with where the workouts put you and what you can do. `/benchmarks` holds 280
 named workouts (the Girls, CrossFit's Hero workouts, a few classics) with their boards in kg, how
 their Rx grades on the level sheet, and your attempts; logging one, or importing a session that
-names one, links it. Where it is going:
+names one, links it. `/plan` takes the workout the box posts in the morning: mark it up
+like an import, plan each movement's scaling (load, or reps by variation, graded on the level
+sheet), and log it from Today after the session. Where it is going:
 
 - [docs/domain.md](docs/domain.md): movements, scaling, workouts composed of movements, rep
   maxes, the weekly volume grid.

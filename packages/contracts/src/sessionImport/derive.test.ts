@@ -360,4 +360,22 @@ describe("performance", () => {
       pullUps(deriveSession(withPerformance("pull-up", { loadKg: 2000 }), nameOf))?.performance,
     ).toBeUndefined();
   });
+
+  it("carries the planned scaling separately, checked the same way", () => {
+    const document = withPerformance("pull-up", { unbroken: 3 });
+    const plan: Performance = { variants: [{ movementId: MovementId.make("pull-up"), reps: 4 }] };
+    const planned = (next: Performance): ImportDocument => ({
+      ...document,
+      spans: document.spans.map((span) =>
+        span._tag === "movement" && span.movementId === "pull-up" ? { ...span, plan: next } : span,
+      ),
+    });
+    const session = deriveSession(planned(plan), nameOf);
+    expect(pullUps(session)).toMatchObject({ plan, performance: { unbroken: 3 } });
+    expect(
+      blockingIssues(deriveSession(planned({ loadKg: 2000 }), nameOf)).map(
+        (issue) => issue.message,
+      ),
+    ).toEqual(["Pull-up (plan): the load must be at most 1000 kg."]);
+  });
 });

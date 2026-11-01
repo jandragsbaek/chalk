@@ -4,6 +4,7 @@ export const Route = createRootRoute({ component: RootLayout });
 
 type NavTarget =
   | "/"
+  | "/plan"
   | "/log"
   | "/strength"
   | "/benchmarks"
@@ -14,6 +15,7 @@ type NavTarget =
 
 const NAV: ReadonlyArray<{ to: NavTarget; label: string; exact?: boolean }> = [
   { to: "/", label: "Today", exact: true },
+  { to: "/plan", label: "Plan" },
   { to: "/log", label: "Log" },
   { to: "/strength", label: "Strength" },
   { to: "/benchmarks", label: "Benchmarks" },
@@ -24,10 +26,10 @@ const NAV: ReadonlyArray<{ to: NavTarget; label: string; exact?: boolean }> = [
 ];
 
 /**
- * Desk pages lay out their own width under the band; the import workbench and the coach own the
- * viewport.
+ * Desk pages lay out their own width under the band; the import and plan workbench and the coach
+ * own the viewport.
  */
-const OWN_LAYOUT_PREFIXES = ["/workouts", "/import", "/coach"];
+const OWN_LAYOUT_PREFIXES = ["/workouts", "/import", "/plan", "/coach"];
 /** Pages that lay out wide tables and rulers get the desk's full width. */
 const WIDE_PREFIXES = ["/levels", "/benchmarks"];
 

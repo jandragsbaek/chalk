@@ -21,6 +21,7 @@ const item = (lines: ReadonlyArray<ReadonlyArray<Quantity>>): DerivedItem => ({
   sets: lines.map((quantities, line) => ({ line, quantities })),
   performed: [],
   performance: undefined,
+  plan: undefined,
   alternatives: [],
 });
 

@@ -279,7 +279,24 @@ re-derivable.
 - One import per session number, or per day without one; saving the same session again needs an
   explicit replace. Deleting the workout deletes its import, structure and lift sets.
 
-## Units and time
+## Planned sessions (built)
+
+The box posts the day's workout in the morning; the athlete enters it then and plans the
+scaling, and logs it after training. A **plan** (`session_plans`, `SessionPlan`) is an
+`ImportDocument` that is not a workout yet: it counts nowhere (history, rep maxes, levels,
+the year grid) until logged.
+
+- Entered on `/plan` with the importer's workbench in plan mode: same marks and checks (a day,
+  every movement resolved; the day is today unless the text has a date), no results or debrief.
+- **Planned scaling** is `plan` on a movement span, the `Performance` shape: a load per
+  implement, or reps by variation ("25 jumping, 20 kipping"). Graded live against the level
+  sheet like a performance ("Planned at" in place of "Done at").
+- Today shows the day's plan with each movement's scaling and a **Log it** button:
+  `/import?plan=<id>` opens the plan in the importer, where each movement offers "As planned".
+  Saving (`SaveImportInput.fromPlan`) writes the import and deletes the plan in one
+  transaction; the stored document keeps `plan` next to `performance`, so planned versus done
+  stays readable for a coach.
+- Plans never logged stay on `/plan` under "Not logged" until deleted.
 
 - Load: kilograms everywhere in storage and contracts.
 - Dates: `performedOn` is the athlete's local calendar day (`IsoDate`); `createdAt` is an instant.
