@@ -1,6 +1,8 @@
 import {
   BenchmarkId,
   benchmarkById,
+  LiftSet,
+  MovementId,
   findBenchmark,
   LogWorkoutInput,
   Workout,
@@ -8,6 +10,7 @@ import {
   WorkoutKind,
   WorkoutNotFoundError,
   type BenchmarkResult,
+  type SessionEntry,
   type WorkoutStats,
 } from "@chalk/contracts";
 import * as Context from "effect/Context";
@@ -32,6 +35,7 @@ export class WorkoutPersistenceError extends Schema.TaggedError<WorkoutPersisten
       "log workout",
       "delete workout",
       "list benchmark results",
+      "list sessions",
     ]),
     cause: Schema.Defect(),
   },
@@ -71,6 +75,17 @@ const UnlinkedRow = Schema.Struct({
   rx: Schema.Number,
 });
 
+const SessionRow = Schema.Struct({
+  ...WorkoutRow.fields,
+  sessionNumber: Schema.NullOr(Schema.Number),
+  imported: Schema.Number,
+  liftSetCount: Schema.Number,
+  tonnageKg: Schema.Number,
+});
+
+/** A movement of a session, in session order: programmed items first, then lift sets. */
+const SessionMovementRow = Schema.Struct({ workoutId: WorkoutId, movementId: MovementId });
+
 const KindCountRow = Schema.Struct({
   kind: WorkoutKind,
   count: Schema.Number,
@@ -104,6 +119,11 @@ export class WorkoutStore extends Context.Service<
     readonly stats: () => Effect.Effect<WorkoutStats, WorkoutPersistenceError>;
     /** With a benchmark, the session also gets its part, blocks and prescribed movements. */
     readonly log: (input: LogWorkoutInput) => Effect.Effect<Workout, WorkoutPersistenceError>;
+    /**
+     * The session register, newest day first and newest entry first within a day: every
+     * workout, and every day with lift sets but no workout.
+     */
+    readonly sessions: () => Effect.Effect<ReadonlyArray<SessionEntry>, WorkoutPersistenceError>;
     /** Every attempt at a benchmark, newest first, logged or imported. */
     readonly results: () => Effect.Effect<ReadonlyArray<BenchmarkResult>, WorkoutPersistenceError>;
     readonly remove: (
@@ -174,6 +194,51 @@ const make = Effect.gen(function* () {
     `,
   });
 
+  const selectSessions = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: SessionRow,
+    execute: () => sql`
+      SELECT ${sql.unsafe(WORKOUT_COLUMNS)}, si.session_number AS "sessionNumber",
+             si.workout_id IS NOT NULL AS imported,
+             (SELECT COUNT(*) FROM lift_sets l WHERE l.workout_id = w.id) AS "liftSetCount",
+             (SELECT COALESCE(SUM(l.reps * l.load_kg), 0) FROM lift_sets l
+              WHERE l.workout_id = w.id) AS "tonnageKg"
+      FROM workouts w LEFT JOIN session_imports si ON si.workout_id = w.id
+      ORDER BY w.performed_on DESC, w.id DESC
+    `,
+  });
+
+  const selectSessionMovements = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: SessionMovementRow,
+    execute: () => sql`
+      SELECT workout_id AS "workoutId", movement_id AS "movementId" FROM (
+        SELECT p.workout_id, i.movement_id, 0 AS source, p.position AS a, b.position AS b,
+               i.position AS c, i.id AS d
+        FROM workout_items i
+        JOIN workout_blocks b ON b.id = i.block_id
+        JOIN workout_parts p ON p.id = b.part_id
+        UNION ALL
+        SELECT l.workout_id, l.movement_id, 1, 0, 0, 0, l.id
+        FROM lift_sets l WHERE l.workout_id IS NOT NULL
+      )
+      ORDER BY workout_id, source, a, b, c, d
+    `,
+  });
+
+  // Logged by hand, outside any session: a strength day, or extra sets next to a workout.
+  const selectDaySets = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: LiftSet,
+    execute: () => sql`
+      SELECT id, movement_id AS "movementId", performed_on AS "performedOn", reps,
+             load_kg AS "loadKg", notes, created_at AS "createdAt"
+      FROM lift_sets
+      WHERE workout_id IS NULL
+      ORDER BY performed_on DESC, created_at, id
+    `,
+  });
+
   const search = Effect.fn("WorkoutStore.search")(function* (query: string) {
     const escaped = query.trim().replace(/[!%_]/g, (char) => `!${char}`);
     const rows = yield* selectMatching(`%${escaped}%`).pipe(
@@ -234,6 +299,63 @@ const make = Effect.gen(function* () {
     return workout;
   });
 
+  const sessions = Effect.fn("WorkoutStore.sessions")(function* () {
+    const { rows, movements, daySets } = yield* Effect.all({
+      rows: selectSessions(undefined),
+      movements: selectSessionMovements(undefined),
+      daySets: selectDaySets(undefined),
+    }).pipe(
+      Effect.mapError(
+        (cause) => new WorkoutPersistenceError({ operation: "list sessions", cause }),
+      ),
+    );
+    const uniqueMovements = (sets: Iterable<MovementId>) => [...new Set(sets)];
+    const setsByDay = new Map<string, Array<LiftSet>>();
+    for (const set of daySets) {
+      const day = setsByDay.get(set.performedOn);
+      if (day) day.push(set);
+      else setsByDay.set(set.performedOn, [set]);
+    }
+    const movementsByWorkout = new Map<string, Array<MovementId>>();
+    for (const { workoutId, movementId } of movements) {
+      const list = movementsByWorkout.get(workoutId);
+      if (list) list.push(movementId);
+      else movementsByWorkout.set(workoutId, [movementId]);
+    }
+
+    const workoutDays = new Set(rows.map((row) => row.performedOn));
+    const entries: Array<SessionEntry> = rows.map(
+      ({ sessionNumber, imported, liftSetCount, tonnageKg, ...row }) => {
+        const sets = setsByDay.get(row.performedOn) ?? [];
+        return {
+          _tag: "workout",
+          workout: toWorkout(row),
+          sessionNumber,
+          imported: imported === 1,
+          movementIds: uniqueMovements([
+            ...(movementsByWorkout.get(row.id) ?? []),
+            ...sets.map((set) => set.movementId),
+          ]),
+          liftSetCount,
+          tonnageKg,
+          daySets: sets,
+        };
+      },
+    );
+    for (const [performedOn, sets] of setsByDay)
+      if (!workoutDays.has(performedOn))
+        entries.push({
+          _tag: "strengthDay",
+          performedOn,
+          movementIds: uniqueMovements(sets.map((set) => set.movementId)),
+          daySets: sets,
+        });
+    const dayOf = (entry: SessionEntry) =>
+      entry._tag === "workout" ? entry.workout.performedOn : entry.performedOn;
+    // Stable: workouts keep their newest-first order within a day.
+    return entries.sort((left, right) => dayOf(right).localeCompare(dayOf(left)));
+  });
+
   const results = Effect.fn("WorkoutStore.results")(function* () {
     const { linked, unlinked } = yield* Effect.all({
       linked: selectResults(undefined),
@@ -270,7 +392,7 @@ const make = Effect.gen(function* () {
     if (deleted.length === 0) return yield* new WorkoutNotFoundError({ id });
   });
 
-  return WorkoutStore.of({ list, search, stats, log, results, remove });
+  return WorkoutStore.of({ list, search, stats, log, sessions, results, remove });
 });
 
 export const layer = Layer.effect(WorkoutStore, make);

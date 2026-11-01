@@ -441,15 +441,13 @@ export function ImportWorkbench({
           <div data-pane-scroll className="min-h-0 flex-1 overflow-auto pb-10">
             <SessionProtocol
               session={session}
-              lineOf={lineOf}
-              handlers={{
-                nameOf,
-                coreOf,
-                gradeOf: (id) => grades.byItem.get(id),
+              names={{ nameOf, coreOf, gradeOf: (id) => grades.byItem.get(id) }}
+              editor={{
                 selectedId: state.selectedId,
                 linked,
                 onSelect: handleClickSpan,
                 onHover: setHovered,
+                lineOf,
               }}
             />
             <DebriefSheet

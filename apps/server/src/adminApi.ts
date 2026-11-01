@@ -32,6 +32,8 @@ export const layerWorkouts = HttpApiBuilder.group(
         ),
       stats: () =>
         store.stats().pipe(Effect.catchTags({ WorkoutPersistenceError: reportStorageError })),
+      sessions: () =>
+        store.sessions().pipe(Effect.catchTags({ WorkoutPersistenceError: reportStorageError })),
       remove: ({ params }) =>
         store
           .remove(params.id)
