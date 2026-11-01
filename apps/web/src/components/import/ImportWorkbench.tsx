@@ -52,13 +52,14 @@ import { gradeSession } from "../../lib/levelGrades.ts";
 import { asPlanned, planTitle, withPlannedLoad } from "../../lib/plan.ts";
 import { complexPartners, resultAtReps } from "../../lib/complex.ts";
 import { resultDefaults } from "../../lib/resultDraft.ts";
+import { chooseOption, chosenOption, stationOptions } from "../../lib/station.ts";
 import { SAVE_REACTIVITY_KEYS, saveImportAtom } from "../../state/imports.ts";
 import { PLANS_REACTIVITY_KEY, savePlanAtom } from "../../state/plans.ts";
 import { AnnotatedText, type TextRange } from "./AnnotatedText.tsx";
 import { DebriefSheet } from "./DebriefSheet.tsx";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { FieldBox } from "../FieldBox.tsx";
-import { countItems, SessionProtocol } from "./SessionProtocol.tsx";
+import { SessionProtocol } from "./SessionProtocol.tsx";
 import type { ComplexAction } from "./ResultEditor.tsx";
 import { SpanInspector } from "./SpanInspector.tsx";
 import { KeySwatch, TAG_ACTIONS, TagBar } from "./TagBar.tsx";
@@ -82,27 +83,22 @@ export const suggestDocument = (
   return { text, spans: suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`) };
 };
 
-/** The programmed item a movement span became, with its block; none for a movement in the notes. */
+/**
+ * The programmed item a movement span became, with its block and the station it is a way to do
+ * (the item an alternative belongs to); none for a movement in the notes.
+ */
 const findItem = (
   session: DerivedSession,
   spanId: SpanId,
-): { readonly item: DerivedItem; readonly block: DerivedBlock } | undefined => {
-  const search = (
-    items: ReadonlyArray<DerivedItem>,
-    block: DerivedBlock,
-  ): { item: DerivedItem; block: DerivedBlock } | undefined => {
-    for (const item of items) {
-      if (item.spanId === spanId) return { item, block };
-      const found = search(item.alternatives, block);
-      if (found) return found;
-    }
-    return undefined;
-  };
+):
+  | { readonly item: DerivedItem; readonly block: DerivedBlock; readonly station: DerivedItem }
+  | undefined => {
   for (const part of session.parts)
-    for (const block of part.blocks) {
-      const found = search(block.items, block);
-      if (found) return found;
-    }
+    for (const block of part.blocks)
+      for (const station of block.items) {
+        const item = stationOptions(station).find((option) => option.spanId === spanId);
+        if (item) return { item, block, station };
+      }
   return undefined;
 };
 
@@ -229,12 +225,25 @@ export function ImportWorkbench({
           },
         };
   const items = programmedItems(session);
-  /** Movements with a plan and nothing recorded yet: what "Log all as planned" fills. */
+  /**
+   * Movements with a plan and nothing recorded yet: what "Log all as planned" fills. A station
+   * already done by one option ("did 90 SU, not the planned DU") keeps that choice.
+   */
+  const recordedStations = new Set(
+    session.parts
+      .flatMap((part) => part.blocks.flatMap((block) => block.items))
+      .map(stationOptions)
+      .filter((options) => options.some((option) => option.performance !== undefined))
+      .flatMap((options) => options.map((option) => option.spanId)),
+  );
   const unloggedPlans = planning
     ? []
     : state.spans.filter(
         (span): span is SpanOf<"movement"> =>
-          span._tag === "movement" && span.plan !== undefined && span.performance === undefined,
+          span._tag === "movement" &&
+          span.plan !== undefined &&
+          span.performance === undefined &&
+          !recordedStations.has(span.id),
       );
 
   function takeAsPlanned(spans: ReadonlyArray<SpanOf<"movement">>, undoable = false) {
@@ -479,7 +488,12 @@ export function ImportWorkbench({
             </>
           )}
           <FieldBox label="Movements">
-            {countItems(session.parts.flatMap((part) => part.blocks.flatMap((b) => b.items)))}
+            {/* Stations: "60 DU or 90 SU" is one movement to do. */}
+            {session.parts.reduce(
+              (total, part) =>
+                total + part.blocks.reduce((sum, block) => sum + block.items.length, 0),
+              0,
+            )}
           </FieldBox>
           {planning ? null : (
             <>
@@ -761,8 +775,29 @@ export function ImportWorkbench({
                         ),
                         grade: grades.byItem.get(programmed.item.spanId),
                         complex,
+                        station: stationOptions(programmed.station),
+                        chosen: chosenOption(programmed.station, planning ? "planned" : "done")
+                          ?.spanId,
                       }
                 }
+                onChooseOption={(chosen) => {
+                  if (programmed === undefined) return;
+                  const ids = new Set(
+                    stationOptions(programmed.station).map((option) => option.spanId),
+                  );
+                  const options = state.spans.filter(
+                    (span): span is SpanOf<"movement"> =>
+                      span._tag === "movement" && ids.has(span.id),
+                  );
+                  for (const span of chooseOption(
+                    options,
+                    chosen,
+                    planning ? "plan" : "performance",
+                  ))
+                    dispatch({ type: "update", span });
+                  dispatch({ type: "select", id: chosen });
+                  setRevision((count) => count + 1);
+                }}
                 onUpdate={(span) => dispatch({ type: "update", span })}
                 onRemove={(id) => dispatch({ type: "remove", id })}
                 onPick={(mode) => dispatch({ type: "pick", mode })}

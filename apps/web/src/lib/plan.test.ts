@@ -1,7 +1,7 @@
 import { MovementId, quantityFromText, type Quantity } from "@chalk/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { asPlanned, describePlan, planTitle } from "./plan.ts";
+import { asPlanned, describePlan, plannedMovements, planTitle } from "./plan.ts";
 
 const names: Record<string, string> = {
   "pull-up": "Pull-up",
@@ -109,6 +109,63 @@ describe("planTitle", () => {
 
   it("keeps a numbered session's own name", () => {
     expect(planTitle(session(171, ["pull-up"]), nameOf)).toBe("Session 171");
+  });
+});
+
+describe("plannedMovements", () => {
+  const option = (id: string, plan?: { loadKg?: number }) => ({
+    spanId: id,
+    movementId: MovementId.make(id),
+    text: id,
+    sets: [],
+    performed: [],
+    performance: undefined,
+    plan,
+    alternatives: [],
+  });
+  const withStation = (
+    primary: ReturnType<typeof option>,
+    alternative: ReturnType<typeof option>,
+  ) => ({
+    performedOn: "2026-11-01",
+    sessionNumber: undefined,
+    name: "",
+    kind: "amrap" as const,
+    score: "",
+    notes: "",
+    parts: [
+      {
+        spanId: undefined,
+        title: "",
+        benchmarkId: undefined,
+        rawText: "",
+        blocks: [
+          {
+            spanId: undefined,
+            title: "",
+            format: "amrap" as const,
+            params: {},
+            items: [{ ...primary, alternatives: [alternative] }],
+            intents: [],
+            comments: [],
+            scores: [],
+            tonnageKg: 0,
+          },
+        ],
+      },
+    ],
+    liftSets: [],
+    tonnageKg: 0,
+    issues: [],
+  });
+
+  it("lists a station once, by the option its plan picked", () => {
+    expect(
+      plannedMovements(withStation(option("pull-up"), option("jumping-pull-up")), nameOf),
+    ).toEqual([{ spanId: "pull-up", name: "Pull-up", plan: undefined }]);
+    expect(
+      plannedMovements(withStation(option("pull-up"), option("jumping-pull-up", {})), nameOf),
+    ).toEqual([{ spanId: "jumping-pull-up", name: "Jumping pull-up", plan: "As written" }]);
   });
 });
 

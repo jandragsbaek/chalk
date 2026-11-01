@@ -34,8 +34,18 @@ export const formatSeconds = (seconds: number) => {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 };
 
-/** "AMRAP 15 min", "Every 1:30 × 8", "40 s on / 20 s off × 9", "21-15-9 for time". */
+/**
+ * "AMRAP 15 min", "Every 1:30 × 8", "40 s on / 20 s off × 9", "21-15-9 for time", and a rest
+ * between rounds after it: "AMRAP 15 min · 30 s rest b/t rounds".
+ */
 export const describeBlock = (format: BlockFormat | undefined, params: BlockParams): string => {
+  const title = describeFormat(format, params);
+  return format !== "intervals" && params.restSeconds !== undefined
+    ? `${title} · ${formatSeconds(params.restSeconds)} rest b/t rounds`
+    : title;
+};
+
+const describeFormat = (format: BlockFormat | undefined, params: BlockParams): string => {
   if (format === undefined) return "Movements";
   const rounds = params.rounds ? ` × ${formatAmount(params.rounds)}` : "";
   switch (format) {

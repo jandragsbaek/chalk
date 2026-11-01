@@ -266,6 +266,18 @@ function withParam<K extends keyof BlockParams>(
   return value === undefined ? rest : { ...rest, [key]: value };
 }
 
+/** A programmed movement's item, and the station it is one way to do. */
+export interface ProgrammedMovement {
+  readonly item: DerivedItem;
+  readonly defaults: ResultDefaults;
+  readonly grade: ItemGrade | undefined;
+  /** The station's options, the item first: "60 DU or 90 SU" has two. */
+  readonly station: ReadonlyArray<DerivedItem>;
+  /** The option a plan (or what was done) picked, if one was. */
+  readonly chosen: SpanId | undefined;
+  readonly complex: ComplexAction | undefined;
+}
+
 export function SpanInspector({
   span,
   text,
@@ -277,6 +289,7 @@ export function SpanInspector({
   onRemove,
   onPick,
   onMovementPicked,
+  onChooseOption,
   mode = "log",
   outcomeFirst = false,
   onAsPlanned,
@@ -287,14 +300,7 @@ export function SpanInspector({
   readonly catalog: ReadonlyArray<CatalogMovement>;
   readonly picking: PickMode | undefined;
   /** The derived item of a programmed movement (not one in the notes), which can take a result. */
-  readonly programmed:
-    | {
-        readonly item: DerivedItem;
-        readonly defaults: ResultDefaults;
-        readonly grade: ItemGrade | undefined;
-        readonly complex: ComplexAction | undefined;
-      }
-    | undefined;
+  readonly programmed: ProgrammedMovement | undefined;
   readonly onUpdate: (span: Span) => void;
   readonly onRemove: (id: SpanId) => void;
   readonly onPick: (mode: PickMode | undefined) => void;
@@ -312,6 +318,8 @@ export function SpanInspector({
   readonly outcomeFirst?: boolean;
   /** Logging a plan: take the movement's planned scaling as done. */
   readonly onAsPlanned?: ((span: SpanOf<"movement">) => void) | undefined;
+  /** Do the station by this option, and not by the others. */
+  readonly onChooseOption?: (id: SpanId) => void;
 }) {
   const phrase = text.slice(span.start, span.end);
   const picked =
@@ -368,6 +376,7 @@ export function SpanInspector({
           onPick={onPick}
           onMovementPicked={onMovementPicked}
           onAsPlanned={onAsPlanned}
+          onChooseOption={onChooseOption}
         />
       ) : null}
 
@@ -675,20 +684,14 @@ function MovementMark({
   onPick,
   onMovementPicked,
   onAsPlanned,
+  onChooseOption,
 }: {
   readonly span: SpanOf<"movement">;
   readonly phrase: string;
   readonly catalog: ReadonlyArray<CatalogMovement>;
   readonly picked: CatalogMovement | undefined;
   readonly picking: PickMode | undefined;
-  readonly programmed:
-    | {
-        readonly item: DerivedItem;
-        readonly defaults: ResultDefaults;
-        readonly grade: ItemGrade | undefined;
-        readonly complex: ComplexAction | undefined;
-      }
-    | undefined;
+  readonly programmed: ProgrammedMovement | undefined;
   readonly mode: "log" | "plan";
   readonly outcomeFirst: boolean;
   readonly alternativeOfText: string | undefined;
@@ -700,7 +703,41 @@ function MovementMark({
     learned: boolean,
   ) => void;
   readonly onAsPlanned: ((span: SpanOf<"movement">) => void) | undefined;
+  readonly onChooseOption: ((id: SpanId) => void) | undefined;
 }) {
+  const nameOf = (id: MovementId) => catalog.find((movement) => movement.id === id)?.name;
+  const choice =
+    programmed !== undefined && programmed.station.length > 1 && onChooseOption ? (
+      <div className="grid gap-1.5 border-t pt-3">
+        <span className="form-label text-muted-foreground">
+          {mode === "plan" ? "Will do" : "Did"}
+        </span>
+        <div className="grid gap-1" role="group" aria-label="Station options">
+          {programmed.station.map((option) => {
+            const amounts = option.sets
+              .flatMap((set) => set.quantities)
+              .map((quantity) => formatQuantity(quantity))
+              .join(", ");
+            return (
+              <Button
+                key={option.spanId}
+                size="sm"
+                variant={programmed.chosen === option.spanId ? "default" : "outline"}
+                aria-pressed={programmed.chosen === option.spanId}
+                className="justify-between"
+                onClick={() => onChooseOption(option.spanId)}
+              >
+                <span className="truncate">
+                  {(option.movementId === undefined ? undefined : nameOf(option.movementId)) ??
+                    option.text}
+                </span>
+                {amounts === "" ? null : <span className="tabular-nums">{amounts}</span>}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+    ) : null;
   const identity = (
     <>
       <MovementPicker
@@ -725,44 +762,47 @@ function MovementMark({
     </>
   );
   const outcome = programmed ? (
-    mode === "plan" ? (
-      <PerformanceEditor
-        mode="plan"
-        performance={span.plan}
-        item={programmed.item}
-        grade={programmed.grade}
-        catalog={catalog}
-        onChange={(plan) => {
-          const { plan: _old, ...rest } = span;
-          onUpdate(plan === undefined ? rest : { ...rest, plan });
-        }}
-      />
-    ) : (
-      <>
+    <>
+      {choice}
+      {mode === "plan" ? (
         <PerformanceEditor
-          performance={span.performance}
-          planned={span.plan}
-          onAsPlanned={onAsPlanned === undefined ? undefined : () => onAsPlanned(span)}
+          mode="plan"
+          performance={span.plan}
           item={programmed.item}
           grade={programmed.grade}
           catalog={catalog}
-          onChange={(performance) => {
-            const { performance: _old, ...rest } = span;
-            onUpdate(performance === undefined ? rest : { ...rest, performance });
+          onChange={(plan) => {
+            const { plan: _old, ...rest } = span;
+            onUpdate(plan === undefined ? rest : { ...rest, plan });
           }}
         />
-        <ResultEditor
-          result={span.result}
-          item={programmed.item}
-          defaults={programmed.defaults}
-          complex={programmed.complex}
-          onChange={(result: LiftResult | undefined) => {
-            const { result: _old, ...rest } = span;
-            onUpdate(result === undefined ? rest : { ...rest, result });
-          }}
-        />
-      </>
-    )
+      ) : (
+        <>
+          <PerformanceEditor
+            performance={span.performance}
+            planned={span.plan}
+            onAsPlanned={onAsPlanned === undefined ? undefined : () => onAsPlanned(span)}
+            item={programmed.item}
+            grade={programmed.grade}
+            catalog={catalog}
+            onChange={(performance) => {
+              const { performance: _old, ...rest } = span;
+              onUpdate(performance === undefined ? rest : { ...rest, performance });
+            }}
+          />
+          <ResultEditor
+            result={span.result}
+            item={programmed.item}
+            defaults={programmed.defaults}
+            complex={programmed.complex}
+            onChange={(result: LiftResult | undefined) => {
+              const { result: _old, ...rest } = span;
+              onUpdate(result === undefined ? rest : { ...rest, result });
+            }}
+          />
+        </>
+      )}
+    </>
   ) : null;
 
   // An unresolved movement has to be picked before anything else counts.

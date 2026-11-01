@@ -1,6 +1,6 @@
 import type { BenchmarkId } from "../baseSchemas.ts";
 import { findBenchmark } from "../benchmarks/index.ts";
-import type { Measure, Span, SpanId, SpanOf } from "../sessionImport.ts";
+import type { BlockFormat, Measure, Span, SpanId, SpanOf } from "../sessionImport.ts";
 import { tokenize, type MovementMatcher } from "./movementMatcher.ts";
 import {
   findScore,
@@ -9,6 +9,7 @@ import {
   maskParentheses,
   parseBlockFormat,
   parseQuantities,
+  parseRoundRest,
   splitLines,
   type QuantityMatch,
 } from "./parse.ts";
@@ -60,6 +61,8 @@ const SESSION = /\bsession\s*#?\s*(\d+)/i;
 const NOTES_HEADING = /^(?:notes?|noter|results?|resultater)\s*:?$/i;
 const CONTAINER_HEADING = /^(?:workouts?|wod|træning)\s*:?$/i;
 const FAILED = /\b(?:fail(?:ed)?|miss(?:ed)?|no[\s-]?rep)\b/i;
+/** Formats that run in rounds, so a rest between rounds belongs to them. */
+const ROUNDED: ReadonlySet<BlockFormat> = new Set(["amrap", "for_time", "other"]);
 /** Intensity a line can carry without naming a movement: "70-80% af ovenstående", "RPE 8". */
 const INTENSITY: ReadonlySet<Measure> = new Set(["percent_1rm", "rpe"]);
 
@@ -118,6 +121,8 @@ export const suggestSpans = (
   let region: "workout" | "notes" = "workout";
   let lastPartMovement: SpanOf<"movement"> | undefined;
   let lastScoreable: SpanOf<"block"> | SpanOf<"benchmark"> | undefined;
+  /** The block the lines below belong to, until the next part or benchmark. */
+  let currentBlock: SpanOf<"block"> | undefined;
   const benchmarks = new Map<BenchmarkId, SpanOf<"benchmark">>();
 
   /** A benchmark on a line of its own; `true` when the line was one. */
@@ -135,6 +140,7 @@ export const suggestSpans = (
     benchmarks.set(named.benchmarkId, span);
     lastPartMovement = undefined;
     lastScoreable = span;
+    currentBlock = undefined;
     return true;
   };
 
@@ -188,6 +194,21 @@ export const suggestSpans = (
   };
 
   const workoutLine = (content: string, offset: number) => {
+    // "Rest 30 sec b/t rounds.": the block's rest, and the coach's words for it.
+    const roundRest = parseRoundRest(content);
+    if (roundRest !== undefined) {
+      if (currentBlock && ROUNDED.has(currentBlock.format)) {
+        const rested: SpanOf<"block"> = {
+          ...currentBlock,
+          params: { ...currentBlock.params, restSeconds: roundRest },
+        };
+        spans[spans.indexOf(currentBlock)] = rested;
+        if (lastScoreable === currentBlock) lastScoreable = rested;
+        currentBlock = rested;
+      }
+      addIntent(offset, offset + content.length);
+      return;
+    }
     if (/^rest\b/i.test(content) && parseBlockFormat(content) === undefined) return;
     if (addBenchmark(content, offset)) return;
 
@@ -202,6 +223,7 @@ export const suggestSpans = (
         params: format.params,
       };
       spans.push(block);
+      currentBlock = block;
       if (format.format !== "rest" && format.format !== "strength") lastScoreable = block;
       const rest = content.slice(format.length);
       const skipped = rest.length - rest.trimStart().length;
@@ -347,6 +369,7 @@ export const suggestSpans = (
         end: contentStart + content.length,
       });
       lastPartMovement = undefined;
+      currentBlock = undefined;
       continue;
     }
 

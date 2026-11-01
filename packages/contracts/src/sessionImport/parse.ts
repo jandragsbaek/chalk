@@ -64,6 +64,7 @@ export interface QuantityMatch {
 
 const N = String.raw`\d+(?:[.,]\d+)?`;
 const R = String.raw`${N}(?:\s*-\s*${N})*`;
+const TIME_UNIT = String.raw`(sec(?:onds?)?|s|min(?:utes?)?|m)`;
 
 interface Recognizer {
   readonly pattern: RegExp;
@@ -369,7 +370,7 @@ const FORMAT_RULES: ReadonlyArray<FormatRule> = [
     read: () => ({ format: "strength", params: {} }),
   },
   {
-    pattern: new RegExp(String.raw`^rest\s+(${N})\s*(sec(?:onds?)?|s|min(?:utes?)?|m)\.?\s*$`, "i"),
+    pattern: new RegExp(String.raw`^rest\s+(${N})\s*${TIME_UNIT}\.?\s*$`, "i"),
     read: (match) => ({
       format: "rest",
       params: { durationSeconds: toNumber(match[1]!) * timeFactor(match[2]!) },
@@ -382,6 +383,29 @@ export const parseBlockFormat = (text: string): BlockMatch | undefined => {
   for (const rule of FORMAT_RULES) {
     const match = text.match(rule.pattern);
     if (match) return { ...rule.read(match), length: match[0].trimEnd().length };
+  }
+  return undefined;
+};
+
+const BETWEEN_ROUNDS = String.raw`(?:b\/t|btw\.?|between|after|mellem|efter)\s+(?:(?:each|every|hver)\s+)?(?:rounds?|runder?|rds?)\.?\s*$`;
+const ROUND_REST = [
+  // "Rest 30 sec b/t rounds.", "Hvil 1 min mellem runder".
+  new RegExp(
+    String.raw`^(?:rest|hvil|pause)\s*:?\s*(${N})\s*${TIME_UNIT}\.?\s+${BETWEEN_ROUNDS}`,
+    "i",
+  ),
+  // "30 sec rest between rounds".
+  new RegExp(String.raw`^(${N})\s*${TIME_UNIT}\s+(?:rest|hvil|pause)\s+${BETWEEN_ROUNDS}`, "i"),
+];
+
+/**
+ * Rest the board prescribes between rounds ("Rest 30 sec b/t rounds."), in seconds. Belongs to
+ * the block above it, unlike a "Rest 2 min" line, which is a block of its own.
+ */
+export const parseRoundRest = (text: string): number | undefined => {
+  for (const pattern of ROUND_REST) {
+    const match = text.match(pattern);
+    if (match) return toNumber(match[1]!) * timeFactor(match[2]!);
   }
   return undefined;
 };

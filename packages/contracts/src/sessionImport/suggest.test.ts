@@ -12,7 +12,7 @@ import {
   SNATCH_EMOM,
 } from "./fixtures/sessions.ts";
 import { makeMovementMatcher, normalizeMovementPhrase } from "./movementMatcher.ts";
-import { parseBlockFormat, quantityFromText } from "./parse.ts";
+import { parseBlockFormat, parseRoundRest, quantityFromText } from "./parse.ts";
 import { suggestAttachment, suggestSpans } from "./suggest.ts";
 
 const matcher = makeMovementMatcher(CATALOG);
@@ -71,7 +71,8 @@ describe("suggestSpans", () => {
       "quantity 2 = 2 reps -> Hang power clean",
       "intent 70-80% af ovenstående.",
       "part Workout #2",
-      'block Amrap 15 = amrap {"durationSeconds":900}',
+      // The rest line below is the AMRAP's rest between rounds, not a block of its own.
+      'block Amrap 15 = amrap {"durationSeconds":900,"restSeconds":30}',
       "movement Double under = double-under",
       "quantity 60 = 60 reps -> Double under",
       // Single-unders are not in this catalog: the count is left for the athlete to attach.
@@ -81,6 +82,7 @@ describe("suggestSpans", () => {
       "quantity @40/25 = 40/25 kg -> Thrusters",
       "movement Burpee = burpee",
       "quantity 10 = 10 reps -> Burpee",
+      "intent Rest 30 sec b/t rounds.",
     ]);
   });
 
@@ -209,6 +211,15 @@ describe("parse helpers", () => {
       params: { rounds: { min: 5, max: 5 } },
     });
     expect(parseBlockFormat("12 Thrusters")).toBeUndefined();
+  });
+
+  it("tells a rest between rounds from a rest block", () => {
+    expect(parseRoundRest("Rest 30 sec b/t rounds.")).toBe(30);
+    expect(parseRoundRest("Rest 1 min between each round")).toBe(60);
+    expect(parseRoundRest("90 sec rest after each round")).toBe(90);
+    expect(parseRoundRest("Hvil 2 min mellem runder")).toBe(120);
+    expect(parseRoundRest("Rest 2 min")).toBeUndefined();
+    expect(parseBlockFormat("Rest 30 sec b/t rounds.")).toBeUndefined();
   });
 
   it("reads a highlighted phrase as the chosen measure, converting pounds", () => {
