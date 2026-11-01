@@ -4,6 +4,7 @@ packages:
   - packages/*
 
 catalog:
+  "@effect/ai-openrouter": 4.1.0
   "@effect/atom-react": 4.1.0
   "@effect/platform-node": 4.1.0
   "@effect/sql-sqlite-node": 4.1.0
@@ -16,6 +17,7 @@ catalog:
   vite-plus: 1.4.0
 
 minimumReleaseAgeExclude:
+  - "@effect/ai-openrouter@4.1.0"
   - "@effect/atom-react@4.1.0"
   - "@effect/platform-node-shared@4.1.0"
   - "@effect/platform-node@4.1.0"

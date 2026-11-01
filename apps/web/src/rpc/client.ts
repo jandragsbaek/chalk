@@ -10,5 +10,5 @@ export class ChalkClient extends AtomRpc.Service<ChalkClient>()("ChalkClient", {
   group: ChalkRpcGroup,
   protocol: RpcClient.layerProtocolHttp({
     url: new URL(RPC_PATH, window.location.origin).toString(),
-  }).pipe(Layer.provide([FetchHttpClient.layer, RpcSerialization.layerJson])),
+  }).pipe(Layer.provide([FetchHttpClient.layer, RpcSerialization.layerNdjson])),
 }) {}

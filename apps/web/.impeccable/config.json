@@ -1,0 +1,20 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "archivo",
+        "createdAt": "2026-11-01T15:18:01.929Z",
+        "reason": "agent: same family as DESIGN.md Archivo Variable (lowercase match)"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "prime",
+        "createdAt": "2026-11-01T15:19:06.762Z",
+        "reason": "agent: fragment of 'Courier Prime', declared in DESIGN.md source typography"
+      }
+    ]
+  }
+}

@@ -2,7 +2,15 @@ import { createRootRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 
 export const Route = createRootRoute({ component: RootLayout });
 
-type NavTarget = "/" | "/log" | "/strength" | "/benchmarks" | "/levels" | "/workouts" | "/import";
+type NavTarget =
+  | "/"
+  | "/log"
+  | "/strength"
+  | "/benchmarks"
+  | "/levels"
+  | "/workouts"
+  | "/import"
+  | "/coach";
 
 const NAV: ReadonlyArray<{ to: NavTarget; label: string; exact?: boolean }> = [
   { to: "/", label: "Today", exact: true },
@@ -12,10 +20,14 @@ const NAV: ReadonlyArray<{ to: NavTarget; label: string; exact?: boolean }> = [
   { to: "/levels", label: "Levels" },
   { to: "/workouts", label: "Workouts" },
   { to: "/import", label: "Import" },
+  { to: "/coach", label: "Coach" },
 ];
 
-/** Desk pages lay out their own width under the band; the import workbench owns the viewport. */
-const OWN_LAYOUT_PREFIXES = ["/workouts", "/import"];
+/**
+ * Desk pages lay out their own width under the band; the import workbench and the coach own the
+ * viewport.
+ */
+const OWN_LAYOUT_PREFIXES = ["/workouts", "/import", "/coach"];
 /** Pages that lay out wide tables and rulers get the desk's full width. */
 const WIDE_PREFIXES = ["/levels", "/benchmarks"];
 

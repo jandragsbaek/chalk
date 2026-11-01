@@ -1,6 +1,9 @@
-import type { LiftSet } from "@chalk/contracts";
-
-import { estimateOneRepMax, MAX_ESTIMATE_REPS, type OneRepMaxEstimate } from "./estimate.ts";
+import {
+  estimateOneRepMax,
+  MAX_ESTIMATE_REPS,
+  type LiftSet,
+  type OneRepMaxEstimate,
+} from "@chalk/contracts";
 
 /** One training day of a lift, scored by its best set's estimated 1RM. */
 export interface SessionEstimate {

@@ -19,8 +19,9 @@ names one, links it. Where it is going:
 - [docs/domain.md](docs/domain.md): movements, scaling, workouts composed of movements, rep
   maxes, the weekly volume grid.
 - [docs/roadmap.md](docs/roadmap.md): phases, in order.
-- [docs/coaching.md](docs/coaching.md): a short agentic coaching loop over an MCP server and
-  OpenRouter.
+- [docs/coaching.md](docs/coaching.md): the coach on `/coach` (built: conversations whose
+  every read of your log is a receipt) and what comes next: check-ins that fill the debrief, and
+  an MCP server over the same tools.
 
 Chalk is also a learning project. It uses the architecture and stack of
 [T3 Code](https://github.com/pingdotgg/t3code), scaled down to a small app: shared Effect Schema
@@ -44,12 +45,14 @@ pnpm build
 pnpm start        # http://127.0.0.1:4300
 ```
 
-| Variable         | Default             | Purpose                                  |
-| ---------------- | ------------------- | ---------------------------------------- |
-| `CHALK_HOST`     | `127.0.0.1`         | Interface the server listens on          |
-| `CHALK_PORT`     | `4300`              | Server port (the dev proxy reads it)     |
-| `CHALK_DB_PATH`  | `data/chalk.sqlite` | SQLite database file                     |
-| `CHALK_WEB_DIST` | unset               | Built SPA to serve; `pnpm start` sets it |
+| Variable             | Default                       | Purpose                                       |
+| -------------------- | ----------------------------- | --------------------------------------------- |
+| `CHALK_HOST`         | `127.0.0.1`                   | Interface the server listens on               |
+| `CHALK_PORT`         | `4300`                        | Server port (the dev proxy reads it)          |
+| `CHALK_DB_PATH`      | `data/chalk.sqlite`           | SQLite database file                          |
+| `CHALK_WEB_DIST`     | unset                         | Built SPA to serve; `pnpm start` sets it      |
+| `OPENROUTER_API_KEY` | unset                         | Turns the coach on; never sent to the browser |
+| `CHALK_COACH_MODEL`  | `anthropic/claude-sonnet-5.5` | OpenRouter model slug the coach answers with  |
 
 Deploying: [docs/deploy.md](docs/deploy.md) (Docker image, Kamal, a tailnet-only lab VM).
 
