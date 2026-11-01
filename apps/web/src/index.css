@@ -543,3 +543,42 @@ kbd[data-key] {
     display: none;
   }
 }
+
+/*
+ * Training days on the front page: one ink hue from paper to ink by sessions that day; a day
+ * with none is a printed empty box, a day still to come is not printed. The day being read
+ * takes the double outline, like any selection.
+ */
+[data-heat] {
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+[data-heat="1"] {
+  background: color-mix(in oklch, var(--foreground) 30%, var(--card));
+  box-shadow: none;
+}
+[data-heat="2"] {
+  background: color-mix(in oklch, var(--foreground) 62%, var(--card));
+  box-shadow: none;
+}
+[data-heat="3"] {
+  background: var(--foreground);
+  box-shadow: none;
+}
+[data-heat="future"] {
+  background: none;
+  box-shadow: none;
+}
+[data-heat][data-active] {
+  position: relative;
+  z-index: 1;
+  outline: 3px double var(--foreground);
+  outline-offset: 1px;
+}
+[data-day-row][data-today] {
+  outline: 3px double var(--foreground);
+  outline-offset: -4px;
+}
+[data-day-row][data-active] {
+  background: var(--muted);
+}
