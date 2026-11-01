@@ -53,7 +53,7 @@ pnpm start        # http://127.0.0.1:4300
 
 Deploying: [docs/deploy.md](docs/deploy.md) (Docker image, Kamal, a tailnet-only lab VM).
 
-Other commands: `pnpm openapi` (regenerate `packages/contracts/openapi/admin.json`; a test fails when it is stale), `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm fmt`, and `pnpm check` (everything CI runs). The toolchain is [Vite+](https://viteplus.dev) (`vp`): one root `vite.config.ts` configures tests, Oxlint (with the local `oxlint-plugin-chalk/` rules and `@shadcn/lint`), Oxfmt, and the pre-commit hook, which formats and lints staged files with `vp staged`. `@effect/vitest` is patched (`patches/`) to import `vite-plus/test` instead of `vitest`. The lint setup and the rules in `oxlint-plugin-chalk/` are adapted from [T3 Code](https://github.com/pingdotgg/t3code) under its MIT license (`oxlint-plugin-chalk/LICENSE`).
+Other commands: `pnpm openapi` (regenerate `packages/contracts/openapi/admin.json`; a test fails when it is stale), `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm fmt`, and `pnpm check` (everything CI runs; [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on the lab's self-hosted runners, fork PRs on GitHub-hosted). The toolchain is [Vite+](https://viteplus.dev) (`vp`): one root `vite.config.ts` configures tests, Oxlint (with the local `oxlint-plugin-chalk/` rules and `@shadcn/lint`), Oxfmt, and the pre-commit hook, which formats and lints staged files with `vp staged`. `@effect/vitest` is patched (`patches/`) to import `vite-plus/test` instead of `vitest`. The lint setup and the rules in `oxlint-plugin-chalk/` are adapted from [T3 Code](https://github.com/pingdotgg/t3code) under its MIT license (`oxlint-plugin-chalk/LICENSE`).
 
 ## How it fits together
 

@@ -15,7 +15,9 @@ concurrency:
 jobs:
   check:
     name: Check
-    runs-on: ubuntu-latest
+    # Same-repo events run on the lab's self-hosted runners (labels self-hosted, public).
+    # Fork PRs run on GitHub-hosted, so fork code never reaches the lab, even when approved.
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'ubuntu-latest' || fromJSON('["self-hosted","public"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
