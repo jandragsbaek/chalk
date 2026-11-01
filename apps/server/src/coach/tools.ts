@@ -12,6 +12,7 @@ import {
   BENCHMARKS,
   BenchmarkScoring,
   describeCoaching,
+  describePlace,
   SESSION_TYPE_LABELS,
   sessionTypeOf,
   describeDifference,
@@ -85,7 +86,8 @@ const ListWorkouts = Tool.make("list_workouts", {
   description:
     "Logged training sessions, newest first: date, name, kind (the workout's format), score, " +
     "whether it was Rx, and where recorded the session type ('WOD class', 'Strength class' or " +
-    "'Solo' for one done alone) and who coached it.",
+    "'Solo' for one done alone), who coached it, and where it was trained ('The box', 'Home' " +
+    "or the other box's name).",
   parameters: Schema.Struct({
     ...Range,
     limit: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))),
@@ -101,6 +103,7 @@ const ListWorkouts = Tool.make("list_workouts", {
       benchmark: Schema.optionalKey(Schema.String),
       session: Schema.optionalKey(Schema.String),
       coachedBy: Schema.optionalKey(Schema.String),
+      place: Schema.String,
     }),
   ),
   ...common,
@@ -630,13 +633,14 @@ export const makeHandlers = (deps: {
                   ...(workout.coaching === undefined
                     ? {}
                     : { coachedBy: describeCoaching(workout.coaching) }),
+                  place: describePlace(workout.place),
                 };
               }),
           ),
         ),
         (found) => ({
           summary: plural(found.length, "session"),
-          columns: ["Date", "Workout", "Kind", "Score", "Session", "Coached by"],
+          columns: ["Date", "Workout", "Kind", "Score", "Session", "Coached by", "Place"],
           rows: found.map((workout) => [
             day(workout.performedOn),
             workout.name,
@@ -644,6 +648,7 @@ export const makeHandlers = (deps: {
             workout.score === "" ? "" : `${workout.score}${workout.rx ? " Rx" : ""}`,
             workout.session ?? "",
             workout.coachedBy ?? "",
+            workout.place,
           ]),
         }),
       ),

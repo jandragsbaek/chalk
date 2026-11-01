@@ -1,9 +1,12 @@
-import type {
-  DerivedSession,
-  MovementId,
-  PlanId,
-  ProgrammedSessionId,
-  RestDay,
+import {
+  placePhrase,
+  strengthDayKey,
+  type DerivedSession,
+  type MovementId,
+  type Place,
+  type PlanId,
+  type ProgrammedSessionId,
+  type RestDay,
 } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Link } from "@tanstack/react-router";
@@ -11,6 +14,7 @@ import type * as React from "react";
 
 import { isoWeek, weekDays, type Consistency, type TrainingDay } from "../../lib/dashboard.ts";
 import type { SessionState } from "../../lib/calendar.ts";
+import { placeCode } from "../../lib/places.ts";
 import type { PlannedMovement } from "../../lib/plan.ts";
 import { toDate } from "../../lib/progress.ts";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
@@ -28,7 +32,7 @@ export interface DayPlan {
   readonly plannedOn: string;
   /** The plan derived, for comparing its parts with saved sessions. */
   readonly session: DerivedSession;
-  /** Kind and first movements, or the session's own name (see `planTitle`). */
+  /** Kind and first movements, as `deriveSession` names it. */
   readonly title: string;
   readonly movements: ReadonlyArray<PlannedMovement>;
 }
@@ -52,6 +56,7 @@ export function WeekColumn({
   days,
   restDays,
   numbers,
+  sessionNumbers,
   names,
   activeDay,
   onActivate,
@@ -63,6 +68,8 @@ export function WeekColumn({
   readonly days: ReadonlyMap<string, TrainingDay>;
   readonly restDays: ReadonlyMap<string, RestDay>;
   readonly numbers: Consistency;
+  /** Each session's number at its place, by register key; see `sessionNumbers`. */
+  readonly sessionNumbers: ReadonlyMap<string, number>;
   readonly names: ReadonlyMap<MovementId, string>;
   readonly activeDay: string | null;
   readonly onActivate: (iso: string | null) => void;
@@ -125,6 +132,7 @@ export function WeekColumn({
                     day={day}
                     rest={rest}
                     names={names}
+                    sessionNumbers={sessionNumbers}
                     plans={plans.get(iso) ?? []}
                     programmed={programmed.get(iso) ?? []}
                   />
@@ -288,6 +296,7 @@ function DayEntries({
   day,
   rest,
   names,
+  sessionNumbers,
   plans,
   programmed,
 }: {
@@ -297,6 +306,7 @@ function DayEntries({
   /** The day's rest mark; only read while nothing is logged on it. */
   readonly rest: RestDay | undefined;
   readonly names: ReadonlyMap<MovementId, string>;
+  readonly sessionNumbers: ReadonlyMap<string, number>;
   /** Plans for this day not logged yet. */
   readonly plans: ReadonlyArray<DayPlan>;
   readonly programmed: ReadonlyArray<DayProgrammed>;
@@ -322,12 +332,17 @@ function DayEntries({
   if (day.workouts.length === 0) {
     return (
       <>
-        <span className="flex flex-wrap gap-1">
-          {day.liftMovementIds.map((id) => (
-            <span key={id} data-tag="movement" data-chip className="px-1.5 text-sm font-medium">
-              {names.get(id) ?? id}
-            </span>
-          ))}
+        <span className="flex items-baseline gap-2">
+          <span className="flex flex-wrap gap-1">
+            {day.liftMovementIds.map((id) => (
+              <span key={id} data-tag="movement" data-chip className="px-1.5 text-sm font-medium">
+                {names.get(id) ?? id}
+              </span>
+            ))}
+          </span>
+          <span className="ml-auto">
+            <SessionNumber place={day.liftPlace} number={sessionNumbers.get(strengthDayKey(iso))} />
+          </span>
         </span>
         {planned}
       </>
@@ -346,8 +361,12 @@ function DayEntries({
       ) : (
         <span className="truncate text-sm font-medium">{workout.name}</span>
       )}
-      <span className="form-label shrink-0 text-muted-foreground">
-        {WORKOUT_KIND_LABELS[workout.kind]}
+      {/* Kind over number, so the name keeps the row's width. */}
+      <span className="ml-auto grid shrink-0 text-right">
+        <span className="form-label text-muted-foreground">
+          {WORKOUT_KIND_LABELS[workout.kind]}
+        </span>
+        <SessionNumber place={workout.place} number={sessionNumbers.get(workout.id)} />
       </span>
     </span>
   ));
@@ -356,5 +375,24 @@ function DayEntries({
       {logged}
       {planned}
     </>
+  );
+}
+
+/** "Box 179" at the row's right: the session's number at its place. */
+function SessionNumber({
+  place,
+  number,
+}: {
+  readonly place: Place | undefined;
+  readonly number: number | undefined;
+}) {
+  if (place === undefined || number === undefined) return null;
+  return (
+    <span
+      className="form-label shrink-0 text-muted-foreground tabular-nums"
+      title={`Session ${number} ${placePhrase(place)}`}
+    >
+      {placeCode(place)} {number}
+    </span>
   );
 }

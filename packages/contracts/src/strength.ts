@@ -7,6 +7,7 @@ import {
   MovementId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
+import { Place } from "./place.ts";
 
 /** Grouping for pickers and, later, modality balance (weightlifting / gymnastics / mono). */
 export const MovementCategory = Schema.Literals([
@@ -42,6 +43,8 @@ export const LiftSet = Schema.Struct({
   reps: LiftReps,
   loadKg: LoadKg,
   notes: Schema.String,
+  /** Where it was lifted: a session's place, or picked when logged by hand. */
+  place: Place,
   createdAt: IsoDateTime,
 }).annotate({ identifier: "LiftSet" });
 export type LiftSet = typeof LiftSet.Type;
@@ -52,6 +55,8 @@ export const LogLiftSetInput = Schema.Struct({
   reps: LiftReps,
   loadKg: LoadKg,
   notes: Schema.String,
+  /** Absent: the box. */
+  place: Schema.optionalKey(Place),
 });
 export type LogLiftSetInput = typeof LogLiftSetInput.Type;
 

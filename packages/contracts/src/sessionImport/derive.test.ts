@@ -42,7 +42,7 @@ describe("deriveSession", () => {
     expect(session).toMatchObject({
       performedOn: "2026-10-26",
       sessionNumber: 166,
-      name: "Session 166",
+      name: "AMRAP · Front squat, Row +4",
       kind: "amrap",
     });
     expect(
@@ -223,7 +223,7 @@ describe("deriveSession", () => {
 
     const dated = deriveSession({ text, spans, performedOn: "2026-01-02" }, nameOf);
     expect(dated.performedOn).toBe("2026-01-02");
-    expect(dated.name).toBe("Session 2026-01-02");
+    expect(dated.name).toBe("Other · Deadlift");
   });
 
   it("flags overlapping highlights and movements outside the catalog", () => {

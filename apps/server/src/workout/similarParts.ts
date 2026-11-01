@@ -25,7 +25,6 @@ const PartRow = Schema.Struct({
   workoutId: WorkoutId,
   workoutName: Schema.String,
   performedOn: IsoDate,
-  sessionNumber: Schema.NullOr(Schema.Number),
   position: Schema.Number,
   title: Schema.String,
   benchmarkId: Schema.NullOr(BenchmarkId),
@@ -81,13 +80,12 @@ export const makeLoadSimilarParts = Effect.gen(function* () {
     Result: PartRow,
     execute: () => sql`
       SELECT p.id, p.workout_id AS "workoutId", w.name AS "workoutName",
-             w.performed_on AS "performedOn", si.session_number AS "sessionNumber",
+             w.performed_on AS "performedOn",
              p.position, p.title, p.benchmark_id AS "benchmarkId", w.score AS "workoutScore",
              (SELECT COUNT(*) FROM workout_parts q WHERE q.workout_id = p.workout_id)
                AS "partCount"
       FROM workout_parts p
       JOIN workouts w ON w.id = p.workout_id
-      LEFT JOIN session_imports si ON si.workout_id = w.id
       ORDER BY w.performed_on DESC, w.id DESC, p.position
     `,
   });
@@ -227,7 +225,6 @@ function history({ parts, blocks, items, lifts, cores }: Rows) {
           workoutId: part.workoutId,
           workoutName: part.workoutName,
           performedOn: part.performedOn,
-          sessionNumber: part.sessionNumber,
           position: part.position,
           title: part.title,
           ...(part.benchmarkId === null ? {} : { benchmarkId: part.benchmarkId }),

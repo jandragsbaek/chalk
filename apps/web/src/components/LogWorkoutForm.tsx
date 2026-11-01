@@ -3,9 +3,11 @@ import {
   findBenchmark,
   LogWorkoutInput,
   SCORE_PLACEHOLDERS as BENCHMARK_SCORE_PLACEHOLDERS,
+  THE_BOX,
   withCoaching,
   withSessionType,
   type Benchmark,
+  type Place,
   type SessionMarks,
 } from "@chalk/contracts";
 import { useAtomSet } from "@effect/atom-react";
@@ -19,6 +21,7 @@ import { SCORE_PLACEHOLDERS, WORKOUT_KIND_LABELS, WORKOUT_KINDS } from "../lib/w
 import { LIFTS_REACTIVITY_KEY } from "../state/strength.ts";
 import { logWorkoutAtom, WORKOUTS_REACTIVITY_KEY } from "../state/workouts.ts";
 import { CoachingField } from "./import/CoachingField.tsx";
+import { PlaceField } from "./PlaceField.tsx";
 import { SessionTypeField } from "./import/SessionTypeField.tsx";
 import { WorkoutPicker } from "./WorkoutPicker.tsx";
 import { Button } from "@chalk/ui/components/button.tsx";
@@ -47,6 +50,8 @@ export function LogWorkoutForm({ benchmark: fixed }: { readonly benchmark?: Benc
   const [rx, setRx] = useState(true);
   const [notes, setNotes] = useState("");
   const [marks, setMarks] = useState<SessionMarks>({});
+  // Kept after a save: the next session logged is likely trained at the same place.
+  const [place, setPlace] = useState<Place>(THE_BOX);
   const [status, setStatus] = useState<SubmitStatus>({ type: "idle" });
   const benchmark = fixed ?? findBenchmark(name);
 
@@ -67,6 +72,7 @@ export function LogWorkoutForm({ benchmark: fixed }: { readonly benchmark?: Benc
       notes: notes.trim(),
       ...(benchmark ? { benchmarkId: benchmark.id } : {}),
       ...marks,
+      ...(place._tag === "box" ? {} : { place }),
     });
     if (Option.isNone(input)) {
       setStatus({ type: "error", message: "Add a date, a workout name and a score." });
@@ -177,6 +183,11 @@ export function LogWorkoutForm({ benchmark: fixed }: { readonly benchmark?: Benc
             setMarks((current) => withCoaching(current, coaching, classType))
           }
         />
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="workout-place">Place</Label>
+        <PlaceField id="workout-place" place={place} onChange={setPlace} />
       </div>
 
       <div className="grid gap-1.5 sm:col-span-2">

@@ -38,7 +38,6 @@ export const PartRef = Schema.Struct({
   workoutId: WorkoutId,
   workoutName: Schema.String,
   performedOn: IsoDate,
-  sessionNumber: Schema.NullOr(Schema.Int),
   position: Schema.Int,
   title: Schema.String,
   benchmarkId: Schema.optionalKey(BenchmarkId),

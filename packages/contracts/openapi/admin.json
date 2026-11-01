@@ -2004,6 +2004,61 @@
               "wod",
               "strength"
             ]
+          },
+          "place": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "box"
+                    ]
+                  }
+                },
+                "required": [
+                  "_tag"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "home"
+                    ]
+                  }
+                },
+                "required": [
+                  "_tag"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "away"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "_tag",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            ]
           }
         },
         "required": [
@@ -3005,18 +3060,6 @@
           "performedOn": {
             "type": "string"
           },
-          "sessionNumber": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "position": {
             "type": "integer",
             "minimum": -9007199254740991,
@@ -3088,7 +3131,6 @@
           "workoutId",
           "workoutName",
           "performedOn",
-          "sessionNumber",
           "position",
           "title",
           "headline",
@@ -3315,17 +3357,10 @@
               "workout": {
                 "$ref": "#/components/schemas/Workout"
               },
-              "sessionNumber": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
+              "number": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               },
               "imported": {
                 "type": "boolean"
@@ -3356,7 +3391,7 @@
             "required": [
               "_tag",
               "workout",
-              "sessionNumber",
+              "number",
               "imported",
               "movementIds",
               "liftSetCount",
@@ -3377,6 +3412,66 @@
               "performedOn": {
                 "type": "string"
               },
+              "place": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "_tag": {
+                        "type": "string",
+                        "enum": [
+                          "box"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "_tag"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "_tag": {
+                        "type": "string",
+                        "enum": [
+                          "home"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "_tag"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "_tag": {
+                        "type": "string",
+                        "enum": [
+                          "away"
+                        ]
+                      },
+                      "name": {
+                        "type": "string",
+                        "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "_tag",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "number": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
               "movementIds": {
                 "type": "array",
                 "items": {
@@ -3395,6 +3490,8 @@
             "required": [
               "_tag",
               "performedOn",
+              "place",
+              "number",
               "movementIds",
               "daySets"
             ],
@@ -3431,6 +3528,61 @@
           "notes": {
             "type": "string"
           },
+          "place": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "box"
+                    ]
+                  }
+                },
+                "required": [
+                  "_tag"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "home"
+                    ]
+                  }
+                },
+                "required": [
+                  "_tag"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "away"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "_tag",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
           "createdAt": {
             "type": "string"
           }
@@ -3442,6 +3594,7 @@
           "reps",
           "loadKg",
           "notes",
+          "place",
           "createdAt"
         ],
         "additionalProperties": false
@@ -3533,6 +3686,61 @@
               "strength"
             ]
           },
+          "place": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "box"
+                    ]
+                  }
+                },
+                "required": [
+                  "_tag"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "home"
+                    ]
+                  }
+                },
+                "required": [
+                  "_tag"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": [
+                      "away"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "_tag",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
           "createdAt": {
             "type": "string"
           }
@@ -3545,6 +3753,7 @@
           "score",
           "rx",
           "notes",
+          "place",
           "createdAt"
         ],
         "additionalProperties": false

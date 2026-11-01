@@ -7,6 +7,7 @@ import {
   suggestSpans,
   WorkoutId,
   type LogWorkoutInput,
+  type Place,
 } from "@chalk/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as SecureRandom from "effect/crypto/SecureRandom";
@@ -78,7 +79,7 @@ describe("WorkoutStore", () => {
       expect(
         (yield* store.list()).map((workout) => [workout.name, workout.classType, workout.coaching]),
       ).toEqual([
-        ["Session 171", "strength", undefined],
+        ["Other · Back squat", "strength", undefined],
         ["Fran", undefined, { _tag: "solo" }],
       ]);
       expect((yield* store.search("strength cl")).map((workout) => workout.id)).toEqual([
@@ -110,7 +111,7 @@ describe("WorkoutStore", () => {
           entry._tag === "workout" ? [entry.workout.name, entry.workout.coaching] : [],
         ),
       ).toEqual([
-        ["Session 171", { _tag: "coached", coach: "Rikke L." }],
+        ["Other · Back squat", { _tag: "coached", coach: "Rikke L." }],
         ["Cindy", undefined],
         ["Fran", { _tag: "solo" }],
       ]);
@@ -265,79 +266,94 @@ describe("WorkoutStore", () => {
     }).pipe(Effect.provide(layer)),
   );
 
-  it.effect("lists sessions: workouts with their movements, and days with only lift sets", () =>
-    Effect.gen(function* () {
-      const store = yield* WorkoutStore.WorkoutStore;
-      const strength = yield* StrengthStore.StrengthStore;
-      const lift = (performedOn: string, movementId: string, loadKg: number) =>
-        strength.log({
-          movementId: MovementId.make(movementId),
-          performedOn,
-          reps: 5,
-          loadKg,
-          notes: "",
-        });
+  it.effect(
+    "lists sessions: workouts with their movements, and days with only lift sets, numbered at their place",
+    () =>
+      Effect.gen(function* () {
+        const store = yield* WorkoutStore.WorkoutStore;
+        const strength = yield* StrengthStore.StrengthStore;
+        const lift = (performedOn: string, movementId: string, loadKg: number, place?: Place) =>
+          strength.log({
+            movementId: MovementId.make(movementId),
+            performedOn,
+            reps: 5,
+            loadKg,
+            notes: "",
+            ...(place === undefined ? {} : { place }),
+          });
 
-      const catalog = yield* (yield* CatalogStore.CatalogStore).list();
-      const text = `** Session 170 <2026-10-30 to>
+        const catalog = yield* (yield* CatalogStore.CatalogStore).list();
+        const text = `** Session 170 <2026-10-30 to>
 **** Workout #1
 - Back squat 5x5 @100kg
 **** Workout #2
 - Fran
 *** Notes
 - Deadlift 3x5 @ 140 kg`;
-      let next = 0;
-      const spans = suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`);
-      const saved = yield* (yield* ImportStore.ImportStore).save({ document: { text, spans } });
+        let next = 0;
+        const spans = suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`);
+        const saved = yield* (yield* ImportStore.ImportStore).save({ document: { text, spans } });
 
-      const cindy = yield* store.log({ ...fran, performedOn: "2026-10-28", name: "Cindy" });
-      yield* lift("2026-10-28", "bench-press", 60);
-      yield* lift("2026-10-29", "front-squat", 80);
-      yield* lift("2026-10-29", "back-squat", 100);
-      yield* lift("2026-10-29", "front-squat", 85);
+        const cindy = yield* store.log({ ...fran, performedOn: "2026-10-28", name: "Cindy" });
+        yield* lift("2026-10-28", "bench-press", 60);
+        // Trained at home: home counts on its own, so the box's next session is its second.
+        yield* lift("2026-10-29", "front-squat", 80, { _tag: "home" });
+        yield* lift("2026-10-29", "back-squat", 100, { _tag: "home" });
+        yield* lift("2026-10-29", "front-squat", 85, { _tag: "home" });
 
-      const entries = yield* store.sessions();
-      expect(
-        entries.map((entry) =>
-          entry._tag === "workout"
-            ? {
-                day: entry.workout.performedOn,
-                name: entry.workout.name,
-                sessionNumber: entry.sessionNumber,
-                imported: entry.imported,
-                movementIds: entry.movementIds,
-                liftSetCount: entry.liftSetCount,
-                daySets: entry.daySets.length,
-              }
-            : {
-                day: entry.performedOn,
-                movementIds: entry.movementIds,
-                daySets: entry.daySets.length,
-              },
-        ),
-      ).toEqual([
-        {
-          day: "2026-10-30",
-          name: saved.name,
-          sessionNumber: 170,
-          imported: true,
-          movementIds: ["back-squat", "thruster", "pull-up", "deadlift"],
-          liftSetCount: saved.liftSetCount,
-          daySets: 0,
-        },
-        { day: "2026-10-29", movementIds: ["front-squat", "back-squat"], daySets: 3 },
-        {
-          day: "2026-10-28",
-          name: "Cindy",
-          sessionNumber: null,
-          imported: false,
-          movementIds: ["bench-press"],
-          liftSetCount: 0,
-          daySets: 1,
-        },
-      ]);
-      expect(entries[2]?._tag === "workout" && entries[2].workout.id).toBe(cindy.id);
-    }).pipe(Effect.provide(layer)),
+        const entries = yield* store.sessions();
+        expect(
+          entries.map((entry) =>
+            entry._tag === "workout"
+              ? {
+                  day: entry.workout.performedOn,
+                  name: entry.workout.name,
+                  place: entry.workout.place._tag,
+                  number: entry.number,
+                  imported: entry.imported,
+                  movementIds: entry.movementIds,
+                  liftSetCount: entry.liftSetCount,
+                  daySets: entry.daySets.length,
+                }
+              : {
+                  day: entry.performedOn,
+                  place: entry.place._tag,
+                  number: entry.number,
+                  movementIds: entry.movementIds,
+                  daySets: entry.daySets.length,
+                },
+          ),
+        ).toEqual([
+          {
+            day: "2026-10-30",
+            name: saved.name,
+            place: "box",
+            number: 2,
+            imported: true,
+            movementIds: ["back-squat", "thruster", "pull-up", "deadlift"],
+            liftSetCount: saved.liftSetCount,
+            daySets: 0,
+          },
+          {
+            day: "2026-10-29",
+            place: "home",
+            number: 1,
+            movementIds: ["front-squat", "back-squat"],
+            daySets: 3,
+          },
+          {
+            day: "2026-10-28",
+            name: "Cindy",
+            place: "box",
+            number: 1,
+            imported: false,
+            movementIds: ["bench-press"],
+            liftSetCount: 0,
+            daySets: 1,
+          },
+        ]);
+        expect(entries[2]?._tag === "workout" && entries[2].workout.id).toBe(cindy.id);
+      }).pipe(Effect.provide(layer)),
   );
   it.effect("compares every saved part with the other sessions' parts", () =>
     Effect.gen(function* () {
@@ -404,7 +420,6 @@ describe("WorkoutStore", () => {
         },
       ]);
       expect(refOf(echoes[1]!.part)).toMatchObject({
-        sessionNumber: 151,
         headline: { format: "amrap", params: { durationSeconds: 720 } },
         movementIds: ["thruster", "bar-facing-burpee"],
       });

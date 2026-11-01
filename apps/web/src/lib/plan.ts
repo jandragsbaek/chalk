@@ -17,7 +17,6 @@ import {
 
 import { resultDefaults, type ResultDefaults } from "./resultDraft.ts";
 import { chosenOption } from "./station.ts";
-import { WORKOUT_KIND_LABELS } from "./workoutKinds.ts";
 
 const kgFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
 
@@ -119,33 +118,6 @@ export function plannedMovements(
       block.items.map((item) => row(chosenOption(item, "planned") ?? item)),
     ),
   );
-}
-
-/**
- * What to call a plan: the session's own name when the paste numbered it, else the kind and the
- * first movements ("For time · Double-under, Wall ball +5"), since a posted board rarely has a
- * heading and "Session 2026-11-01" next to its own date says nothing.
- */
-export function planTitle(
-  session: DerivedSession,
-  nameOf: (id: MovementId) => string | undefined,
-): string {
-  if (session.sessionNumber !== undefined) return session.name;
-  const names = [
-    ...new Set(
-      session.parts.flatMap((part) =>
-        part.blocks.flatMap((block) =>
-          block.items.map(
-            (item) =>
-              (item.movementId === undefined ? undefined : nameOf(item.movementId)) ?? item.text,
-          ),
-        ),
-      ),
-    ),
-  ];
-  if (names.length === 0) return session.name;
-  const more = names.length > 2 ? ` +${names.length - 2}` : "";
-  return `${WORKOUT_KIND_LABELS[session.kind]} · ${names.slice(0, 2).join(", ")}${more}`;
 }
 
 /**

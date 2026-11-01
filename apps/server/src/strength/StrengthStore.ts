@@ -6,6 +6,7 @@ import {
   MovementNotFoundError,
   type LogLiftSetInput,
   type MovementRecords,
+  THE_BOX,
 } from "@chalk/contracts";
 import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
@@ -16,6 +17,8 @@ import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 
+import { placeColumns } from "../workout/placeColumns.ts";
+import { LIFT_SET_COLUMNS, LiftSetRow, toLiftSet } from "./liftSetRow.ts";
 import { computeRecords } from "./repMaxes.ts";
 
 export class StrengthPersistenceError extends Schema.TaggedError<StrengthPersistenceError>()(
@@ -72,10 +75,9 @@ const make = Effect.gen(function* () {
 
   const selectSets = SqlSchema.findAll({
     Request: Schema.Void,
-    Result: LiftSet,
+    Result: LiftSetRow,
     execute: () => sql`
-      SELECT id, movement_id AS "movementId", performed_on AS "performedOn", reps,
-             load_kg AS "loadKg", notes, created_at AS "createdAt"
+      SELECT ${sql.unsafe(LIFT_SET_COLUMNS)}
       FROM lift_sets
       ORDER BY performed_on DESC, id DESC
     `,
@@ -90,11 +92,12 @@ const make = Effect.gen(function* () {
   });
 
   const list = Effect.fn("StrengthStore.list")(function* () {
-    return yield* selectSets(undefined).pipe(
+    const rows = yield* selectSets(undefined).pipe(
       Effect.mapError(
         (cause) => new StrengthPersistenceError({ operation: "list lift sets", cause }),
       ),
     );
+    return rows.map(toLiftSet);
   });
 
   const log = Effect.fn("StrengthStore.log")(function* (input: LogLiftSetInput) {
@@ -107,13 +110,16 @@ const make = Effect.gen(function* () {
 
     const set: LiftSet = {
       ...input,
+      place: input.place ?? THE_BOX,
       id: LiftSetId.make(yield* random.uuidV7()),
       createdAt: DateTime.formatIso(yield* DateTime.now),
     };
+    const { place, placeName } = placeColumns(set.place);
     yield* sql`
-      INSERT INTO lift_sets (id, movement_id, performed_on, reps, load_kg, notes, created_at)
+      INSERT INTO lift_sets (id, movement_id, performed_on, reps, load_kg, notes, place,
+                             place_name, created_at)
       VALUES (${set.id}, ${set.movementId}, ${set.performedOn}, ${set.reps}, ${set.loadKg},
-              ${set.notes}, ${set.createdAt})
+              ${set.notes}, ${place}, ${placeName}, ${set.createdAt})
     `.pipe(
       Effect.mapError(
         (cause) => new StrengthPersistenceError({ operation: "log lift set", cause }),
@@ -139,7 +145,7 @@ const make = Effect.gen(function* () {
         (cause) => new StrengthPersistenceError({ operation: "compute rep maxes", cause }),
       ),
     );
-    return computeRecords(sets);
+    return computeRecords(sets.map(toLiftSet));
   });
 
   return StrengthStore.of({ movements, list, log, remove, records });

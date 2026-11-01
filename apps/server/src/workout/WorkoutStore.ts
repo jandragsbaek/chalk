@@ -4,6 +4,9 @@ import {
   LiftSet,
   MovementId,
   findBenchmark,
+  numberSessions,
+  placedSessions,
+  strengthDayKey,
   LogWorkoutInput,
   Workout,
   WorkoutId,
@@ -25,6 +28,8 @@ import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 
+import { LIFT_SET_COLUMNS, LiftSetRow, toLiftSet } from "../strength/liftSetRow.ts";
+import { placeColumns, placeOf } from "./placeColumns.ts";
 import { sessionColumns, sessionMarksOf } from "./sessionMarks.ts";
 import { deleteWorkoutRows } from "./deleteWorkoutRows.ts";
 import { insertBenchmarkPart } from "./insertBenchmarkPart.ts";
@@ -63,6 +68,8 @@ const WorkoutRow = Schema.Struct({
   coach: Schema.NullOr(Schema.String),
   solo: Schema.Number,
   classType: Schema.NullOr(Schema.String),
+  place: Schema.String,
+  placeName: Schema.NullOr(Schema.String),
   createdAt: Workout.fields.createdAt,
 });
 
@@ -86,7 +93,6 @@ const UnlinkedRow = Schema.Struct({
 
 const SessionRow = Schema.Struct({
   ...WorkoutRow.fields,
-  sessionNumber: Schema.NullOr(Schema.Number),
   imported: Schema.Number,
   liftSetCount: Schema.Number,
   tonnageKg: Schema.Number,
@@ -106,9 +112,12 @@ const toWorkout = ({
   coach,
   solo,
   classType,
+  place,
+  placeName,
   ...row
 }: typeof WorkoutRow.Type): Workout => ({
   ...row,
+  place: placeOf({ place, placeName }),
   rx: row.rx === 1,
   ...(benchmarkId === null ? {} : { benchmarkId }),
   ...sessionMarksOf({ coach, solo, classType }),
@@ -120,7 +129,8 @@ const WORKOUT_COLUMNS = `
   (SELECT p.benchmark_id FROM workout_parts p
    WHERE p.workout_id = w.id AND p.benchmark_id IS NOT NULL
    ORDER BY p.position LIMIT 1) AS "benchmarkId",
-  w.coach, w.solo, w.class_type AS "classType", w.created_at AS "createdAt"
+  w.coach, w.solo, w.class_type AS "classType", w.place, w.place_name AS "placeName",
+  w.created_at AS "createdAt"
 `;
 
 export class WorkoutStore extends Context.Service<
@@ -178,6 +188,9 @@ const make = Effect.gen(function* () {
          OR (w.solo = 1 AND 'Solo' LIKE ${pattern} ESCAPE '!')
          OR (w.class_type = 'wod' AND 'WOD class' LIKE ${pattern} ESCAPE '!')
          OR (w.class_type = 'strength' AND 'Strength class' LIKE ${pattern} ESCAPE '!')
+         OR w.place_name LIKE ${pattern} ESCAPE '!'
+         OR (w.place = 'home' AND 'Home' LIKE ${pattern} ESCAPE '!')
+         OR (w.place = 'box' AND 'The box' LIKE ${pattern} ESCAPE '!')
       ORDER BY w.performed_on DESC, w.id DESC
     `,
   });
@@ -224,8 +237,7 @@ const make = Effect.gen(function* () {
     Request: Schema.Void,
     Result: SessionRow,
     execute: () => sql`
-      SELECT ${sql.unsafe(WORKOUT_COLUMNS)}, si.session_number AS "sessionNumber",
-             si.workout_id IS NOT NULL AS imported,
+      SELECT ${sql.unsafe(WORKOUT_COLUMNS)}, si.workout_id IS NOT NULL AS imported,
              (SELECT COUNT(*) FROM lift_sets l WHERE l.workout_id = w.id) AS "liftSetCount",
              (SELECT COALESCE(SUM(l.reps * l.load_kg), 0) FROM lift_sets l
               WHERE l.workout_id = w.id) AS "tonnageKg"
@@ -255,10 +267,9 @@ const make = Effect.gen(function* () {
   // Logged by hand, outside any session: a strength day, or extra sets next to a workout.
   const selectDaySets = SqlSchema.findAll({
     Request: Schema.Void,
-    Result: LiftSet,
+    Result: LiftSetRow,
     execute: () => sql`
-      SELECT id, movement_id AS "movementId", performed_on AS "performedOn", reps,
-             load_kg AS "loadKg", notes, created_at AS "createdAt"
+      SELECT ${sql.unsafe(LIFT_SET_COLUMNS)}
       FROM lift_sets
       WHERE workout_id IS NULL
       ORDER BY performed_on DESC, created_at, id
@@ -300,10 +311,12 @@ const make = Effect.gen(function* () {
   const log = Effect.fn("WorkoutStore.log")(function* (input: LogWorkoutInput) {
     // As stored: solo drops a class sent with it.
     const { coach, solo, classType } = sessionColumns(input);
-    const { coaching: _coaching, classType: _classType, ...fields } = input;
+    const { place, placeName } = placeColumns(input.place);
+    const { coaching: _coaching, classType: _classType, place: _place, ...fields } = input;
     const workout: Workout = {
       ...fields,
       ...sessionMarksOf({ coach, solo, classType }),
+      place: placeOf({ place, placeName }),
       id: WorkoutId.make(yield* random.uuidV7()),
       createdAt: DateTime.formatIso(yield* DateTime.now),
     };
@@ -312,10 +325,10 @@ const make = Effect.gen(function* () {
     yield* Effect.gen(function* () {
       yield* sql`
         INSERT INTO workouts (id, performed_on, name, kind, score, rx, notes, coach, solo,
-                              class_type, created_at)
+                              class_type, place, place_name, created_at)
         VALUES (${workout.id}, ${workout.performedOn}, ${workout.name}, ${workout.kind},
                 ${workout.score}, ${workout.rx ? 1 : 0}, ${workout.notes}, ${coach}, ${solo},
-                ${classType}, ${workout.createdAt})
+                ${classType}, ${place}, ${placeName}, ${workout.createdAt})
       `;
       if (benchmark)
         yield* insertBenchmarkPart(sql, random.uuidV7(), {
@@ -342,8 +355,12 @@ const make = Effect.gen(function* () {
       ),
     );
     const uniqueMovements = (sets: Iterable<MovementId>) => [...new Set(sets)];
+    const workouts = rows.map(toWorkout);
+    const handSets = daySets.map(toLiftSet);
+    const numbers = numberSessions(placedSessions(workouts, handSets));
+    const numberOf = (key: string) => numbers.get(key) ?? 0;
     const setsByDay = new Map<string, Array<LiftSet>>();
-    for (const set of daySets) {
+    for (const set of handSets) {
       const day = setsByDay.get(set.performedOn);
       if (day) day.push(set);
       else setsByDay.set(set.performedOn, [set]);
@@ -357,15 +374,16 @@ const make = Effect.gen(function* () {
 
     const workoutDays = new Set(rows.map((row) => row.performedOn));
     const entries: Array<SessionEntry> = rows.map(
-      ({ sessionNumber, imported, liftSetCount, tonnageKg, ...row }) => {
-        const sets = setsByDay.get(row.performedOn) ?? [];
+      ({ imported, liftSetCount, tonnageKg }, index) => {
+        const workout = workouts[index]!;
+        const sets = setsByDay.get(workout.performedOn) ?? [];
         return {
           _tag: "workout",
-          workout: toWorkout(row),
-          sessionNumber,
+          workout,
+          number: numberOf(workout.id),
           imported: imported === 1,
           movementIds: uniqueMovements([
-            ...(movementsByWorkout.get(row.id) ?? []),
+            ...(movementsByWorkout.get(workout.id) ?? []),
             ...sets.map((set) => set.movementId),
           ]),
           liftSetCount,
@@ -379,6 +397,9 @@ const make = Effect.gen(function* () {
         entries.push({
           _tag: "strengthDay",
           performedOn,
+          // Oldest first: the day is where its first set was lifted.
+          place: sets[0]!.place,
+          number: numberOf(strengthDayKey(performedOn)),
           movementIds: uniqueMovements(sets.map((set) => set.movementId)),
           daySets: sets,
         });

@@ -26,6 +26,7 @@ import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 
+import { placeColumns } from "../workout/placeColumns.ts";
 import { sessionColumns } from "../workout/sessionMarks.ts";
 import { deleteWorkoutRows } from "../workout/deleteWorkoutRows.ts";
 
@@ -130,6 +131,15 @@ const make = Effect.gen(function* () {
         : sql`${sql.unsafe(SUMMARY_SELECT)} WHERE si.session_number = ${sessionNumber}`,
   });
 
+  const selectKeptName = SqlSchema.findAll({
+    Request: Schema.String,
+    Result: Schema.Struct({ name: Schema.String, nameSource: Schema.String }),
+    execute: (workoutId) => sql`
+      SELECT name, name_source AS "nameSource" FROM workouts
+      WHERE id = ${workoutId} AND name_source <> 'derived'
+    `,
+  });
+
   const selectDocument = SqlSchema.findAll({
     Request: Schema.String,
     Result: Schema.Struct({ document: Schema.String }),
@@ -169,7 +179,14 @@ const make = Effect.gen(function* () {
     blockId: string,
     position: number,
     item: DerivedItem,
-    lifted: { workoutId: WorkoutId; performedOn: string; notes: string; createdAt: string },
+    lifted: {
+      workoutId: WorkoutId;
+      performedOn: string;
+      notes: string;
+      createdAt: string;
+      place: string;
+      placeName: string | null;
+    },
   ) {
     const queue: Array<readonly [DerivedItem, string | null]> = [[item, null]];
     for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
@@ -188,10 +205,10 @@ const make = Effect.gen(function* () {
       for (const [index, set] of current.performed.entries())
         yield* sql`
           INSERT INTO lift_sets (id, movement_id, performed_on, reps, load_kg, notes, created_at,
-                                 workout_id, workout_item_id, set_number)
+                                 workout_id, workout_item_id, set_number, place, place_name)
           VALUES (${yield* newId}, ${current.movementId}, ${lifted.performedOn}, ${set.reps},
                   ${set.loadKg}, ${lifted.notes}, ${lifted.createdAt}, ${lifted.workoutId}, ${id},
-                  ${index + 1})
+                  ${index + 1}, ${lifted.place}, ${lifted.placeName})
         `;
       for (const alternative of current.alternatives) queue.push([alternative, id]);
     }
@@ -218,6 +235,8 @@ const make = Effect.gen(function* () {
       const clash = clashes.find((summary) => summary.workoutId !== input.replace);
       if (clash) return yield* new ImportConflictError({ existing: clash });
 
+      // A re-import keeps a name the model (or the athlete) gave the session it replaces.
+      const [kept] = input.replace === undefined ? [] : yield* selectKeptName(input.replace);
       if (input.replace !== undefined) yield* deleteWorkoutRows(sql, input.replace);
       // Logged from a plan: the session now stands for it, so the plan goes in the same write.
       if (input.fromPlan !== undefined)
@@ -229,13 +248,16 @@ const make = Effect.gen(function* () {
       const { debrief: _entered, ...rest } = input.document;
       const stored: ImportDocument = Object.keys(debrief).length > 0 ? { ...rest, debrief } : rest;
       const { coach, solo, classType } = sessionColumns(input.document);
-      // The athlete's headline result beats the block scores joined.
+      const { place, placeName } = placeColumns(input.document.place);
+      // The athlete's headline result beats the block scores joined. The name is Chalk's own
+      // until the coach's model names the session (see SessionNamer).
       yield* sql`
         INSERT INTO workouts (id, performed_on, name, kind, score, rx, notes, coach, solo,
-                              class_type, created_at)
-        VALUES (${workoutId}, ${performedOn}, ${session.name}, ${session.kind},
+                              class_type, place, place_name, name_source, created_at)
+        VALUES (${workoutId}, ${performedOn}, ${kept?.name ?? session.name}, ${session.kind},
                 ${debrief.result ?? session.score}, 0,
-                ${session.notes}, ${coach}, ${solo}, ${classType}, ${now})
+                ${session.notes}, ${coach}, ${solo}, ${classType}, ${place}, ${placeName},
+                ${kept?.nameSource ?? "derived"}, ${now})
       `;
       if (Object.keys(debrief).length > 0)
         yield* sql`
@@ -272,15 +294,19 @@ const make = Effect.gen(function* () {
               performedOn,
               notes: `Imported from ${session.name}`,
               createdAt: now,
+              place,
+              placeName,
             });
         }
       }
       for (const set of session.liftSets)
         for (let copy = 0; copy < set.count; copy++) {
           yield* sql`
-            INSERT INTO lift_sets (id, movement_id, performed_on, reps, load_kg, notes, created_at, workout_id)
+            INSERT INTO lift_sets (id, movement_id, performed_on, reps, load_kg, notes, created_at,
+                                   workout_id, place, place_name)
             VALUES (${yield* newId}, ${set.movementId}, ${performedOn}, ${set.reps}, ${set.loadKg},
-                    ${`Imported from ${session.name}`}, ${now}, ${workoutId})
+                    ${`Imported from ${session.name}`}, ${now}, ${workoutId}, ${place},
+                    ${placeName})
           `;
         }
       const [summary] = yield* selectSummary(workoutId);

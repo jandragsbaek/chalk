@@ -1,5 +1,6 @@
 export * from "./baseSchemas.ts";
 export * from "./coaching.ts";
+export * from "./place.ts";
 export * from "./workout.ts";
 export * from "./strength.ts";
 export * from "./session.ts";

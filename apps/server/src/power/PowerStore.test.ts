@@ -68,7 +68,10 @@ describe("PowerStore", () => {
         ["imported", "2026-10-30"],
       ]);
       expect(sessions[0]).toMatchObject({ benchmarkId: "fran", score: "4:10" });
-      expect(sessions[1]).toMatchObject({ name: "Session 170", document: { text: SESSION } });
+      expect(sessions[1]).toMatchObject({
+        name: "For time · Pull-up, Power clean",
+        document: { text: SESSION },
+      });
     }).pipe(Effect.provide(layer)),
   );
 });

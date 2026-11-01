@@ -10,6 +10,7 @@ import {
   WorkoutId,
 } from "./baseSchemas.ts";
 import { ClassType, Coaching } from "./coaching.ts";
+import { Place } from "./place.ts";
 import { Debrief } from "./debrief.ts";
 import { Complement, Level, LevelFamilyId, Performance } from "./levels.ts";
 import { MovementCategory } from "./strength.ts";
@@ -174,6 +175,8 @@ export const ImportDocument = Schema.Struct({
    * Never set beside solo coaching; see `withSessionType`.
    */
   classType: Schema.optionalKey(ClassType),
+  /** Where it was trained; absent is the box (a pulled class always is). */
+  place: Schema.optionalKey(Place),
 }).annotate({ identifier: "ImportDocument" });
 export type ImportDocument = typeof ImportDocument.Type;
 

@@ -14,6 +14,7 @@ import { useState } from "react";
 
 import { LatestSessions } from "../components/today/LatestSessions.tsx";
 import { MainLifts } from "../components/today/MainLifts.tsx";
+import { PlaceTally } from "../components/today/PlaceTally.tsx";
 import { RecentRecords } from "../components/today/RecentRecords.tsx";
 import { WeekColumn, type DayPlan, type DayProgrammed } from "../components/today/WeekColumn.tsx";
 import { GRID_WEEKS, YearGrid } from "../components/today/YearGrid.tsx";
@@ -26,7 +27,8 @@ import {
   trainingDays,
 } from "../lib/dashboard.ts";
 import { liftedOn, sessionEntry, sessionState, shortBlockName } from "../lib/calendar.ts";
-import { plannedMovements, planTitle } from "../lib/plan.ts";
+import { plannedMovements } from "../lib/plan.ts";
+import { placeTally, sessionNumbers } from "../lib/places.ts";
 import { useAthleteSex } from "../lib/profile.ts";
 import { localIsoDate } from "../lib/utils.ts";
 import { benchmarkResultsAtom } from "../state/benchmarks.ts";
@@ -51,7 +53,7 @@ const plansByDay = (
       id: plan.id,
       plannedOn: plan.plannedOn,
       session,
-      title: planTitle(session, nameOf),
+      title: session.name,
       movements: plannedMovements(session, nameOf, sex),
     };
     byDay.set(plan.plannedOn, [...(byDay.get(plan.plannedOn) ?? []), entry]);
@@ -123,6 +125,7 @@ function TodayPage() {
               days={days}
               restDays={restByDay}
               numbers={numbers}
+              sessionNumbers={sessionNumbers(workouts, liftSets)}
               names={names}
               activeDay={activeDay}
               onActivate={setActiveDay}
@@ -131,6 +134,7 @@ function TodayPage() {
             />
           </aside>
           <div className="grid min-w-0 grid-cols-1 content-start gap-10 px-8 py-8">
+            <PlaceTally tally={placeTally(workouts, liftSets)} />
             <YearGrid
               today={today}
               todayIso={todayIso}

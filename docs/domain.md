@@ -376,7 +376,37 @@ re-derivable.
   not part of the debrief; they come from performed items (above).
   `describeDebrief` renders the answers as the sentences a coach reads; the editor shows them.
 - One import per session number, or per day without one; saving the same session again needs an
-  explicit replace. Deleting the workout deletes its import, structure and lift sets.
+  explicit replace. Deleting the workout deletes its import, structure and lift sets. The
+  session number in a heading only tells a re-import from a new session: it is no longer the
+  name, and Chalk counts sessions itself (see Places and session numbers).
+- **Names**: a board rarely has a heading, so `deriveSession` names a session by its kind and
+  first movements ("AMRAP · Snatch, Toes-to-bar +2"). Saved, the coach's model gives it a proper
+  one (`SessionNamer`: OpenRouter, the coach's default model, from the board as pasted; looks
+  every 20 seconds). `workouts.name_source` says who named it: `typed`, `derived` (waiting) or
+  `model`. Migration `023_Places` marks every import, and every logged "Session 160", as
+  derived, so the old numbered names get real ones too. A re-import keeps the model's name.
+  Without `OPENROUTER_API_KEY` names stay derived.
+
+## Places and session numbers (built)
+
+The athlete trains at their box, and now at home and at other boxes, and likes to see how many
+sessions they have done at the box.
+
+- **Place** (`Place`: `box`, `home`, or `away { name }`): where a session was trained. The box
+  for everything logged before places existed, and the default everywhere. `/log` (workouts and
+  lift sets) and the workbench header take it; typed "Home" is home, any other name another box,
+  blank the box (`parsePlace`), and the other boxes of earlier sessions are offered. Stored on
+  `workouts.place` / `place_name` and `lift_sets.place` / `place_name` (migration
+  `023_Places`); an import's lift sets take its place. Searchable ("home", "nordvest"), and in
+  the AI coach's `list_workouts`.
+- **Session number**: each session's number at its place, counted in Chalk's log
+  (`numberSessions`): the first session at the box is 1, home and every other box count from 1
+  on their own. A strength-only day counts as a session, at its first set's place. Ordered by
+  day, then by when it was logged. Derived, never stored, so deleting or back-dating a session
+  renumbers the rest.
+- Shown on Today as a tally (at the box, with the next round number ahead; home; away and how
+  many other boxes; since when), on the week rows ("Box 179"), in the register stub and on the
+  session sheet ("No. 179", "Place").
 
 ## Similar sessions (built)
 

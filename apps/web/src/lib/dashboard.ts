@@ -7,6 +7,7 @@ import {
   type LiftSet,
   type Movement,
   type MovementId,
+  type Place,
   type Workout,
 } from "@chalk/contracts";
 
@@ -25,6 +26,8 @@ export interface TrainingDay {
   readonly workouts: ReadonlyArray<Workout>;
   /** Movements with lift sets that day, in first-logged order. */
   readonly liftMovementIds: ReadonlyArray<MovementId>;
+  /** Where the day's first lift set was lifted; what a strength-only day counts at. */
+  readonly liftPlace: Place | undefined;
   /**
    * Sessions that day: its workouts, or one for a day with only lift sets. Lift sets logged next
    * to a workout are taken as part of it, since an imported session writes both.
@@ -43,10 +46,13 @@ export function trainingDays(
     else workoutsByDay.set(workout.performedOn, [workout]);
   }
   const liftsByDay = new Map<string, MovementId[]>();
+  const liftPlaces = new Map<string, Place>();
   for (const set of [...liftSets].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
     const day = liftsByDay.get(set.performedOn);
-    if (!day) liftsByDay.set(set.performedOn, [set.movementId]);
-    else if (!day.includes(set.movementId)) day.push(set.movementId);
+    if (!day) {
+      liftsByDay.set(set.performedOn, [set.movementId]);
+      liftPlaces.set(set.performedOn, set.place);
+    } else if (!day.includes(set.movementId)) day.push(set.movementId);
   }
   const days = new Map<string, TrainingDay>();
   for (const iso of new Set([...workoutsByDay.keys(), ...liftsByDay.keys()])) {
@@ -56,6 +62,7 @@ export function trainingDays(
       iso,
       workouts: dayWorkouts,
       liftMovementIds,
+      liftPlace: liftPlaces.get(iso),
       sessions: Math.max(dayWorkouts.length, liftMovementIds.length > 0 ? 1 : 0),
     });
   }

@@ -30,6 +30,7 @@ import * as RestDayStore from "./rest/RestDayStore.ts";
 import * as Rpc from "./rpc.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as BlockStore from "./training/BlockStore.ts";
+import * as SessionNamer from "./workout/SessionNamer.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
 const layerStores = Layer.mergeAll(
@@ -48,11 +49,15 @@ const layerStores = Layer.mergeAll(
   LevelStore.layer.pipe(Layer.provide(CatalogStore.layer)),
 ).pipe(Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)));
 
-/** The stores, plus the coach that reads them through its tools, and the timed Garmin read. */
+/**
+ * The stores, plus the coach that reads them through its tools, the model naming imported
+ * sessions, and the timed Garmin read.
+ */
 const layerServices = Layer.mergeAll(
-  CoachService.layer.pipe(Layer.provide(CoachService.layerModel)),
+  CoachService.layer,
+  SessionNamer.layer.pipe(Layer.provide(Sqlite.layer)),
   Garmin.layerTimedSync,
-).pipe(Layer.provideMerge(layerStores));
+).pipe(Layer.provide(CoachService.layerModel), Layer.provideMerge(layerStores));
 
 /**
  * The app's RPC endpoint. Newline-delimited JSON, so a streamed reply (the coach's reads)
