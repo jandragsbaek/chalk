@@ -14,6 +14,9 @@ import {
   MovementId,
   normalizeBenchmarkName,
   partLabel,
+  REST_DAY_LABELS,
+  RestDayKind,
+  RestDaySource,
   WorkoutId,
   WorkoutKind,
   type CoachReceipt,
@@ -27,12 +30,14 @@ import * as Schema from "effect/Schema";
 import * as Tool from "effect/ai/Tool";
 import * as Toolkit from "effect/ai/Toolkit";
 
+import type * as RestDayStore from "../rest/RestDayStore.ts";
 import type * as StrengthStore from "../strength/StrengthStore.ts";
 import type * as WorkoutStore from "../workout/WorkoutStore.ts";
 
 /**
- * The coach's read-only tools over the athlete's log. Each call becomes a receipt: what was
- * asked, a one-line answer, and the rows the model saw, so the athlete can check the numbers.
+ * The coach's tools over the athlete's log: reads, and one write (putting a rest day in the
+ * calendar). Each call becomes a receipt: what was asked, a one-line answer, and the rows the
+ * model saw, so the athlete can check the numbers and see what the coach changed.
  */
 
 /** What a tool returns to the model when it cannot answer; the model reads the message. */
@@ -222,6 +227,33 @@ const FindSimilarSessions = Tool.make("find_similar_sessions", {
   ...common,
 });
 
+const ListRestDays = Tool.make("list_rest_days", {
+  description:
+    "Days the athlete chose not to train, oldest first, with why (rest, sick, injured, travel) " +
+    "and who marked it (the athlete or you). A day with nothing logged and no mark is not a " +
+    "rest day, just a day with nothing logged.",
+  parameters: Schema.Struct({ ...Range }),
+  success: Schema.Array(
+    Schema.Struct({ day: IsoDate, kind: RestDayKind, markedBy: RestDaySource }),
+  ),
+  ...common,
+});
+
+const MarkRestDay = Tool.make("mark_rest_day", {
+  description:
+    "Put a rest day in the athlete's calendar, for today or a later day. Only when the athlete " +
+    "asks for it or agrees to your suggestion. Refused on a day with a session logged, or one " +
+    "the athlete marked themselves; a day you marked before is re-marked.",
+  parameters: Schema.Struct({
+    day: IsoDate.annotate({ description: "The day, YYYY-MM-DD; today or later" }),
+    kind: Schema.optionalKey(RestDayKind).annotate({
+      description: "Why: 'rest' (the default), 'sick', 'injured' or 'travel'",
+    }),
+  }),
+  success: Schema.Struct({ day: IsoDate, kind: RestDayKind }),
+  ...common,
+});
+
 export const CoachToolkit = Toolkit.make(
   ListMovements,
   ListWorkouts,
@@ -230,6 +262,8 @@ export const CoachToolkit = Toolkit.make(
   ListBenchmarks,
   ListBenchmarkResults,
   FindSimilarSessions,
+  ListRestDays,
+  MarkRestDay,
 );
 
 /** Rows a receipt keeps; the model gets every row, the athlete's copy is capped. */
@@ -261,6 +295,8 @@ interface DayRange {
 
 const inRange = (day: string, range: DayRange) =>
   (range.from === undefined || day >= range.from) && (range.to === undefined || day <= range.to);
+
+const BY: Record<RestDaySource, string> = { athlete: "You", coach: "Coach" };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -295,9 +331,12 @@ const SCORED_BY: Record<BenchmarkScoring, string> = {
 export const makeHandlers = (deps: {
   readonly workouts: WorkoutStore.WorkoutStore["Service"];
   readonly strength: StrengthStore.StrengthStore["Service"];
+  readonly restDays: RestDayStore.RestDayStore["Service"];
+  /** The coach's today, YYYY-MM-DD: the first day it may mark. */
+  readonly today: IsoDate;
   readonly log: ReadLog;
 }) => {
-  const { workouts, strength, log } = deps;
+  const { workouts, strength, restDays, today, log } = deps;
 
   const movementNames = strength
     .movements()
@@ -715,5 +754,64 @@ export const makeHandlers = (deps: {
         },
       );
     }),
+
+    list_rest_days: ({ from, to }) =>
+      read(
+        "list_rest_days",
+        [range({ from, to })],
+        restDays
+          .list()
+          .pipe(
+            Effect.map((days) =>
+              days
+                .filter((rest) => inRange(rest.day, { from, to }))
+                .map(({ day, kind, source }) => ({ day, kind, markedBy: source })),
+            ),
+          ),
+        (found) => ({
+          summary: plural(found.length, "rest day"),
+          columns: ["Date", "Why", "Marked by"],
+          rows: found.map((rest) => [day(rest.day), REST_DAY_LABELS[rest.kind], BY[rest.markedBy]]),
+        }),
+      ),
+
+    mark_rest_day: ({ day: date, kind = "rest" }) =>
+      read(
+        "mark_rest_day",
+        [
+          { tag: "range", text: day(date) },
+          { tag: "text", text: REST_DAY_LABELS[kind] },
+        ],
+        Effect.gen(function* () {
+          if (date < today)
+            return yield* Effect.fail<ToolFailure>({
+              message: `${day(date)} is past; only today (${day(today)}) or later can be marked.`,
+            });
+          const [logged, sets, marked] = yield* Effect.all([
+            workouts.list(),
+            strength.list(),
+            restDays.list(),
+          ]);
+          if (
+            logged.some((workout) => workout.performedOn === date) ||
+            sets.some((set) => set.performedOn === date)
+          )
+            return yield* Effect.fail<ToolFailure>({
+              message: `${day(date)} already has a session logged.`,
+            });
+          const existing = marked.find((rest) => rest.day === date);
+          if (existing?.source === "athlete")
+            return yield* Effect.fail<ToolFailure>({
+              message: `The athlete already marked ${day(date)} as ${REST_DAY_LABELS[existing.kind].toLowerCase()}.`,
+            });
+          const saved = yield* restDays.mark({ day: date, kind }, "coach");
+          return { day: saved.day, kind: saved.kind };
+        }),
+        (saved) => ({
+          summary: `Marked ${REST_DAY_LABELS[saved.kind].toLowerCase()}`,
+          columns: ["Date", "Why", "Marked by"],
+          rows: [[day(saved.day), REST_DAY_LABELS[saved.kind], BY.coach]],
+        }),
+      ),
   });
 };

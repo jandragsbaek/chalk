@@ -3,9 +3,10 @@
 Two ways to talk to the coach, on the Coach page (`/coach`):
 
 - **Conversations (built).** Ask anything about your training. The coach reads the log with
-  read-only tools before it answers, and every read is kept as a numbered **receipt** (R1, R2,
-  ... across the thread): what it asked for, a one-line answer, and the rows it saw. The reply
-  cites them, "(R2)", and the page opens a receipt when you follow the citation.
+  tools before it answers, and every read is kept as a numbered **receipt** (R1, R2, ... across
+  the thread): what it asked for, a one-line answer, and the rows it saw. The reply cites them,
+  "(R2)", and the page opens a receipt when you follow the citation. Its one write, putting a
+  rest day in the calendar, is a receipt too.
 - **Check-ins (next).** A conversation tied to one workout, for sessions without a debrief:
   the coach reads the session and asks up to four questions as structured boxes (session RPE,
   limiters, feel, one question of its own), and the answers fill the workout's existing
@@ -19,7 +20,10 @@ Two ways to talk to the coach, on the Coach page (`/coach`):
   scoring and the posted prescription, by category or name), `list_benchmark_results` and
   `find_similar_sessions` (a session's, or a date range's, repeats and look-alikes from
   `WorkoutStore.similar()`: both sides' date, result or heaviest set, and the differences in
-  the sheet's words; at most 10 sessions and 3 matches per part). Each is an Effect `Tool`
+  the sheet's words; at most 10 sessions and 3 matches per part), `list_rest_days` (marked
+  days with why and who marked them) and one write, `mark_rest_day` (today or later, kind
+  `rest` by default; refused on a day with a session logged or one the athlete marked; the
+  system prompt allows it only when the athlete asks or agrees). Each is an Effect `Tool`
   with Schema parameters and results; a failure (unknown movement, storage) goes back to the
   model as a message instead of breaking the reply. Free-text notes are not sent.
 - **Loop** (`CoachService`): the thread's transcript (the `Chat` export, tool calls and results

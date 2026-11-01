@@ -22,6 +22,7 @@ import * as CatalogStore from "../catalog/CatalogStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as ImportStore from "../import/ImportStore.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
+import * as RestDayStore from "../rest/RestDayStore.ts";
 import * as StrengthStore from "../strength/StrengthStore.ts";
 import * as WorkoutStore from "../workout/WorkoutStore.ts";
 import * as CoachService from "./CoachService.ts";
@@ -107,6 +108,7 @@ const layerWith = <E>(
         WorkoutStore.layer,
         ImportStore.layer,
         CatalogStore.layer,
+        RestDayStore.layer,
       ).pipe(
         Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)),
         Layer.provide(ServerConfig.layerTest()),
@@ -310,6 +312,75 @@ describe("CoachService", () => {
       expect(shown).toContain("AMRAP 15 min then");
       expect(shown).toContain("5 x 100 kg Back squat");
     }).pipe(Effect.provide(layerWith(comparesRetest.model))),
+  );
+
+  const marksRest = scriptedModel((options) =>
+    Effect.succeed(
+      options.prompt.content.at(-1)?.role === "tool"
+        ? text("Wednesday is in your calendar as a rest day (R1).")
+        : toolCalls([
+            { name: "mark_rest_day", params: { day: "2026-11-04" } },
+            { name: "mark_rest_day", params: { day: "2026-11-05", kind: "rest" } },
+            { name: "mark_rest_day", params: { day: "2026-10-30" } },
+          ]),
+    ),
+  );
+
+  it.effect("puts a rest day in the calendar, never over a session or the athlete's own mark", () =>
+    Effect.gen(function* () {
+      yield* seedSquats;
+      const restDays = yield* RestDayStore.RestDayStore;
+      yield* restDays.mark({ day: "2026-11-05", kind: "sick" }, "athlete");
+
+      const events = yield* send({ text: "I'm wrecked. Should I take Wednesday off?" });
+      const receipts = events.flatMap((event) =>
+        event._tag === "ReadFinished" ? [event.receipt] : [],
+      );
+      expect(receipts.map(({ tool, status, summary }) => ({ tool, status, summary }))).toEqual([
+        { tool: "mark_rest_day", status: "ok", summary: "Marked rest day" },
+        {
+          tool: "mark_rest_day",
+          status: "failed",
+          summary: "The athlete already marked 5 Nov 2026 as sick.",
+        },
+        {
+          tool: "mark_rest_day",
+          status: "failed",
+          summary: "30 Oct 2026 already has a session logged.",
+        },
+      ]);
+      expect(receipts[0]).toMatchObject({
+        request: [
+          { tag: "range", text: "4 Nov 2026" },
+          { tag: "text", text: "Rest day" },
+        ],
+        rows: [["4 Nov 2026", "Rest day", "Coach"]],
+      });
+      expect(
+        (yield* restDays.list()).map(({ day, kind, source }) => ({ day, kind, source })),
+      ).toEqual([
+        { day: "2026-11-04", kind: "rest", source: "coach" },
+        { day: "2026-11-05", kind: "sick", source: "athlete" },
+      ]);
+    }).pipe(Effect.provide(layerWith(marksRest.model))),
+  );
+
+  const marksPast = scriptedModel((options) =>
+    Effect.succeed(
+      options.prompt.content.at(-1)?.role === "tool"
+        ? text("I can only plan ahead.")
+        : toolCalls([{ name: "mark_rest_day", params: { day: "1969-12-31" } }]),
+    ),
+  );
+
+  it.effect("refuses to mark a day before today", () =>
+    Effect.gen(function* () {
+      const events = yield* send({ text: "Mark yesterday as rest." });
+      const receipt = (events[2] as Extract<CoachEvent, { _tag: "ReadFinished" }>).receipt;
+      expect(receipt).toMatchObject({ status: "failed" });
+      expect(receipt.summary).toMatch(/^31 Dec 1969 is past; only today \(1 Jan 1970\)/);
+      expect(yield* (yield* RestDayStore.RestDayStore).list()).toEqual([]);
+    }).pipe(Effect.provide(layerWith(marksPast.model))),
   );
 
   const picked = scriptedModel(() => Effect.succeed(text("Answered.")));

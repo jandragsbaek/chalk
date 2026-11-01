@@ -1,4 +1,4 @@
-import type { DerivedSession, MovementId, PlanId } from "@chalk/contracts";
+import type { DerivedSession, MovementId, PlanId, RestDay } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Link } from "@tanstack/react-router";
 import type * as React from "react";
@@ -9,6 +9,7 @@ import { toDate } from "../../lib/progress.ts";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { FieldBox } from "../FieldBox.tsx";
 import { SimilarSessionsBrief, usePlanEchoes } from "../sessions/SimilarSessions.tsx";
+import { RestLabel, RestMark } from "./RestMark.tsx";
 import { heatOf } from "./YearGrid.tsx";
 import { formatShort } from "./SectionHead.tsx";
 
@@ -26,14 +27,16 @@ export interface DayPlan {
 }
 
 /**
- * This week as the athlete's card: one row per day, Monday first, with what was trained and
- * what is planned; today double-outlined. Under it the consistency numbers, today's plan with
+ * This week as the athlete's card: one row per day, Monday first, with what was trained, what is
+ * planned and which days are rest; today double-outlined. A day with nothing logged can be marked
+ * as rest from its row. Under it the consistency numbers, today's plan with
  * its scaling, and the way to log the next session.
  */
 export function WeekColumn({
   today,
   todayIso,
   days,
+  restDays,
   numbers,
   names,
   activeDay,
@@ -43,6 +46,7 @@ export function WeekColumn({
   readonly today: Date;
   readonly todayIso: string;
   readonly days: ReadonlyMap<string, TrainingDay>;
+  readonly restDays: ReadonlyMap<string, RestDay>;
   readonly numbers: Consistency;
   readonly names: ReadonlyMap<MovementId, string>;
   readonly activeDay: string | null;
@@ -71,6 +75,7 @@ export function WeekColumn({
       <ol aria-label="This week" className="mt-4 border-t">
         {week.map((iso) => {
           const day = days.get(iso);
+          const rest = restDays.get(iso);
           const isToday = iso === todayIso;
           return (
             <li
@@ -88,18 +93,25 @@ export function WeekColumn({
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="text-sm font-semibold leading-4">{toDate(iso).getDate()}</span>
-                  <span aria-hidden data-heat={heatOf(iso, todayIso, day)} className="size-2.5" />
+                  <span
+                    aria-hidden
+                    data-heat={heatOf(iso, todayIso, day, rest)}
+                    className="size-2.5"
+                  />
                 </span>
               </div>
-              <div className="grid content-center gap-1 py-1.5 pr-5">
-                <DayEntries
-                  iso={iso}
-                  todayIso={todayIso}
-                  day={day}
-                  names={names}
-                  hasHistory={days.size > 0}
-                  plans={plans.get(iso) ?? []}
-                />
+              <div className="flex min-w-0 items-center gap-2 py-1.5 pr-5">
+                <div className="grid min-w-0 flex-1 content-center gap-1">
+                  <DayEntries
+                    iso={iso}
+                    todayIso={todayIso}
+                    day={day}
+                    rest={rest}
+                    names={names}
+                    plans={plans.get(iso) ?? []}
+                  />
+                </div>
+                {(day?.sessions ?? 0) === 0 ? <RestMark iso={iso} rest={rest} /> : null}
               </div>
             </li>
           );
@@ -233,31 +245,35 @@ function DayEntries({
   iso,
   todayIso,
   day,
+  rest,
   names,
-  hasHistory,
   plans,
 }: {
   readonly iso: string;
   readonly todayIso: string;
   readonly day: TrainingDay | undefined;
+  /** The day's rest mark; only read while nothing is logged on it. */
+  readonly rest: RestDay | undefined;
   readonly names: ReadonlyMap<MovementId, string>;
-  /** With nothing logged at all, a past day is unknown, not a rest day. */
-  readonly hasHistory: boolean;
   /** Plans for this day not logged yet. */
   readonly plans: ReadonlyArray<DayPlan>;
 }) {
   const planned = plans.map((plan) => (
     <PlanEntry key={plan.id} plan={plan} past={iso < todayIso} />
   ));
-  if ((!day || day.sessions === 0) && planned.length > 0) return planned;
   if (!day || day.sessions === 0) {
-    if (iso > todayIso) return <span data-empty aria-label="Not yet" />;
-    if (iso < todayIso && !hasHistory) return <span data-empty aria-label="Nothing logged" />;
-    return (
-      <span className="text-sm text-muted-foreground">
-        {iso === todayIso ? "Nothing logged yet" : "Rest"}
-      </span>
-    );
+    // Rest is only what was marked: an unmarked day with nothing logged is just that.
+    if (rest !== undefined)
+      return (
+        <>
+          <RestLabel rest={rest} />
+          {planned}
+        </>
+      );
+    if (planned.length > 0) return planned;
+    if (iso === todayIso)
+      return <span className="text-sm text-muted-foreground">Nothing logged yet</span>;
+    return <span data-empty aria-label={iso > todayIso ? "Not yet" : "Nothing logged"} />;
   }
   if (day.workouts.length === 0) {
     return (

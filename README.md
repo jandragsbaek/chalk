@@ -16,7 +16,8 @@ named workouts (the Girls, CrossFit's Hero workouts, a few classics) with their 
 their Rx grades on the level sheet, and your attempts; logging one, or importing a session that
 names one, links it. `/plan` takes the workout the box posts in the morning: mark it up
 like an import, plan each movement's scaling (load, or reps by variation, graded on the level
-sheet), and log it from Today after the session. Where it is going:
+sheet), and log it from Today after the session. A rest day is something you mark, never a gap
+Chalk guesses at: on Today (rest, sick, injured or travel), or by the coach when you agree. Where it is going:
 
 - [docs/domain.md](docs/domain.md): movements, scaling, workouts composed of movements, rep
   maxes, the weekly volume grid.

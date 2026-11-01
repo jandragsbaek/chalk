@@ -28,6 +28,7 @@ import { useAthleteSex } from "../lib/profile.ts";
 import { localIsoDate } from "../lib/utils.ts";
 import { benchmarkResultsAtom } from "../state/benchmarks.ts";
 import { plansAtom } from "../state/plans.ts";
+import { restDaysAtom } from "../state/restDays.ts";
 import { liftSetsAtom, movementsAtom } from "../state/strength.ts";
 import { workoutsAtom } from "../state/workouts.ts";
 
@@ -64,6 +65,7 @@ function TodayPage() {
     movements: useAtomValue(movementsAtom),
     results: useAtomValue(benchmarkResultsAtom),
     plans: useAtomValue(plansAtom),
+    restDays: useAtomValue(restDaysAtom),
   });
   const sex = useAthleteSex();
   const [today] = useState(() => new Date());
@@ -78,9 +80,10 @@ function TodayPage() {
         </p>
       </main>
     ),
-    onSuccess: ({ value: { workouts, liftSets, movements, results, plans } }) => {
+    onSuccess: ({ value: { workouts, liftSets, movements, results, plans, restDays } }) => {
       const todayIso = localIsoDate(today);
       const days = trainingDays(workouts, liftSets);
+      const restByDay = new Map(restDays.map((rest) => [rest.day, rest]));
       const since = calendarWeeks(today, GRID_WEEKS)[0]?.[0] ?? todayIso;
       const numbers = consistency(days, today, since);
       const names = new Map<MovementId, string>(
@@ -93,6 +96,7 @@ function TodayPage() {
               today={today}
               todayIso={todayIso}
               days={days}
+              restDays={restByDay}
               numbers={numbers}
               names={names}
               activeDay={activeDay}
@@ -105,6 +109,7 @@ function TodayPage() {
               today={today}
               todayIso={todayIso}
               days={days}
+              restDays={restByDay}
               trainedDays={numbers.lastYear}
               names={names}
               activeDay={activeDay}

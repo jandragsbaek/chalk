@@ -4,6 +4,7 @@ import {
   LevelStorageError,
   ProfileStorageError,
   PowerStorageError,
+  RestDayStorageError,
   RPC_METHODS,
   StrengthStorageError,
   WorkoutStorageError,
@@ -15,6 +16,7 @@ import * as CoachService from "./coach/CoachService.ts";
 import * as LevelStore from "./levels/LevelStore.ts";
 import * as ProfileStore from "./profile/ProfileStore.ts";
 import * as PowerStore from "./power/PowerStore.ts";
+import * as RestDayStore from "./rest/RestDayStore.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
@@ -49,6 +51,11 @@ const reportBookingboardStorageError = (error: Bookingboard.BookingboardPersiste
     Effect.andThen(Effect.fail(new BookingboardStorageError({ operation: error.operation }))),
   );
 
+const reportRestDayStorageError = (error: RestDayStore.RestDayPersistenceError) =>
+  Effect.logError(error.message, error.cause).pipe(
+    Effect.andThen(Effect.fail(new RestDayStorageError({ operation: error.operation }))),
+  );
+
 /** Thin transport: RpcServer decodes the payload, the handler calls one service method and maps errors. */
 export const layer = ChalkRpcGroup.toLayer(
   Effect.gen(function* () {
@@ -62,6 +69,8 @@ export const layer = ChalkRpcGroup.toLayer(
     const onStrengthError = { StrengthPersistenceError: reportStrengthStorageError };
     const onProfileError = { ProfilePersistenceError: reportProfileStorageError };
     const onBookingboardError = { BookingboardPersistenceError: reportBookingboardStorageError };
+    const restDays = yield* RestDayStore.RestDayStore;
+    const onRestDayError = { RestDayPersistenceError: reportRestDayStorageError };
     return ChalkRpcGroup.of({
       [RPC_METHODS.workoutsList]: () =>
         store.list().pipe(Effect.catchTags({ WorkoutPersistenceError: reportStorageError })),
@@ -104,6 +113,11 @@ export const layer = ChalkRpcGroup.toLayer(
         bookingboard.disconnect().pipe(Effect.catchTags(onBookingboardError)),
       [RPC_METHODS.bookingboardDay]: ({ date }) =>
         bookingboard.day(date).pipe(Effect.catchTags(onBookingboardError)),
+      [RPC_METHODS.restDaysList]: () => restDays.list().pipe(Effect.catchTags(onRestDayError)),
+      [RPC_METHODS.restDaysMark]: (input) =>
+        restDays.mark(input, "athlete").pipe(Effect.catchTags(onRestDayError)),
+      [RPC_METHODS.restDaysClear]: ({ day }) =>
+        restDays.clear(day).pipe(Effect.catchTags(onRestDayError)),
     });
   }),
 );

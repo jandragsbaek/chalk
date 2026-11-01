@@ -24,6 +24,7 @@ import * as LevelStore from "./levels/LevelStore.ts";
 import * as PlanStore from "./plan/PlanStore.ts";
 import * as ProfileStore from "./profile/ProfileStore.ts";
 import * as PowerStore from "./power/PowerStore.ts";
+import * as RestDayStore from "./rest/RestDayStore.ts";
 import * as Rpc from "./rpc.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
@@ -38,6 +39,7 @@ const layerStores = Layer.mergeAll(
   ProfileStore.layer,
   PowerStore.layer,
   Bookingboard.layer.pipe(Layer.provide(FetchHttpClient.layer)),
+  RestDayStore.layer,
   LevelStore.layer.pipe(Layer.provide(CatalogStore.layer)),
 ).pipe(Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)));
 
