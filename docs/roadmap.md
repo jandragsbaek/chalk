@@ -60,5 +60,5 @@ coach.
 - kg / lb display preference.
 - Athlete sex (M/F) as a setting from a first-run setup wizard; picks which side of M/F loads
   (prescriptions and level standards like GymDanmark's "20/12") applies. Assumed male until then.
-- Backoffice: catalog management (movements, scaling options, templates).
-- Import pasted session text (done: backoffice → Import, see domain.md). Whiteboard photos later.
+- Desk pages: catalog management (movements, scaling options, templates).
+- Import pasted session text (done: the Import page, see domain.md). Whiteboard photos later.

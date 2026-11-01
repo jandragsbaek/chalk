@@ -6,7 +6,7 @@ Track your CrossFit workouts and strength numbers, and (soon) get coached on the
 
 Today: log workouts with a free-form score, and log strength sets (reps × kg) against a movement
 catalog, with 1/2/3/5/10RM derived per movement and an estimated 1RM chart over time. The
-backoffice imports past sessions from pasted text: Chalk highlights movements and numbers, you fix
+Import page brings in past sessions from pasted text: Chalk highlights movements and numbers, you fix
 the highlights, and parts, blocks, movements and lift sets are saved from them. A strength
 movement takes a result (fixed load, ramp by a step, or set by set), so each session has a total
 lifted in kg. Each movement is graded on GymDanmark's FF level sheet (Fundamentals to RX, plus
@@ -35,24 +35,21 @@ Tool versions (Node, pnpm) are pinned in `mise.toml`. With [mise](https://mise.j
 mise install
 pnpm install
 pnpm dev          # server on :4300, web on http://localhost:5173
-pnpm dev:admin    # admin server on :4301, backoffice on http://localhost:5174
 ```
 
-Production: one process serves the API and the built web app from a single origin.
+Production: one process serves the RPC, the admin API and the built web app from one origin.
 
 ```bash
 pnpm build
 pnpm start        # http://127.0.0.1:4300
-pnpm start:admin  # http://127.0.0.1:4301 (backoffice + admin API)
 ```
 
-| Variable         | Default             | Purpose                                     |
-| ---------------- | ------------------- | ------------------------------------------- |
-| `CHALK_MODE`     | `api`               | `api` (app RPC) or `admin` (admin HttpApi)  |
-| `CHALK_HOST`     | `127.0.0.1`         | Interface the server listens on             |
-| `CHALK_PORT`     | `4300` / `4301`     | Server port, by mode (dev proxies read it)  |
-| `CHALK_DB_PATH`  | `data/chalk.sqlite` | SQLite database file                        |
-| `CHALK_WEB_DIST` | unset               | Built SPA to serve; `start*` scripts set it |
+| Variable         | Default             | Purpose                                  |
+| ---------------- | ------------------- | ---------------------------------------- |
+| `CHALK_HOST`     | `127.0.0.1`         | Interface the server listens on          |
+| `CHALK_PORT`     | `4300`              | Server port (the dev proxy reads it)     |
+| `CHALK_DB_PATH`  | `data/chalk.sqlite` | SQLite database file                     |
+| `CHALK_WEB_DIST` | unset               | Built SPA to serve; `pnpm start` sets it |
 
 Deploying: [docs/deploy.md](docs/deploy.md) (Docker image, Kamal, a tailnet-only lab VM).
 
@@ -65,13 +62,14 @@ packages/contracts   Effect Schema domain types, branded ids, tagged errors,
                      RpcGroup (app) + ChalkAdminApi HttpApi (admin) + checked-in OpenAPI
 packages/ui          shadcn components on Base UI, theme tokens (theme.css)
         │  (both imported as TypeScript source, no build step)
-        ├──────────────────────────────────┬─────────────────────────────────┐
-apps/server                            apps/web (:5173)                  apps/backoffice (:5174)
-  bin.ts      NodeRuntime + Layer.launch   rpc/    AtomRpc client (/rpc)     api/    AtomHttpApi client
-  server.ts   Layer graph; CHALK_MODE      state/  query + mutation atoms    state/  query atoms (Atom.family
-              picks RPC (api) or           routes/ file-based routes                 per search term)
-              HttpApi (admin) routes                                         routes/ search state in the URL
-  rpc.ts      thin RPC handlers
+        ├──────────────────────────────────┐
+apps/server                            apps/web (:5173)
+  bin.ts      NodeRuntime + Layer.launch   rpc/    AtomRpc client (/rpc)
+  server.ts   Layer graph: RPC, admin      api/    AtomHttpApi client (/api/admin)
+              HttpApi and the SPA on       state/  query + mutation atoms; both clients
+              one HttpRouter                       share one reactivity key per data set
+  rpc.ts      thin RPC handlers            routes/ file-based routes; desk pages
+                                                   (/workouts, /import) keep search in the URL
   adminApi.ts thin HttpApi handlers
   workout/    WorkoutStore service (SQL)
   catalog/    CatalogStore: movements with aliases, user-added movements
@@ -80,9 +78,9 @@ apps/server                            apps/web (:5173)                  apps/ba
   persistence/ SQLite (node:sqlite) + migrations
 ```
 
-- **One server, two modes.** `api` serves the app over Effect RPC; `admin` serves only the admin
-  `HttpApi` (with OpenAPI at `/api/admin/openapi.json`) and the backoffice. The backoffice has no
-  database access and shares only `packages/contracts` and `packages/ui`.
+- **One server, one app, two transports.** The app's pages read and write over Effect RPC
+  (`/rpc`); the desk pages (workout search, import) use the admin `HttpApi` (`/api/admin`, with
+  OpenAPI at `/api/admin/openapi.json`). One process serves both and the SPA from one origin.
 - **Contracts first.** Every request, response and error crossing the wire is an Effect Schema in
   `packages/contracts`. Both the server and the client validate against it.
 - **Services, thin transports.** Features are `Context.Service` classes with a `make` and a

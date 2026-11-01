@@ -2,7 +2,7 @@ import { RPC_METHODS } from "@chalk/contracts";
 
 import { ChalkClient } from "../rpc/client.ts";
 
-/** Mutations pass this key so the workout list refetches after they succeed. */
+/** Every workout read (RPC or admin API) registers this key; writes pass it so all of them refetch. */
 export const WORKOUTS_REACTIVITY_KEY = "workouts";
 
 export const workoutsAtom = ChalkClient.query(RPC_METHODS.workoutsList, undefined, {

@@ -1,9 +1,10 @@
+import { ADMIN_API_PREFIX, RPC_PATH } from "@chalk/contracts";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 
-const serverPort = process.env.CHALK_PORT ?? "4300";
+const server = `http://127.0.0.1:${process.env.CHALK_PORT ?? "4300"}`;
 
 export default defineConfig({
   plugins: [
@@ -13,7 +14,7 @@ export default defineConfig({
   ],
   server: {
     port: Number(process.env.PORT ?? 5173),
-    // Single origin in dev: the browser only talks to Vite, which forwards RPC_PATH to the server.
-    proxy: { "/rpc": `http://127.0.0.1:${serverPort}` },
+    // Single origin in dev, as in production: Vite forwards the app RPC and the admin API.
+    proxy: { [RPC_PATH]: server, [ADMIN_API_PREFIX]: server },
   },
 });

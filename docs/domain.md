@@ -35,7 +35,7 @@ One entry in the catalog. Everything else points at a movement id.
 
 Seeded by migration `002_Strength`. Seeded entries change only through new migrations, never
 edits to old ones. The importer can add movements (`user_added = 1`, id = slug of the name) and
-aliases from the backoffice.
+aliases from the Import page.
 
 **Aliases (built).** `movement_aliases { key, alias, movementId }`: other phrases for a movement
 ("DU", "Squat snatch", "Burpees over the rower"). `key` is the normalized phrase
@@ -229,8 +229,8 @@ prescribed movements instead, which answers "how many pull-ups were programmed v
 
 ## Session import (built)
 
-Backfills history from the athlete's own log, one pasted session at a time (backoffice →
-Import). The pasted text plus a list of **spans** over it is the source of truth
+Backfills history from the athlete's own log, one pasted session at a time (the Import
+page). The pasted text plus a list of **spans** over it is the source of truth
 (`ImportDocument`, stored in `session_imports.document`); everything else is derived and
 re-derivable.
 

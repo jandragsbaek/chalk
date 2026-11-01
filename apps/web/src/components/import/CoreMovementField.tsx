@@ -6,7 +6,8 @@ import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
 import { useState } from "react";
 
-import { CATALOG_REACTIVITY_KEY, setVariationOfAtom } from "../../state/imports.ts";
+import { setVariationOfAtom } from "../../state/imports.ts";
+import { CATALOG_REACTIVITY_KEY } from "../../state/strength.ts";
 import { coreMovements } from "./MovementPicker.tsx";
 
 /**

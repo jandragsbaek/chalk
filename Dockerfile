@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
-# One image, two processes: CHALK_MODE=api (app, :4300) or CHALK_MODE=admin (backoffice, :4301).
-# Node runs the server's TypeScript directly; only the two SPAs are built.
+# One process on :4300: the app RPC, the admin API and the built SPA.
+# Node runs the server's TypeScript directly; only the SPA is built.
 ARG NODE_VERSION=24.22.1
 
 FROM node:${NODE_VERSION}-slim AS base
@@ -31,10 +31,9 @@ COPY --from=deps /app ./
 COPY packages/contracts packages/contracts
 COPY apps/server apps/server
 COPY --from=build /app/apps/web/dist apps/web/dist
-COPY --from=build /app/apps/backoffice/dist apps/backoffice/dist
 # A named volume mounted on /data inherits this ownership.
 RUN mkdir /data && chown node:node /data
 USER node
 WORKDIR /app/apps/server
-EXPOSE 4300 4301
+EXPOSE 4300
 CMD ["node", "src/bin.ts"]

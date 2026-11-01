@@ -13,7 +13,8 @@ import * as Option from "effect/Option";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
-import { CATALOG_REACTIVITY_KEY, addAliasAtom, createMovementAtom } from "../../state/imports.ts";
+import { addAliasAtom, createMovementAtom } from "../../state/imports.ts";
+import { CATALOG_REACTIVITY_KEY } from "../../state/strength.ts";
 
 export const CATEGORY_LABELS: Record<MovementCategory, string> = {
   barbell: "Barbell",

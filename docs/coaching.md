@@ -35,8 +35,8 @@ apps/mcp (stdio | HTTP) ── McpServer ─────────────
   parameters and results, implemented once over the server's stores. The in-app coach uses them
   as a `Toolkit` with `LanguageModel`; the MCP server (`effect/ai/McpServer`) exposes the same
   handlers so Claude Code, Claude Desktop or any MCP client can query Chalk too.
-- **MCP server**: a new `CHALK_MODE=mcp` (stdio) or `apps/mcp` package; same Layer graph as the
-  API mode, different transport. Read-only tools first:
+- **MCP server**: a stdio entry point in `apps/server` or an `apps/mcp` package; same Layer
+  graph as the HTTP server, different transport. Read-only tools first:
   - `list_workouts { from, to }`
   - `get_workout { id }`
   - `get_rep_maxes { movementId? }`
