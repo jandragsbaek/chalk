@@ -1,4 +1,5 @@
 import {
+  BENCHMARK_CATEGORY_NAMES,
   benchmarkMovementIds,
   divisionOf,
   gradeItem,
@@ -14,6 +15,8 @@ import {
   type MovementId,
   type Sex,
 } from "@chalk/contracts";
+
+import { formatDay } from "./utils.ts";
 
 export interface BenchmarkHistory {
   /** Newest first. */
@@ -140,3 +143,15 @@ export const itemsOf = (benchmark: Benchmark): ReadonlyArray<BenchmarkItem> =>
   benchmark.blocks.flatMap((block) =>
     block.items.flatMap((item) => [item, ...(item.alternatives ?? [])]),
   );
+
+/** The line under a benchmark's name: "Heroes · First posted ... · 20 min cap · Vest, 9/6 kg". */
+export const benchmarkFacts = (benchmark: Benchmark): ReadonlyArray<string> =>
+  [
+    BENCHMARK_CATEGORY_NAMES[benchmark.category],
+    benchmark.firstPosted ? `First posted ${formatDay(benchmark.firstPosted)}` : undefined,
+    benchmark.team ? `Team of ${benchmark.team}` : undefined,
+    benchmark.timeCapSeconds ? `${benchmark.timeCapSeconds / 60} min cap` : undefined,
+    benchmark.vest
+      ? `${benchmark.vest.optional ? "Vest if you have one" : "Vest"}, ${benchmark.vest.kg.m}/${benchmark.vest.kg.f} kg`
+      : undefined,
+  ].filter((fact): fact is string => fact !== undefined);

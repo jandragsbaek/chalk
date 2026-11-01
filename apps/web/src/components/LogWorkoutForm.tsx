@@ -1,5 +1,4 @@
 import {
-  BENCHMARKS,
   benchmarkWorkoutKind,
   findBenchmark,
   LogWorkoutInput,
@@ -16,6 +15,7 @@ import { localIsoDate } from "../lib/utils.ts";
 import { SCORE_PLACEHOLDERS, WORKOUT_KIND_LABELS, WORKOUT_KINDS } from "../lib/workoutKinds.ts";
 import { LIFTS_REACTIVITY_KEY } from "../state/strength.ts";
 import { logWorkoutAtom, WORKOUTS_REACTIVITY_KEY } from "../state/workouts.ts";
+import { WorkoutPicker } from "./WorkoutPicker.tsx";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, Label, NativeSelect, Textarea } from "@chalk/ui/components/field.tsx";
 import { Switch } from "@chalk/ui/components/switch.tsx";
@@ -92,19 +92,7 @@ export function LogWorkoutForm({ benchmark: fixed }: { readonly benchmark?: Benc
       {fixed ? null : (
         <div className="grid gap-1.5 sm:col-span-2">
           <Label htmlFor="workout-name">Workout</Label>
-          <Input
-            id="workout-name"
-            list="benchmark-workouts"
-            placeholder="Fran, Back squat, Today's WOD..."
-            autoComplete="off"
-            value={name}
-            onChange={(event) => handleNameChange(event.target.value)}
-          />
-          <datalist id="benchmark-workouts">
-            {BENCHMARKS.map((option) => (
-              <option key={option.id} value={option.name} />
-            ))}
-          </datalist>
+          <WorkoutPicker id="workout-name" value={name} onValueChange={handleNameChange} />
           {benchmark ? (
             <p className="text-xs text-muted-foreground">
               Logs the benchmark: {benchmark.blocks.map((block) => block.title).join(", then ")}.
