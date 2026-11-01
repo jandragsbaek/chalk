@@ -204,7 +204,7 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
                 setText(event.target.value);
                 if (event.target.value.trim() === "") setPulled(undefined);
               }}
-              placeholder="Paste a session, from its ** Session heading down to its notes, or pull a class from bookingboard and add your results"
+              placeholder="Paste a session, org or plain text, from its Session line down to its notes, or pull a class from bookingboard and add your results"
               className="min-h-96"
               autoFocus
             />
