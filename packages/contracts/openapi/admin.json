@@ -81,6 +81,41 @@
         }
       }
     },
+    "/api/admin/workouts/sessions": {
+      "get": {
+        "tags": [
+          "workouts"
+        ],
+        "operationId": "workouts.sessions",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionEntry"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "WorkoutStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/workouts/{id}": {
       "delete": {
         "tags": [
@@ -1992,52 +2027,148 @@
         ],
         "additionalProperties": false
       },
-      "WorkoutStats": {
-        "type": "object",
-        "properties": {
-          "total": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "rxCount": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "byKind": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "kind": {
+      "SessionEntry": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "_tag": {
+                "type": "string",
+                "enum": [
+                  "workout"
+                ]
+              },
+              "workout": {
+                "$ref": "#/components/schemas/Workout"
+              },
+              "sessionNumber": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "imported": {
+                "type": "boolean"
+              },
+              "movementIds": {
+                "type": "array",
+                "items": {
                   "type": "string",
-                  "enum": [
-                    "for_time",
-                    "amrap",
-                    "emom",
-                    "strength",
-                    "other"
-                  ]
-                },
-                "count": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                  "minLength": 1
                 }
               },
-              "required": [
-                "kind",
-                "count"
-              ],
-              "additionalProperties": false
-            }
+              "liftSetCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "tonnageKg": {
+                "type": "number"
+              },
+              "daySets": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/LiftSet"
+                }
+              }
+            },
+            "required": [
+              "_tag",
+              "workout",
+              "sessionNumber",
+              "imported",
+              "movementIds",
+              "liftSetCount",
+              "tonnageKg",
+              "daySets"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_tag": {
+                "type": "string",
+                "enum": [
+                  "strengthDay"
+                ]
+              },
+              "performedOn": {
+                "type": "string"
+              },
+              "movementIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                  "minLength": 1
+                }
+              },
+              "daySets": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/LiftSet"
+                }
+              }
+            },
+            "required": [
+              "_tag",
+              "performedOn",
+              "movementIds",
+              "daySets"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "LiftSet": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "movementId": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "performedOn": {
+            "type": "string"
+          },
+          "reps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "loadKg": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000
+          },
+          "notes": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
           }
         },
         "required": [
-          "total",
-          "rxCount",
-          "byKind"
+          "id",
+          "movementId",
+          "performedOn",
+          "reps",
+          "loadKg",
+          "notes",
+          "createdAt"
         ],
         "additionalProperties": false
       },
@@ -2094,6 +2225,55 @@
           "rx",
           "notes",
           "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "WorkoutStats": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "rxCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "byKind": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "for_time",
+                    "amrap",
+                    "emom",
+                    "strength",
+                    "other"
+                  ]
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "kind",
+                "count"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "total",
+          "rxCount",
+          "byKind"
         ],
         "additionalProperties": false
       }

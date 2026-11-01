@@ -283,6 +283,10 @@ Pane headers are 36px strips with a label on the left and meta on the right. Row
 
 The front page (Today) lays out its own two columns under the band: a 20rem fresh-sheet week column, ruled off on its right and sticky below the band, beside a paper field padded 32px whose sections stack 40px apart. Recent PRs and Main lifts sit side by side from 80rem, 32px apart. The year grid keeps a 44rem minimum; in a narrower window it scrolls sideways under a sticky weekday label column.
 
+The Workouts page (the session register) owns the viewport below the band like the import
+workbench, in three ruled columns that scroll on their own: an 8.5rem month rail, a 27.5rem
+register, and the open session's sheet in the rest.
+
 Record lists that sit side by side share a 56px row so their rules line up: the Recent PRs list and the Main lifts table. Week day rows are at least 48px.
 
 Spacing steps observed: 2px, 4px, 6px, 8px, 12px, 16px, 24px; 48px for the band.
@@ -346,7 +350,7 @@ Printed and decisive: square, semi-bold, no gradient.
 
 ### Navigation
 
-- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Log, Strength, Benchmarks, Levels, Workouts, Import); Today is the front page and Log the manual entry page. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
+- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Log, Strength, Benchmarks, Levels, Workouts, Import); Today is the front page, Log the manual entry page and Workouts the session register. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
 
 ### Protocol Field Box
 
@@ -394,6 +398,21 @@ A section of the field is titled like a protocol section: condensed heavy caps (
 One cell vocabulary shared by the year grid and the week column, shaded on the heat ramp. The year grid is 53 week columns of square cells 3px apart, Monday first, month labels over the columns and Mon, Wed, Fri on a label column; the legend runs Rest, four cells, 3+ sessions. The day being read takes the selection double outline (3px, offset 1px) and is read out in a sentence under the grid; pointing at a cell or walking the grid with the arrow keys moves it, and the grid takes a 2px inset ballpoint ring on keyboard focus.
 
 The week column is the same days as a card: one ruled row per day, a 3.5rem stub with the weekday in condensed caps over the date and a 10px heat swatch, then the day's entries (workout name with its kind label, or movement chips for a strength-only day; "Rest", "Nothing logged yet" for today, or an empty-cell rule for days unknown or still to come). Today carries a 3px double ink outline inset 4px. The day being read in the grid fills its row with the ruled tint, and pointing at a row selects that day in the grid. Below the rows, the consistency numbers as a 2x2 of protocol field boxes and a full-width primary button.
+
+### Session Register (rail, register, sheet)
+
+Every training day as one list, read like a scorer's register beside the open protocol. The
+month rail prints years in title caps and one tab per month with its count; a tab grows a step
+per session (capped), so busy and quiet stretches read before you scroll. The month being read
+is an ink tab with paper text; a tab jumps the register. Register rows (at least 48px) carry a
+weekday/date stub in condensed caps over the day numeral, the session number in pencil grey (an
+empty-cell rule without one), the name over kind and movements, and the score as a goldenrod
+chip (a muted sets badge for a strength day). Month heads stick, in title caps on a 2px ink rule
+with a count or "7 of 17" under a filter. The open row takes the ruled tint and the double
+outline; up and down walk the register. The sheet is the protocol read back: a title row with
+its actions, a strip of protocol field boxes, then the importer's protocol without its editing
+affordances (rows do not tint or select), the debrief as the coach reads it, and typed notes in
+Courier.
 
 ### Source Line Gutter
 

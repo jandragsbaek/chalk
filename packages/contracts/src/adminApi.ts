@@ -5,6 +5,7 @@ import * as OpenApi from "effect/http-api/OpenApi";
 import * as Schema from "effect/Schema";
 
 import { MovementId, WorkoutId } from "./baseSchemas.ts";
+import { SessionEntry } from "./session.ts";
 import {
   AddAliasInput,
   AliasTakenError,
@@ -47,6 +48,11 @@ export const AdminWorkoutsGroup = HttpApiGroup.make("workouts")
     }),
     HttpApiEndpoint.get("stats", "/stats", {
       success: WorkoutStats,
+      error: WorkoutStorageError,
+    }),
+    /** Every session, newest day first: workouts and strength-only days, with their movements. */
+    HttpApiEndpoint.get("sessions", "/sessions", {
+      success: Schema.Array(SessionEntry),
       error: WorkoutStorageError,
     }),
     HttpApiEndpoint.delete("remove", "/:id", {

@@ -15,17 +15,31 @@ import {
 import { describeBlock, formatKg } from "../../lib/blockLabels.ts";
 import { LevelLine } from "./LevelVerdict.tsx";
 
-export interface ProtocolHandlers {
+export interface ProtocolNames {
   readonly nameOf: (id: MovementId) => string | undefined;
   /** Name of the core movement when `id` is a variation ("Snatch" for a power snatch). */
   readonly coreOf: (id: MovementId) => string | undefined;
   /** The movement graded against the level sheet; none when it is on no row of it. */
   readonly gradeOf: (id: SpanId) => ItemGrade | undefined;
+}
+
+/**
+ * The importer's side of the protocol: rows select their mark in the text and light up with it,
+ * and the issues list points at line numbers. Without it the protocol only reads.
+ */
+export interface ProtocolEditor {
   readonly selectedId: SpanId | undefined;
   readonly linked: ReadonlySet<SpanId>;
   readonly onSelect: (id: SpanId) => void;
   readonly onHover: (id: SpanId | undefined) => void;
+  readonly lineOf: (id: SpanId) => number | undefined;
 }
+
+/** Row state the editor reads: selected, lit by a hovered mark. */
+const rowState = (editor: ProtocolEditor | undefined, id: SpanId) => ({
+  "data-selected": editor?.selectedId === id ? "" : undefined,
+  "data-linked": editor?.linked.has(id) ? "" : undefined,
+});
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
@@ -37,98 +51,111 @@ const blockItems = (blocks: ReadonlyArray<DerivedBlock>) =>
 
 function ItemRow({
   item,
-  handlers,
+  names,
+  editor,
   alternative,
 }: {
   readonly item: DerivedItem;
-  readonly handlers: ProtocolHandlers;
+  readonly names: ProtocolNames;
+  readonly editor: ProtocolEditor | undefined;
   readonly alternative?: boolean;
 }) {
-  const name = item.movementId === undefined ? undefined : handlers.nameOf(item.movementId);
-  const core = item.movementId === undefined ? undefined : handlers.coreOf(item.movementId);
+  const name = item.movementId === undefined ? undefined : names.nameOf(item.movementId);
+  const core = item.movementId === undefined ? undefined : names.coreOf(item.movementId);
   // Re-keyed when the row's content changes, so an edit lights the rows it touched.
   const signature = JSON.stringify([item.movementId, item.sets, item.performed, item.performance]);
-  const grade = handlers.gradeOf(item.spanId);
+  const grade = names.gradeOf(item.spanId);
+  const content = (
+    <>
+      {editor ? <span key={signature} data-flash aria-hidden /> : null}
+      <span
+        className={
+          alternative
+            ? "relative flex min-w-0 items-baseline gap-2 pl-5 leading-7"
+            : "relative flex min-w-0 items-baseline gap-2 leading-7"
+        }
+      >
+        {alternative ? <span className="form-label text-muted-foreground">or</span> : null}
+        {name === undefined ? (
+          <span className="grid min-w-0 leading-5">
+            <span className="truncate font-mono font-bold">{item.text}</span>
+            <span className="form-label whitespace-nowrap text-destructive">Pick a movement</span>
+          </span>
+        ) : (
+          <span className="grid min-w-0 leading-5">
+            <span className="truncate font-semibold">{name}</span>
+            {core === undefined ? null : (
+              <span className="form-label truncate text-muted-foreground">{core} variation</span>
+            )}
+          </span>
+        )}
+      </span>
+      <span className="relative flex flex-wrap gap-1.5">
+        {item.sets.length === 0 ? (
+          <span className="flex h-7 items-center gap-2 text-xs text-muted-foreground">
+            <span data-empty aria-hidden />
+            no numbers
+          </span>
+        ) : (
+          item.sets.map((set) => (
+            <span key={set.line} data-attempt className="inline-flex gap-0.5 p-0.5">
+              {set.quantities.map((quantity) => (
+                <span
+                  key={`${quantity.measure}-${quantity.amount.min}-${quantity.amount.max}`}
+                  data-chip
+                  data-measure={quantity.measure}
+                  className="px-1.5 text-sm font-medium leading-6 tabular-nums"
+                >
+                  {formatQuantity(quantity)}
+                </span>
+              ))}
+            </span>
+          ))
+        )}
+        {item.performed.length > 0 ? (
+          <span
+            data-result-box
+            className="flex basis-full flex-wrap items-baseline gap-x-2 bg-card px-1.5 text-sm leading-6"
+          >
+            <span className="form-label text-muted-foreground">Lifted</span>
+            <span className="tabular-nums">{formatPerformed(item.performed)}</span>
+            <span className="ml-auto font-semibold tabular-nums">
+              {formatKg(tonnageOf(item.performed))}
+            </span>
+          </span>
+        ) : null}
+        {grade ? <LevelLine grade={grade} nameOf={names.nameOf} /> : null}
+      </span>
+    </>
+  );
+  const rowClass =
+    "relative grid w-full grid-cols-[minmax(0,13rem)_minmax(0,1fr)] items-start gap-4 px-4 py-1 text-left";
   return (
     <li>
-      <button
-        type="button"
-        data-protocol-row
-        data-open={name === undefined ? "" : undefined}
-        data-selected={handlers.selectedId === item.spanId ? "" : undefined}
-        data-linked={handlers.linked.has(item.spanId) ? "" : undefined}
-        className="relative grid w-full grid-cols-[minmax(0,13rem)_minmax(0,1fr)] items-start gap-4 px-4 py-1 text-left"
-        onClick={() => handlers.onSelect(item.spanId)}
-        onMouseEnter={() => handlers.onHover(item.spanId)}
-        onMouseLeave={() => handlers.onHover(undefined)}
-      >
-        <span key={signature} data-flash aria-hidden />
-        <span
-          className={
-            alternative
-              ? "relative flex min-w-0 items-baseline gap-2 pl-5 leading-7"
-              : "relative flex min-w-0 items-baseline gap-2 leading-7"
-          }
+      {editor ? (
+        <button
+          type="button"
+          data-protocol-row
+          data-open={name === undefined ? "" : undefined}
+          {...rowState(editor, item.spanId)}
+          className={rowClass}
+          onClick={() => editor.onSelect(item.spanId)}
+          onMouseEnter={() => editor.onHover(item.spanId)}
+          onMouseLeave={() => editor.onHover(undefined)}
         >
-          {alternative ? <span className="form-label text-muted-foreground">or</span> : null}
-          {name === undefined ? (
-            <span className="grid min-w-0 leading-5">
-              <span className="truncate font-mono font-bold">{item.text}</span>
-              <span className="form-label whitespace-nowrap text-destructive">Pick a movement</span>
-            </span>
-          ) : (
-            <span className="grid min-w-0 leading-5">
-              <span className="truncate font-semibold">{name}</span>
-              {core === undefined ? null : (
-                <span className="form-label truncate text-muted-foreground">{core} variation</span>
-              )}
-            </span>
-          )}
-        </span>
-        <span className="relative flex flex-wrap gap-1.5">
-          {item.sets.length === 0 ? (
-            <span className="flex h-7 items-center gap-2 text-xs text-muted-foreground">
-              <span data-empty aria-hidden />
-              no numbers
-            </span>
-          ) : (
-            item.sets.map((set) => (
-              <span key={set.line} data-attempt className="inline-flex gap-0.5 p-0.5">
-                {set.quantities.map((quantity) => (
-                  <span
-                    key={`${quantity.measure}-${quantity.amount.min}-${quantity.amount.max}`}
-                    data-chip
-                    data-measure={quantity.measure}
-                    className="px-1.5 text-sm font-medium leading-6 tabular-nums"
-                  >
-                    {formatQuantity(quantity)}
-                  </span>
-                ))}
-              </span>
-            ))
-          )}
-          {item.performed.length > 0 ? (
-            <span
-              data-result-box
-              className="flex basis-full flex-wrap items-baseline gap-x-2 bg-card px-1.5 text-sm leading-6"
-            >
-              <span className="form-label text-muted-foreground">Lifted</span>
-              <span className="tabular-nums">{formatPerformed(item.performed)}</span>
-              <span className="ml-auto font-semibold tabular-nums">
-                {formatKg(tonnageOf(item.performed))}
-              </span>
-            </span>
-          ) : null}
-          {grade ? <LevelLine grade={grade} nameOf={handlers.nameOf} /> : null}
-        </span>
-      </button>
+          {content}
+        </button>
+      ) : (
+        <div className={rowClass}>{content}</div>
+      )}
       {item.alternatives.length > 0 ? (
         <ul>
           {item.alternatives.map((alternativeItem) => (
             <ItemRow
               key={alternativeItem.spanId}
               item={alternativeItem}
-              handlers={handlers}
+              names={names}
+              editor={editor}
               alternative
             />
           ))}
@@ -138,7 +165,8 @@ function ItemRow({
   );
 }
 
-function SectionHeader({ title, meta }: { readonly title: string; readonly meta: string }) {
+/** A protocol section title on its 2px ink rule, meta on the right. */
+export function SectionHeader({ title, meta }: { readonly title: string; readonly meta: string }) {
   return (
     <header className="flex items-baseline justify-between gap-3 border-b-2 border-foreground px-4 pb-1 pt-5">
       <h3 className="protocol-title text-xl">{title}</h3>
@@ -201,28 +229,30 @@ function Issues({
 }
 
 /**
- * The session as it will be saved, set like a meet protocol: parts, their blocks, one row per
- * movement with its sets in boxes and what was lifted, and the lift sets read from the notes.
+ * The session set like a meet protocol: parts, their blocks, one row per movement with its sets
+ * in boxes and what was lifted, and the lift sets read from the notes. With an `editor` it is the
+ * importer's protocol, as it will be saved; without one it reads a stored session back.
  */
 export function SessionProtocol({
   session,
-  lineOf,
-  handlers,
+  names,
+  editor,
 }: {
   readonly session: DerivedSession;
-  readonly lineOf: (id: SpanId) => number | undefined;
-  readonly handlers: ProtocolHandlers;
+  readonly names: ProtocolNames;
+  readonly editor?: ProtocolEditor;
 }) {
   return (
     <div className="grid content-start">
-      {session.issues.length > 0 ? (
-        <Issues issues={session.issues} lineOf={lineOf} onSelect={handlers.onSelect} />
+      {editor && session.issues.length > 0 ? (
+        <Issues issues={session.issues} lineOf={editor.lineOf} onSelect={editor.onSelect} />
       ) : null}
 
       {session.parts.length === 0 && session.liftSets.length === 0 ? (
         <p className="px-4 py-10 text-sm text-muted-foreground">
-          Nothing in the protocol yet. Select a movement in the text and press M, or Re-suggest to
-          let Chalk try again.
+          {editor
+            ? "Nothing in the protocol yet. Select a movement in the text and press M, or Re-suggest to let Chalk try again."
+            : "No parts or lift sets in this session."}
         </p>
       ) : null}
 
@@ -242,14 +272,20 @@ export function SessionProtocol({
           {part.blocks.map((block, index) => (
             <div key={block.spanId ?? `implicit-${index}`} className="border-b">
               <div className="flex min-h-8 items-center justify-between gap-3 bg-muted px-4">
-                <button
-                  type="button"
-                  disabled={block.spanId === undefined}
-                  className="cursor-pointer text-sm font-bold uppercase tracking-wide font-stretch-condensed hover:underline disabled:cursor-default disabled:no-underline"
-                  onClick={() => (block.spanId ? handlers.onSelect(block.spanId) : undefined)}
-                >
-                  {describeBlock(block.format, block.params)}
-                </button>
+                {editor ? (
+                  <button
+                    type="button"
+                    disabled={block.spanId === undefined}
+                    className="cursor-pointer text-sm font-bold uppercase tracking-wide font-stretch-condensed hover:underline disabled:cursor-default disabled:no-underline"
+                    onClick={() => (block.spanId ? editor.onSelect(block.spanId) : undefined)}
+                  >
+                    {describeBlock(block.format, block.params)}
+                  </button>
+                ) : (
+                  <span className="text-sm font-bold uppercase tracking-wide font-stretch-condensed">
+                    {describeBlock(block.format, block.params)}
+                  </span>
+                )}
                 <span className="flex flex-wrap justify-end gap-1.5">
                   {block.scores.map((score) => (
                     <span
@@ -274,16 +310,9 @@ export function SessionProtocol({
               </div>
               {block.intents.length > 0 ? (
                 <ul className="divide-y border-b">
-                  {block.intents.map((intent) => (
-                    <li key={intent.spanId}>
-                      <button
-                        type="button"
-                        data-protocol-row
-                        data-intent
-                        data-selected={handlers.selectedId === intent.spanId ? "" : undefined}
-                        className="grid w-full grid-cols-[minmax(0,13rem)_minmax(0,1fr)] items-start gap-4 px-4 py-1 text-left"
-                        onClick={() => handlers.onSelect(intent.spanId)}
-                      >
+                  {block.intents.map((intent) => {
+                    const content = (
+                      <>
                         <span className="form-label leading-7 text-muted-foreground">Intent</span>
                         <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm leading-7">
                           <span className="font-mono">{intent.text}</span>
@@ -298,9 +327,29 @@ export function SessionProtocol({
                             </span>
                           ))}
                         </span>
-                      </button>
-                    </li>
-                  ))}
+                      </>
+                    );
+                    const rowClass =
+                      "grid w-full grid-cols-[minmax(0,13rem)_minmax(0,1fr)] items-start gap-4 px-4 py-1 text-left";
+                    return (
+                      <li key={intent.spanId}>
+                        {editor ? (
+                          <button
+                            type="button"
+                            data-protocol-row
+                            data-intent
+                            data-selected={editor.selectedId === intent.spanId ? "" : undefined}
+                            className={rowClass}
+                            onClick={() => editor.onSelect(intent.spanId)}
+                          >
+                            {content}
+                          </button>
+                        ) : (
+                          <div className={rowClass}>{content}</div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : null}
               {block.items.length === 0 ? (
@@ -310,7 +359,7 @@ export function SessionProtocol({
               ) : (
                 <ul className="divide-y">
                   {block.items.map((item) => (
-                    <ItemRow key={item.spanId} item={item} handlers={handlers} />
+                    <ItemRow key={item.spanId} item={item} names={names} editor={editor} />
                   ))}
                 </ul>
               )}
@@ -338,20 +387,23 @@ export function SessionProtocol({
               {session.liftSets.map((set) => (
                 <tr
                   key={`${set.movementSpanId}-${set.reps}-${set.loadKg}`}
-                  data-protocol-row
-                  data-selected={handlers.selectedId === set.movementSpanId ? "" : undefined}
-                  data-linked={handlers.linked.has(set.movementSpanId) ? "" : undefined}
-                  onMouseEnter={() => handlers.onHover(set.movementSpanId)}
-                  onMouseLeave={() => handlers.onHover(undefined)}
+                  data-protocol-row={editor ? "" : undefined}
+                  {...rowState(editor, set.movementSpanId)}
+                  onMouseEnter={editor ? () => editor.onHover(set.movementSpanId) : undefined}
+                  onMouseLeave={editor ? () => editor.onHover(undefined) : undefined}
                 >
                   <td className="px-4 py-1.5">
-                    <button
-                      type="button"
-                      className="cursor-pointer font-semibold hover:underline"
-                      onClick={() => handlers.onSelect(set.movementSpanId)}
-                    >
-                      {handlers.nameOf(set.movementId)}
-                    </button>
+                    {editor ? (
+                      <button
+                        type="button"
+                        className="cursor-pointer font-semibold hover:underline"
+                        onClick={() => editor.onSelect(set.movementSpanId)}
+                      >
+                        {names.nameOf(set.movementId)}
+                      </button>
+                    ) : (
+                      <span className="font-semibold">{names.nameOf(set.movementId)}</span>
+                    )}
                   </td>
                   <td className="px-4 py-1.5 text-right tabular-nums">{set.count}</td>
                   <td className="px-4 py-1.5 text-right tabular-nums">{set.reps}</td>

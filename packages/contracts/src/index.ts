@@ -1,6 +1,7 @@
 export * from "./baseSchemas.ts";
 export * from "./workout.ts";
 export * from "./strength.ts";
+export * from "./session.ts";
 export * from "./rpc.ts";
 export * from "./adminApi.ts";
 export * from "./debrief.ts";
