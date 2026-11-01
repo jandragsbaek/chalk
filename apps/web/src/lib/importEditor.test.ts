@@ -73,6 +73,20 @@ describe("editorReducer", () => {
     expect(text.slice(intent!.start, intent!.end)).toBe("Build to a heavy single,\n- about RPE 9.");
   });
 
+  it("tags a comment as whole lines, like intent", () => {
+    const text = "- EMOM 16\n- *Inspiration fra Prepared programning";
+    const state = initialEditorState({ text, spans: [] });
+    const tagged = editorReducer(state, {
+      type: "tag",
+      start: text.indexOf("Prepared"),
+      end: text.indexOf("Prepared") + 3,
+      choice: { tag: "comment" },
+    });
+    const [comment] = tagged.spans;
+    expect(comment?._tag).toBe("comment");
+    expect(text.slice(comment!.start, comment!.end)).toBe("Inspiration fra Prepared programning");
+  });
+
   it("orders loaded spans by offset, as rendering needs", () => {
     const starts = start().spans.map((span) => span.start);
     expect(starts).toEqual([...starts].sort((left, right) => left - right));

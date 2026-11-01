@@ -42,6 +42,12 @@ export interface DerivedIntent {
   readonly quantities: ReadonlyArray<Quantity>;
 }
 
+/** An aside kept with a block ("Inspiration from ..."): shown, never read for numbers. */
+export interface DerivedComment {
+  readonly spanId: SpanId;
+  readonly text: string;
+}
+
 export interface DerivedBlock {
   /** Absent for the implicit block holding movements written before any format line. */
   readonly spanId: SpanId | undefined;
@@ -50,6 +56,7 @@ export interface DerivedBlock {
   readonly params: BlockParams;
   readonly items: ReadonlyArray<DerivedItem>;
   readonly intents: ReadonlyArray<DerivedIntent>;
+  readonly comments: ReadonlyArray<DerivedComment>;
   readonly scores: ReadonlyArray<string>;
   /** Reps × load over the block's performed sets, alternatives included. */
   readonly tonnageKg: number;
@@ -108,6 +115,7 @@ interface MutableBlock {
   params: BlockParams;
   items: Array<SpanOf<"movement">>;
   intents: Array<SpanOf<"intent">>;
+  comments: Array<SpanOf<"comment">>;
 }
 
 interface MutablePart {
@@ -333,6 +341,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
       params: {},
       items: [],
       intents: [],
+      comments: [],
     };
     part.blocks.push(implicit);
     return implicit;
@@ -404,6 +413,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
         params: span.params,
         items: [],
         intents: [],
+        comments: [],
       });
     } else if (span._tag === "intent") {
       if (inNotes(span))
@@ -414,6 +424,9 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
           spanId: span.id,
         });
       else currentBlock(span.start).intents.push(span);
+    } else if (span._tag === "comment") {
+      // In the notes a comment is just more of the notes text, which is kept anyway.
+      if (!inNotes(span)) currentBlock(span.start).comments.push(span);
     } else if (span._tag === "movement") {
       if (span.movementId === undefined)
         issues.push({
@@ -545,9 +558,9 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     tonnageOf(item.performed) +
     item.alternatives.reduce((total, alternative) => total + itemTonnage(alternative), 0);
 
-  const toIntent = (intent: SpanOf<"intent">): DerivedIntent => {
-    // An intent spanning lines reads as one sentence, without bullets or comment stars.
-    const intentText = slice(intent)
+  // A line tag spanning lines reads as one sentence, without bullets or comment stars.
+  const lineTagText = (span: SpanOf<"intent"> | SpanOf<"comment">) =>
+    slice(span)
       .split("\n")
       .map((line) =>
         stripBullet(line)
@@ -556,6 +569,12 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
       )
       .filter((line) => line !== "")
       .join(" ");
+  const toComment = (comment: SpanOf<"comment">): DerivedComment => ({
+    spanId: comment.id,
+    text: lineTagText(comment),
+  });
+  const toIntent = (intent: SpanOf<"intent">): DerivedIntent => {
+    const intentText = lineTagText(intent);
     return {
       spanId: intent.id,
       text: intentText,
@@ -599,6 +618,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     benchmark: Benchmark,
     span: SpanOf<"benchmark">,
     intents: ReadonlyArray<DerivedIntent>,
+    comments: ReadonlyArray<DerivedComment>,
     scores: ReadonlyArray<string>,
   ): ReadonlyArray<DerivedBlock> => {
     const line = lineOf(span.start);
@@ -645,6 +665,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
           ),
         })),
       ],
+      comments: blockIndex === 0 ? comments : [],
       scores: blockIndex === scoredAt ? scores : [],
       tonnageKg: 0,
     }));
@@ -656,12 +677,21 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     const [first, second] = blocks;
     if (first && second && first.spanId === undefined && second.items.length === 0) {
       blocks = [
-        { ...second, items: first.items, intents: [...first.intents, ...second.intents] },
+        {
+          ...second,
+          items: first.items,
+          intents: [...first.intents, ...second.intents],
+          comments: [...first.comments, ...second.comments],
+        },
         ...blocks.slice(2),
       ];
     }
     blocks = blocks.filter(
-      (block) => block.spanId !== undefined || block.items.length > 0 || block.intents.length > 0,
+      (block) =>
+        block.spanId !== undefined ||
+        block.items.length > 0 ||
+        block.intents.length > 0 ||
+        block.comments.length > 0,
     );
     const named = part.benchmark;
     const benchmark =
@@ -681,6 +711,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
           benchmark,
           named,
           blocks.flatMap((block) => block.intents.map(toIntent)),
+          blocks.flatMap((block) => block.comments.map(toComment)),
           benchmarkScores,
         ),
       };
@@ -706,6 +737,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
           params: block.params,
           items,
           intents: block.intents.map(toIntent),
+          comments: block.comments.map(toComment),
           scores: [
             ...(block.spanId === undefined ? [] : (scoresOf.get(block.spanId) ?? [])),
             ...(index === scoredAt ? benchmarkScores : []),

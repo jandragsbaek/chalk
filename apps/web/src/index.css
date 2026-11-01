@@ -128,6 +128,12 @@ mark[data-tag="notes"] {
   box-shadow: none;
   border-bottom: 0.125rem dotted var(--tag-ink);
 }
+/* A comment is text kept as written: no fill, a thin dashed rule. */
+mark[data-tag="comment"] {
+  background: transparent;
+  box-shadow: none;
+  border-bottom: 1px dashed var(--tag-ink);
+}
 mark[data-tag]:hover,
 mark[data-tag][data-linked] {
   background: color-mix(in oklch, var(--tag-ink) 26%, var(--tag));

@@ -125,6 +125,30 @@ describe("deriveSession", () => {
     ]);
   });
 
+  it("keeps a comment on its block as written, apart from the intent", () => {
+    const text = [
+      "**** Workout #2",
+      "- EMOM 16",
+      "- 3) 3 squat snatch @75% of 1 RM",
+      "- *Inspiration fra Prepared programning",
+      "*** Notes",
+      "- *Felt fine at 75%",
+    ].join("\n");
+    const suggested = documentOf(text).spans;
+    const commented = suggested.map((span) =>
+      span._tag === "intent"
+        ? { _tag: "comment" as const, id: span.id, start: span.start, end: span.end }
+        : span,
+    );
+    const session = deriveSession({ text, spans: commented, performedOn: "2026-01-02" }, nameOf);
+    const [emom] = session.parts[0]?.blocks ?? [];
+    expect(emom?.intents).toEqual([]);
+    expect(emom?.comments.map((comment) => comment.text)).toEqual([
+      "Inspiration fra Prepared programning",
+    ]);
+    expect(session.issues.filter((issue) => issue.message.includes("Felt fine"))).toEqual([]);
+  });
+
   it("logs results from the notes as lift sets and keeps the notes text", () => {
     const session = deriveSession(documentOf(SESSION_160), nameOf);
     expect(session.liftSets).toEqual([

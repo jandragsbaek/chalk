@@ -32,6 +32,7 @@ const every = (rounds: number): DerivedBlock => ({
   params: { intervalSeconds: 90, rounds: { min: rounds, max: rounds } },
   items: [],
   intents: [],
+  comments: [],
   scores: [],
   tonnageKg: 0,
 });

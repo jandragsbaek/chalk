@@ -247,7 +247,8 @@ re-derivable.
 - Span kinds: `date`, `session` (number), `part`, `block` (format + params), `movement`
   (catalog id, optional `alternativeOf`), `quantity` (measure, amount, optional female amount and
   scheme, `attachedTo` a movement), `score` (attached to a block), `notes`, `intent` (the coach's
-  instruction for the block it sits in). Spans never overlap.
+  instruction for the block it sits in), `comment` (an aside on the block, such as where the
+  workout came from). Spans never overlap.
 - Measures include `rpe` ("@RPE 8", "RPE 7-8", "@8 RPE"), written after its movement like loads.
 - **Targets by level.** A count can carry `tiers`, hardest first, each a level with its male and
   female number: "18-15/15-12 cal row" is 18/15 at Elite and 15/12 at RX. The parser reads a
@@ -258,6 +259,9 @@ re-derivable.
 - **Intent** marks whole lines ("Build to a heavy single", "70-80% of the above", "RPE 7-8"). It
   belongs to the block it sits in and is stored on `workout_blocks.intent` as JSON
   `[{ text, quantities }]`, with any RPE, % or load in its text read into `quantities`.
+- **Comment** marks whole lines too, but nothing in it is read: it shows on its block as
+  written and lives only in the document (not on `workout_blocks`). The inspector switches a
+  line between intent and comment; the suggester always proposes intent.
 - `suggestSpans` (contracts) proposes spans: org headings (`** Session 167 <2026-10-28 on>`,
   `**** Workout #1`, `*** Notes`), format lines, catalog movements and aliases, quantities.
   Quantities attach to the movement in the same `+` / `or` segment of their line; a line of only

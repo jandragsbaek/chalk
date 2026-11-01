@@ -11,6 +11,7 @@ import {
   type MovementId,
   type SpanId,
 } from "@chalk/contracts";
+import type { ReactNode } from "react";
 
 import { describeBlock, formatKg } from "../../lib/blockLabels.ts";
 import { describePlan } from "../../lib/plan.ts";
@@ -216,6 +217,46 @@ function ItemRow({
 }
 
 /** A protocol section title on its 2px ink rule, meta on the right. */
+/** A whole line from the coach on a block: an intent, or a comment. */
+function LineRow({
+  id,
+  label,
+  editor,
+  children,
+}: {
+  readonly id: SpanId;
+  readonly label: string;
+  readonly editor: ProtocolEditor | undefined;
+  readonly children: ReactNode;
+}) {
+  const rowClass =
+    "grid w-full grid-cols-[minmax(0,13rem)_minmax(0,1fr)] items-start gap-4 px-4 py-1 text-left";
+  const content = (
+    <>
+      <span className="form-label leading-7 text-muted-foreground">{label}</span>
+      {children}
+    </>
+  );
+  return (
+    <li>
+      {editor ? (
+        <button
+          type="button"
+          data-protocol-row
+          data-intent
+          data-selected={editor.selectedId === id ? "" : undefined}
+          className={rowClass}
+          onClick={() => editor.onSelect(id)}
+        >
+          {content}
+        </button>
+      ) : (
+        <div className={rowClass}>{content}</div>
+      )}
+    </li>
+  );
+}
+
 export function SectionHeader({ title, meta }: { readonly title: string; readonly meta: string }) {
   return (
     <header className="flex items-baseline justify-between gap-3 border-b-2 border-foreground px-4 pb-1 pt-5">
@@ -358,48 +399,37 @@ export function SessionProtocol({
                   ) : null}
                 </span>
               </div>
-              {block.intents.length > 0 ? (
+              {block.intents.length > 0 || block.comments.length > 0 ? (
                 <ul className="divide-y border-b">
-                  {block.intents.map((intent) => {
-                    const content = (
-                      <>
-                        <span className="form-label leading-7 text-muted-foreground">Intent</span>
-                        <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm leading-7">
-                          <span className="font-mono">{intent.text}</span>
-                          {intent.quantities.map((quantity) => (
-                            <span
-                              key={`${quantity.measure}-${quantity.amount.min}-${quantity.amount.max}`}
-                              data-chip
-                              data-measure={quantity.measure}
-                              className="px-1.5 text-sm font-medium leading-6 tabular-nums"
-                            >
-                              {formatQuantity(quantity)}
-                            </span>
-                          ))}
-                        </span>
-                      </>
-                    );
-                    const rowClass =
-                      "grid w-full grid-cols-[minmax(0,13rem)_minmax(0,1fr)] items-start gap-4 px-4 py-1 text-left";
-                    return (
-                      <li key={intent.spanId}>
-                        {editor ? (
-                          <button
-                            type="button"
-                            data-protocol-row
-                            data-intent
-                            data-selected={editor.selectedId === intent.spanId ? "" : undefined}
-                            className={rowClass}
-                            onClick={() => editor.onSelect(intent.spanId)}
+                  {block.intents.map((intent) => (
+                    <LineRow key={intent.spanId} id={intent.spanId} label="Intent" editor={editor}>
+                      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm leading-7">
+                        <span className="font-mono">{intent.text}</span>
+                        {intent.quantities.map((quantity) => (
+                          <span
+                            key={`${quantity.measure}-${quantity.amount.min}-${quantity.amount.max}`}
+                            data-chip
+                            data-measure={quantity.measure}
+                            className="px-1.5 text-sm font-medium leading-6 tabular-nums"
                           >
-                            {content}
-                          </button>
-                        ) : (
-                          <div className={rowClass}>{content}</div>
-                        )}
-                      </li>
-                    );
-                  })}
+                            {formatQuantity(quantity)}
+                          </span>
+                        ))}
+                      </span>
+                    </LineRow>
+                  ))}
+                  {block.comments.map((comment) => (
+                    <LineRow
+                      key={comment.spanId}
+                      id={comment.spanId}
+                      label="Comment"
+                      editor={editor}
+                    >
+                      <span className="text-sm leading-7 text-muted-foreground">
+                        {comment.text}
+                      </span>
+                    </LineRow>
+                  ))}
                 </ul>
               ) : null}
               {block.items.length === 0 ? (
