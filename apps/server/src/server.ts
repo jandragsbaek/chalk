@@ -27,6 +27,7 @@ import * as PowerStore from "./power/PowerStore.ts";
 import * as RestDayStore from "./rest/RestDayStore.ts";
 import * as Rpc from "./rpc.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
+import * as BlockStore from "./training/BlockStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
 const layerStores = Layer.mergeAll(
@@ -40,6 +41,7 @@ const layerStores = Layer.mergeAll(
   PowerStore.layer,
   Bookingboard.layer.pipe(Layer.provide(FetchHttpClient.layer)),
   RestDayStore.layer,
+  BlockStore.layer,
   LevelStore.layer.pipe(Layer.provide(CatalogStore.layer)),
 ).pipe(Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)));
 

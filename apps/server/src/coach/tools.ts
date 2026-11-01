@@ -1,5 +1,11 @@
 import {
   BENCHMARK_CATEGORY_NAMES,
+  BlockId,
+  BlockStatus,
+  DraftSessionInput,
+  isLoggedLift,
+  lineText,
+  TrainingMax,
   BenchmarkCategory,
   benchmarkById,
   BenchmarkId,
@@ -25,6 +31,8 @@ import {
   type LiftSet,
   type Movement,
   type PartRef,
+  type ProgrammedSession,
+  type TrainingBlock,
 } from "@chalk/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -32,13 +40,16 @@ import * as Tool from "effect/ai/Tool";
 import * as Toolkit from "effect/ai/Toolkit";
 
 import type * as RestDayStore from "../rest/RestDayStore.ts";
+import type * as PlanStore from "../plan/PlanStore.ts";
 import type * as StrengthStore from "../strength/StrengthStore.ts";
+import type * as BlockStore from "../training/BlockStore.ts";
 import type * as WorkoutStore from "../workout/WorkoutStore.ts";
 
 /**
- * The coach's tools over the athlete's log: reads, and one write (putting a rest day in the
- * calendar). Each call becomes a receipt: what was asked, a one-line answer, and the rows the
- * model saw, so the athlete can check the numbers and see what the coach changed.
+ * The coach's tools over the athlete's log: reads, and two writes (putting a rest day in the
+ * calendar, and drafting a training block the athlete then puts there). Each call becomes a
+ * receipt: what was asked, a one-line answer, and the rows the model saw, so the athlete can
+ * check the numbers and see what the coach changed.
  */
 
 /** What a tool returns to the model when it cannot answer; the model reads the message. */
@@ -257,6 +268,89 @@ const MarkRestDay = Tool.make("mark_rest_day", {
   ...common,
 });
 
+/** Days a calendar read covers at most, and by default from today. */
+const CALENDAR_MAX_DAYS = 62;
+const CALENDAR_DEFAULT_DAYS = 14;
+
+const ListBlocks = Tool.make("list_blocks", {
+  description:
+    "Training blocks: strength cycles and runs of accessory or prehab work, the ones in the " +
+    "calendar and the drafts you proposed that the athlete has not put there yet. Each with " +
+    "its id, dates, training maxes, and how many sessions are done.",
+  parameters: Schema.Struct({
+    status: Schema.optionalKey(BlockStatus).annotate({
+      description: "'draft' or 'scheduled'; omit for both",
+    }),
+  }),
+  success: Schema.Array(
+    Schema.Struct({
+      id: BlockId,
+      name: Schema.String,
+      goal: Schema.String,
+      status: BlockStatus,
+      madeBy: Schema.Literals(["athlete", "coach"]),
+      from: Schema.NullOr(IsoDate),
+      to: Schema.NullOr(IsoDate),
+      trainingMaxes: Schema.Array(Schema.Struct({ movement: Schema.String, kg: Schema.Finite })),
+      sessions: Schema.Int,
+      done: Schema.Int,
+    }),
+  ),
+  ...common,
+});
+
+const ListCalendar = Tool.make("list_calendar", {
+  description:
+    "The athlete's calendar day by day: sessions logged, box workouts planned on the Plan page, " +
+    "days marked rest, and programmed sessions from training blocks (scheduled, or 'draft' when only proposed), " +
+    "each programmed session with its lines and how many are done. Use it before you plan " +
+    "anything, to see the box days and what is already there. Defaults to today and the 13 " +
+    `days after; at most ${CALENDAR_MAX_DAYS} days.`,
+  parameters: Schema.Struct({ ...Range }),
+  success: Schema.Array(
+    Schema.Struct({
+      day: IsoDate,
+      kind: Schema.Literals(["logged", "box plan", "programmed", "draft", "rest"]),
+      what: Schema.String,
+      detail: Schema.String,
+      sessionId: Schema.optionalKey(Schema.String),
+    }),
+  ),
+  ...common,
+});
+
+const DraftBlock = Tool.make("draft_block", {
+  description:
+    "Propose a training block: a strength cycle (Smolov Jr, a 5/3/1 wave) or a run of " +
+    "accessory or prehab work, as dated sessions of prescribed lines. It is saved as a draft; " +
+    "the athlete reviews it on the Calendar page and puts it in the calendar, so tell them " +
+    "that. Only when the athlete asks for a plan or agrees to yours. Read their rep maxes and " +
+    "list_calendar first; set each lift's training max from what they have shown, and give " +
+    "loads as a percent of it. Place heavy days around their box classes and leave real rest; " +
+    "prehab and mobility can sit on rest days. To change a draft, pass its id as replaces; a " +
+    "block already in the calendar cannot be replaced.",
+  parameters: Schema.Struct({
+    name: Schema.String.annotate({ description: "Short, e.g. 'Smolov Jr · back squat'" }),
+    goal: Schema.String.annotate({
+      description: "One or two sentences: what it builds and how it fits the box classes",
+    }),
+    trainingMaxes: Schema.Array(TrainingMax).annotate({
+      description: "Per lift with percents: movementId and the kg the percents are taken from",
+    }),
+    sessions: Schema.Array(DraftSessionInput).annotate({
+      description:
+        "Dated sessions, today or later. Each line: name, and movementId when it is in the " +
+        "catalog; sets with reps or seconds (each: true for per side); load as percent (of the " +
+        "training max), loadKg, or words in load ('light band')",
+    }),
+    replaces: Schema.optionalKey(BlockId).annotate({
+      description: "A draft's id from list_blocks, to rewrite it instead of adding another",
+    }),
+  }),
+  success: Schema.Struct({ id: BlockId, sessions: Schema.Int, from: IsoDate, to: IsoDate }),
+  ...common,
+});
+
 export const CoachToolkit = Toolkit.make(
   ListMovements,
   ListWorkouts,
@@ -267,6 +361,9 @@ export const CoachToolkit = Toolkit.make(
   FindSimilarSessions,
   ListRestDays,
   MarkRestDay,
+  ListBlocks,
+  ListCalendar,
+  DraftBlock,
 );
 
 /** Rows a receipt keeps; the model gets every row, the athlete's copy is capped. */
@@ -309,6 +406,12 @@ const day = (iso: string) => {
   return `${Number(date)} ${MONTHS[Number(month) - 1] ?? month} ${year}`;
 };
 
+const DAY_MS = 86_400_000;
+const addDays = (iso: string, days: number) =>
+  new Date(Date.parse(`${iso}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+const daysBetween = (from: string, to: string) =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS);
+
 const rangeWords = (range: DayRange) =>
   range.from !== undefined && range.to !== undefined
     ? `${day(range.from)} to ${day(range.to)}`
@@ -336,16 +439,34 @@ export const makeHandlers = (deps: {
   readonly strength: StrengthStore.StrengthStore["Service"];
   readonly restDays: RestDayStore.RestDayStore["Service"];
   /** The coach's today, YYYY-MM-DD: the first day it may mark. */
+  readonly plans: PlanStore.PlanStore["Service"];
+  readonly blocks: BlockStore.BlockStore["Service"];
   readonly today: IsoDate;
   readonly log: ReadLog;
 }) => {
-  const { workouts, strength, restDays, today, log } = deps;
+  const { workouts, strength, restDays, plans, blocks, today, log } = deps;
 
   const movementNames = strength
     .movements()
     .pipe(
       Effect.map((movements) => new Map(movements.map((movement) => [movement.id, movement.name]))),
     );
+
+  /**
+   * How many of a session's lines are done: ticked by the athlete, or a lift with sets of
+   * that movement logged on the session's day.
+   */
+  const doneLines = strength.list().pipe(
+    Effect.map((sets) => {
+      const lifted = new Set(sets.map((set) => `${set.performedOn}|${set.movementId}`));
+      return (session: ProgrammedSession) =>
+        session.lines.filter(
+          (line, index) =>
+            session.ticked.includes(index) ||
+            (isLoggedLift(line) && lifted.has(`${session.day}|${line.movementId}`)),
+        ).length;
+    }),
+  );
 
   /** Runs one read: numbers it, turns storage failures into a message, and files the receipt. */
   const read = Effect.fn("CoachTools.read")(function* <A>(
@@ -819,6 +940,170 @@ export const makeHandlers = (deps: {
           columns: ["Date", "Why", "Marked by"],
           rows: [[day(saved.day), REST_DAY_LABELS[saved.kind], BY.coach]],
         }),
+      ),
+
+    list_blocks: ({ status }) =>
+      read(
+        "list_blocks",
+        [{ tag: "text", text: status === undefined ? "Every block" : `${status} blocks` }],
+        Effect.gen(function* () {
+          const [all, names, done] = yield* Effect.all([blocks.list(), movementNames, doneLines]);
+          return all
+            .filter((block) => status === undefined || block.status === status)
+            .map((block) => ({
+              id: block.id,
+              name: block.name,
+              goal: block.goal,
+              status: block.status,
+              madeBy: block.source,
+              from: block.sessions[0]?.day ?? null,
+              to: block.sessions.at(-1)?.day ?? null,
+              trainingMaxes: block.trainingMaxes.map((max) => ({
+                movement: names.get(max.movementId) ?? max.movementId,
+                kg: max.kg,
+              })),
+              sessions: block.sessions.length,
+              done: block.sessions.filter((session) => {
+                const count = done(session);
+                return count > 0 && count === session.lines.length;
+              }).length,
+            }));
+        }),
+        (found) => ({
+          summary: plural(found.length, "block"),
+          columns: ["Block", "Status", "Dates", "Training max", "Sessions done"],
+          rows: found.map((block) => [
+            block.name,
+            block.status === "draft" ? "Draft" : "In calendar",
+            block.from === null || block.to === null
+              ? ""
+              : `${day(block.from)} to ${day(block.to)}`,
+            block.trainingMaxes.map((max) => `${max.movement} ${kg(max.kg)}`).join(", "),
+            `${block.done} of ${block.sessions}`,
+          ]),
+        }),
+      ),
+
+    list_calendar: ({ from = today, to }) => {
+      const last = to ?? addDays(from, CALENDAR_DEFAULT_DAYS - 1);
+      return read(
+        "list_calendar",
+        [range({ from, to: last })],
+        Effect.gen(function* () {
+          if (last < from)
+            return yield* Effect.fail<ToolFailure>({ message: "The range ends before it starts." });
+          if (daysBetween(from, last) >= CALENDAR_MAX_DAYS)
+            return yield* Effect.fail<ToolFailure>({
+              message: `Read at most ${CALENDAR_MAX_DAYS} days at a time.`,
+            });
+          const span = { from, to: last };
+          const [logged, posted, all, done, rested] = yield* Effect.all([
+            workouts.list(),
+            plans.list(),
+            blocks.list(),
+            doneLines,
+            restDays.list(),
+          ]);
+          const entries = [
+            ...logged
+              .filter((workout) => inRange(workout.performedOn, span))
+              .map((workout) => ({
+                day: workout.performedOn,
+                kind: "logged" as const,
+                what: workout.name,
+                detail: [workout.kind, workout.score].filter((part) => part !== "").join(", "),
+              })),
+            ...posted
+              .filter((plan) => inRange(plan.plannedOn, span))
+              .map((plan) => ({
+                day: plan.plannedOn,
+                kind: "box plan" as const,
+                what: plan.name,
+                detail: "Planned on the Plan page, not logged yet",
+              })),
+            ...rested
+              .filter((rest) => inRange(rest.day, span))
+              .map((rest) => ({
+                day: rest.day,
+                kind: "rest" as const,
+                what: REST_DAY_LABELS[rest.kind],
+                detail: `Marked by ${rest.source === "coach" ? "you" : "the athlete"}`,
+              })),
+            ...all.flatMap((block: TrainingBlock) =>
+              block.sessions
+                .filter((session) => inRange(session.day, span))
+                .map((session) => ({
+                  day: session.day,
+                  kind: block.status === "draft" ? ("draft" as const) : ("programmed" as const),
+                  what: `${block.name} · ${session.title}`,
+                  detail: [
+                    ...(session.note === undefined ? [] : [session.note]),
+                    ...session.lines.map((line) => lineText(line, block.trainingMaxes)),
+                    `${done(session)} of ${session.lines.length} done`,
+                  ].join("; "),
+                  sessionId: session.id,
+                })),
+            ),
+          ];
+          return entries.sort((a, b) => a.day.localeCompare(b.day));
+        }),
+        (found) => ({
+          summary: found.length === 0 ? "Nothing on these days" : plural(found.length, "entry"),
+          columns: ["Date", "Kind", "What", "Detail"],
+          rows: found.map((entry) => [day(entry.day), entry.kind, entry.what, entry.detail]),
+        }),
+      );
+    },
+
+    draft_block: ({ name, goal, trainingMaxes, sessions, replaces }) =>
+      read(
+        "draft_block",
+        [
+          { tag: "text", text: name },
+          ...(replaces === undefined ? [] : [{ tag: "text" as const, text: "Rewrites a draft" }]),
+        ],
+        Effect.gen(function* () {
+          const early = sessions.find((session) => session.day < today);
+          if (early !== undefined)
+            return yield* Effect.fail<ToolFailure>({
+              message: `${day(early.day)} is past; sessions start today (${day(today)}) or later.`,
+            });
+          const saved = yield* blocks
+            .draft(
+              { name: name.trim(), goal: goal.trim(), trainingMaxes, sessions },
+              "coach",
+              replaces,
+            )
+            .pipe(
+              Effect.catchTags({
+                BlockInvalidError: (error) =>
+                  Effect.fail<ToolFailure>({ message: `Not saved: ${error.problems.join(" ")}` }),
+                BlockNotFoundError: () =>
+                  Effect.fail<ToolFailure>({
+                    message:
+                      "No draft with that id; a block already in the calendar cannot be " +
+                      "replaced. Use list_blocks for draft ids, or draft a new block.",
+                  }),
+              }),
+            );
+          return saved;
+        }),
+        (saved) => ({
+          summary: `Drafted ${plural(saved.sessions.length, "session")}, waiting on the Calendar page`,
+          columns: ["Date", "Session", "Lines"],
+          rows: saved.sessions.map((session) => [
+            day(session.day),
+            session.title,
+            session.lines.map((line) => lineText(line, saved.trainingMaxes)).join("; "),
+          ]),
+        }),
+      ).pipe(
+        Effect.map((saved) => ({
+          id: saved.id,
+          sessions: saved.sessions.length,
+          from: saved.sessions[0]?.day ?? today,
+          to: saved.sessions.at(-1)?.day ?? today,
+        })),
       ),
   });
 };

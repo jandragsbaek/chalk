@@ -1,9 +1,11 @@
 import {
   deriveSession,
+  type LiftSet,
   type Movement,
   type MovementId,
   type SessionPlan,
   type Sex,
+  type TrainingBlock,
 } from "@chalk/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { createFileRoute } from "@tanstack/react-router";
@@ -13,7 +15,7 @@ import { useState } from "react";
 import { LatestSessions } from "../components/today/LatestSessions.tsx";
 import { MainLifts } from "../components/today/MainLifts.tsx";
 import { RecentRecords } from "../components/today/RecentRecords.tsx";
-import { WeekColumn, type DayPlan } from "../components/today/WeekColumn.tsx";
+import { WeekColumn, type DayPlan, type DayProgrammed } from "../components/today/WeekColumn.tsx";
 import { GRID_WEEKS, YearGrid } from "../components/today/YearGrid.tsx";
 import {
   calendarWeeks,
@@ -23,12 +25,14 @@ import {
   recentRecords,
   trainingDays,
 } from "../lib/dashboard.ts";
+import { liftedOn, sessionEntry, sessionState, shortBlockName } from "../lib/calendar.ts";
 import { plannedMovements, planTitle } from "../lib/plan.ts";
 import { useAthleteSex } from "../lib/profile.ts";
 import { localIsoDate } from "../lib/utils.ts";
 import { benchmarkResultsAtom } from "../state/benchmarks.ts";
 import { plansAtom } from "../state/plans.ts";
 import { restDaysAtom } from "../state/restDays.ts";
+import { blocksAtom } from "../state/training.ts";
 import { liftSetsAtom, movementsAtom } from "../state/strength.ts";
 import { workoutsAtom } from "../state/workouts.ts";
 
@@ -55,6 +59,26 @@ const plansByDay = (
   return byDay;
 };
 
+/** Sessions of blocks in the calendar by day, titled with their block; drafts stay off Today. */
+const programmedByDay = (
+  blocks: ReadonlyArray<TrainingBlock>,
+  liftSets: ReadonlyArray<LiftSet>,
+  todayIso: string,
+): ReadonlyMap<string, ReadonlyArray<DayProgrammed>> => {
+  const lifted = liftedOn(liftSets);
+  const byDay = new Map<string, Array<DayProgrammed>>();
+  for (const block of blocks.filter((candidate) => candidate.status === "scheduled"))
+    for (const session of block.sessions) {
+      const entry: DayProgrammed = {
+        id: session.id,
+        title: `${shortBlockName(block.name)} · ${session.title}`,
+        state: sessionState(sessionEntry(session, block, lifted), todayIso),
+      };
+      byDay.set(session.day, [...(byDay.get(session.day) ?? []), entry]);
+    }
+  return byDay;
+};
+
 /** The window the main lifts' change and trace cover. */
 const LIFT_WINDOW_DAYS = 84;
 
@@ -66,6 +90,7 @@ function TodayPage() {
     results: useAtomValue(benchmarkResultsAtom),
     plans: useAtomValue(plansAtom),
     restDays: useAtomValue(restDaysAtom),
+    blocks: useAtomValue(blocksAtom),
   });
   const sex = useAthleteSex();
   const [today] = useState(() => new Date());
@@ -80,7 +105,7 @@ function TodayPage() {
         </p>
       </main>
     ),
-    onSuccess: ({ value: { workouts, liftSets, movements, results, plans, restDays } }) => {
+    onSuccess: ({ value: { workouts, liftSets, movements, results, plans, restDays, blocks } }) => {
       const todayIso = localIsoDate(today);
       const days = trainingDays(workouts, liftSets);
       const restByDay = new Map(restDays.map((rest) => [rest.day, rest]));
@@ -102,6 +127,7 @@ function TodayPage() {
               activeDay={activeDay}
               onActivate={setActiveDay}
               plans={plansByDay(plans, (id) => names.get(id), sex)}
+              programmed={programmedByDay(blocks, liftSets, todayIso)}
             />
           </aside>
           <div className="grid min-w-0 grid-cols-1 content-start gap-10 px-8 py-8">

@@ -21,9 +21,16 @@ Two ways to talk to the coach, on the Coach page (`/coach`):
   `find_similar_sessions` (a session's, or a date range's, repeats and look-alikes from
   `WorkoutStore.similar()`: both sides' date, result or heaviest set, and the differences in
   the sheet's words; at most 10 sessions and 3 matches per part), `list_rest_days` (marked
-  days with why and who marked them) and one write, `mark_rest_day` (today or later, kind
+  days with why and who marked them), `list_blocks` (training blocks, drafts included, with
+  dates, training maxes and sessions done), `list_calendar` (day by day: logged, box plans,
+  rest marks, programmed and draft sessions with their lines; today and 13 days after by
+  default, at most 62 days), and two writes: `mark_rest_day` (today or later, kind
   `rest` by default; refused on a day with a session logged or one the athlete marked; the
-  system prompt allows it only when the athlete asks or agrees). Each is an Effect `Tool`
+  system prompt allows it only when the athlete asks or agrees) and `draft_block` (a strength
+  cycle or a run of prehab as dated sessions of structured lines, loads as a percent of a
+  training max; saved only as a draft the athlete puts in the calendar on `/calendar`;
+  refused with the reasons when a percent has no training max, a movement is unknown, or a
+  day is past; `replaces` rewrites a draft, never a block already in the calendar). Each is an Effect `Tool`
   with Schema parameters and results; a failure (unknown movement, storage) goes back to the
   model as a message instead of breaking the reply. Free-text notes are not sent.
 - **Loop** (`CoachService`): the thread's transcript (the `Chat` export, tool calls and results

@@ -287,6 +287,11 @@ The Workouts page (the session register) owns the viewport below the band like t
 workbench, in three ruled columns that scroll on their own: an 8.5rem month rail, a 27.5rem
 register, and the open session's sheet in the rest.
 
+The Calendar page owns the viewport below the band too: a fresh-sheet rail of 16rem (18rem from
+the 2xl width) ruled off on its right, beside a column that stacks the title strip, the lanes
+ruler, the board (taking the rest of the height) and the drafts tray; the rail and each week's day
+columns scroll on their own, with thin box-edge scrollbars.
+
 Record lists that sit side by side share a 56px row so their rules line up: the Recent PRs list and the Main lifts table. Week day rows are at least 48px.
 
 Spacing steps observed: 2px, 4px, 6px, 8px, 12px, 16px, 24px; 48px for the band.
@@ -350,7 +355,7 @@ Printed and decisive: square, semi-bold, no gradient.
 
 ### Navigation
 
-- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Plan, Log, Strength, Benchmarks, Levels, Workouts, Import, Coach, Settings); Today is the front page, Log the manual entry page, Workouts the session register and Settings the athlete's profile. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
+- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Calendar, Plan, Log, Strength, Benchmarks, Levels, Workouts, Import, Coach, Settings); Today is the front page, Calendar the programmed weeks, Log the manual entry page, Workouts the session register and Settings the athlete's profile. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
 
 ### Protocol Field Box
 
@@ -442,6 +447,73 @@ No bubbles, no avatars, no left/right alignment.
   grounded in the log.
 - **Not set up** (no key on the server): the composer is replaced by a dashed notice naming the
   variable; saved threads stay readable and starter prompts dim to the disabled 45%.
+
+### Calendar (board, lanes, rail, drafts)
+
+`/calendar` is the Sunday desk: the week that ends and the week ahead as one ruled board, the
+season above it as a ruler, drafts on a shelf below. No month grid of coloured event pills.
+
+- **Title strip:** a row of protocol field boxes on fresh sheet, divided by 1px rules: "Week 44 →
+  45" in headline caps, then "Week 44 done" (done of programmed, with "+ n logged" in pencil
+  grey) and "Week 45 ahead" (programmed, "+ n box"), a status line that takes official red only
+  for a failed save, and small outline buttons on the right (earlier, This week, later).
+- **Lanes ruler** (signature): twelve week columns under 1px rules, "W44" in condensed caps with
+  the month beside the week a month starts. Each block is a lane from its first session to its
+  last: a fresh-sheet bar on a 1px ink stroke (1.5px dashed box edge for a draft) with its name
+  set over the bar's top edge, and one tick per session along its foot (1px ink left edge, solid
+  ink once done, 45% ink partly done). At most four lanes, then "+n more blocks". Today is a 2px
+  ink rule down the lanes; the board's two weeks take the ruled tint under a 3px double ink
+  bracket. A week column hovers to the ruled tint and moves the board there.
+- **Board:** this week 5fr | next week 7fr, the plan week ruled off by a 2px ink rule. Each week
+  heads like a section (title caps on a 2px ink rule, dates and "this week" as meta) over seven
+  day columns divided by 1px rules: weekday label over the day numeral on a 1px rule, then what
+  the day holds. Today's column takes the 3px double ink outline inset 4px. A past day with
+  nothing prints the empty-cell rule; the rest pick sits at the column's foot, shown while the
+  column is pointed at or focused.
+- **Cards by stroke** (Stroke State Rule): a session in the calendar is a fresh-sheet box on a
+  1px solid ink stroke, ruled tint on hover; a draft session is 1.5px dashed box edge; the open
+  one adds the 3px double outline offset 1px. While dragged, the card stays at its origin as a
+  dashed carbon at 45% opacity, and the day it would land on takes the ruled tint and a 1.5px
+  dashed ink outline inset 3px. On landing the card flashes canary for 900ms, like an edited
+  protocol row. A logged session is a plain ruled box (its name, a goldenrod score chip, a white
+  lamp); a box plan keeps its dashed plan box with "Box plan" in condensed caps.
+- **Plan-week cards:** the block's short name in condensed caps, the session title in semi-bold
+  semi-condensed 0.75rem (two lines at most), its first two lines, then "+n more" and the state
+  word ("Done", "Partly done", "Missed") with its lamp. Below the tall height (860px) a card
+  prints one line and counts the second in "+n more", so the plan week fits the window.
+- **Review-week cards are brief:** title and lamp only, the title condensed (semi-condensed from
+  2xl); the lines open in the rail.
+- **Lamps:** one 11px referee lamp in its ink housing at the card's foot, lit only for a
+  scheduled session on or before today: white when done, lamp-off otherwise, the state carried by
+  the word beside it. Red is never a missed session.
+- **Line dose:** carbon chips after the movement name: sets × reps in copy green, the percent in
+  copy canary, the load it comes to in plain semi-bold "kg", load in words in pencil grey; "each"
+  prints outside the chip in pencil grey. On a card the dose is compact: reps chip and kg only.
+- **Rest marks:** the rest-day box (struck through, as on Today) at 12px with one word in
+  condensed caps (Rest, Sick, Injured, Travel), so the narrowest column prints it whole.
+- **Rail at rest:** this month and next as month grids (month in title caps on a 2px ink rule,
+  the year as meta), cells 28px tall, 2px apart, on the heat ramp with paper numerals on the two
+  darkest steps and a 1px rule edge on days to come. A programmed day prints a 3px solid ink bar
+  under its numeral, a draft day a 1.5px dashed one; the board's days take a 1px solid ink inset
+  edge; today the double outline; hover a 1px ink outline. A legend of condensed caps reads
+  Programmed, Draft, On the board. Below, the blocks in the calendar: name, span, a 6px progress
+  bar (ink on the ruled tint), training maxes on a dotted box-edge underline that opens a small
+  field, and a ghost-destructive remove.
+- **Session detail:** selecting a card swaps the rail for the session: its title in 1.5rem
+  display caps over a 2px ink rule with a ghost close, field boxes (Block, Day, Done), then one
+  ruled row per line: the movement as a copy-blue chip, the full dose, and a printed check box to
+  tick it (or "From your log" with a white lamp when the log already covers it). Training max
+  fields, a Move to date field, and a ghost-destructive remove close it.
+- **Drafts tray:** a fresh-sheet shelf on a 2px ink top rule, at most 18rem before it scrolls.
+  One ruled row per draft: name in title caps with "Coach draft" in condensed caps beside it, a
+  pencil-grey meta line (span, sessions, TM, goal), then an outline Sessions toggle, the primary
+  "Put in calendar" and a ghost-destructive Discard. Folded out, the goal as prose and the
+  sessions grouped under "Week n" labels as 9rem cards prefixed with their date, scrolling
+  sideways, each draggable onto the board. With no drafts the tray is one sentence and an "Ask
+  the coach" link ending in the 12px arrow.
+- **On Today:** the week column lists a programmed session as its title, underlined in box edge
+  and linking to it on the calendar, over its state word in condensed caps (Programmed, Partly
+  done, Done, Missed).
 
 ### Source Line Gutter
 

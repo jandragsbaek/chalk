@@ -14,6 +14,7 @@ export * from "./plan.ts";
 export * from "./bookingboard.ts";
 export * from "./profile.ts";
 export * from "./restDay.ts";
+export * from "./training.ts";
 export * from "./sessionImport/index.ts";
 export * from "./benchmarks/index.ts";
 export * from "./estimate.ts";

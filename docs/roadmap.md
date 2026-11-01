@@ -54,6 +54,12 @@ coach.
 - Conversations with receipts on `/coach`, through OpenRouter (done).
 - Check-ins that fill a workout's debrief; MCP server over the same tools. Details in
   [coaching.md](coaching.md).
+- Training blocks (done): the coach drafts a strength cycle or a prehab block as dated
+  sessions of structured lines (movement, sets × reps or seconds, % of a training max → kg in
+  2.5 kg steps, kg, or words); `/calendar` is the Sunday desk: this week reviewed beside next
+  week to plan, the season as block lanes above, drafts below to put in the calendar, single
+  sessions dragged between days. Lifts count done from logged sets that day, other lines by
+  tick. Blocks stack. Migration `017_TrainingBlocks`; RPCs `blocks.*`, `sessions.*`.
 
 ## Later, unordered
 

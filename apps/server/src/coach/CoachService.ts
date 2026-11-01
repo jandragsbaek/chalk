@@ -34,7 +34,9 @@ import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 
 import * as RestDayStore from "../rest/RestDayStore.ts";
+import * as PlanStore from "../plan/PlanStore.ts";
 import * as StrengthStore from "../strength/StrengthStore.ts";
+import * as BlockStore from "../training/BlockStore.ts";
 import * as WorkoutStore from "../workout/WorkoutStore.ts";
 import * as CoachStore from "./CoachStore.ts";
 import { CoachToolkit, makeHandlers, type ReadLog } from "./tools.ts";
@@ -117,6 +119,12 @@ const systemPrompt = (today: string) =>
     "Rest is the athlete's choice: a day with nothing logged is not a rest day unless " +
       "list_rest_days has it. When rest would help, suggest a day; put it in their calendar " +
       "with mark_rest_day only when they ask for it or agree, and say which day you marked.",
+    "When the athlete asks for a cycle or a plan for the weeks ahead, read their rep maxes and " +
+      "list_calendar first, ask what you need (which days they go to the box, how long they " +
+      "have), then propose it with draft_block. A draft is only a proposal: say it waits on the " +
+      "Calendar page, where they put it in the calendar and move sessions as life moves. Pair " +
+      "heavy lifting with the box classes honestly: a high-volume squat cycle on top of daily " +
+      "CrossFit needs lighter class days or a smaller cycle, and say so.",
     "Be brief and concrete: a few short paragraphs at most, plain text, no headings or " +
       "tables. Ask one question back when the log cannot answer something.",
     "If the athlete mentions pain or injury, suggest they see a professional and give no " +
@@ -167,6 +175,8 @@ const make = Effect.gen(function* () {
   const workouts = yield* WorkoutStore.WorkoutStore;
   const strength = yield* StrengthStore.StrengthStore;
   const restDays = yield* RestDayStore.RestDayStore;
+  const plans = yield* PlanStore.PlanStore;
+  const blocks = yield* BlockStore.BlockStore;
 
   const status = () =>
     Effect.succeed(
@@ -223,7 +233,7 @@ const make = Effect.gen(function* () {
 
     const today = options.today ?? DateTime.formatIsoDateUtc(yield* DateTime.now);
     const handlers = yield* CoachToolkit.toHandlers(
-      makeHandlers({ workouts, strength, restDays, today, log }),
+      makeHandlers({ workouts, strength, restDays, plans, blocks, today, log }),
     );
     const toolkit = yield* CoachToolkit.pipe(Effect.provideContext(handlers));
     const chat = yield* options.history === ""
