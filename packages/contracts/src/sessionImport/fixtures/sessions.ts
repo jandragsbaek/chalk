@@ -1,7 +1,7 @@
 import { MovementId } from "../../baseSchemas.ts";
 import type { MatchableMovement } from "../movementMatcher.ts";
 
-/** Real pastes from the athlete's log (org-mode), as the importer receives them. */
+/** Real pastes from the athlete's log (org-mode), as the importer receives them, and plain twins. */
 
 export const SNATCH_EMOM = `*** Workout
 **** Workout #1
@@ -109,6 +109,52 @@ export const SESSION_160 = `** Session 160 <2026-10-13 ti>
 - Strength class: max-out back squat day.
 - Back squat 1RM: 150 kg. Failed 155 kg. Feels close to true max.
 - Booking Board: attended OnTime (classId 1551350, Johannes B. P., 17:30, Power).`;
+
+/** `SNATCH_EMOM` as bookingboard's program reaches the importer: plain text, no org. */
+export const SNATCH_EMOM_PLAIN = `Workout #1
+Every 90 sec x 8
+1 Snatch pull + 1 snatch + 2 overhead squat
+*Byg til en moderat vægt. Teknik frem for vægt.
+
+Workout #2
+EMOM 16
+1) 18-15/15-12 cal row (max 50 sec)
+2) 12 Burpee over rower
+3) 3 squat snatch @75% of 1 RM
+4) Rest
+*Inspiration fra Prepared programning`;
+
+/** `SESSION_160` written as plain notes: a session line, titles on their own, "•" bullets. */
+export const SESSION_160_PLAIN = `Session 160 <2026-10-13 ti>
+
+Workout
+Workout #1
+• Back squat
+• Max out!
+• Vi skal bygge op til en tung 1'er. Så tungt som mulighed.
+• Brug følgende til at bygge op:
+• 10 reps @20-30%
+• 5 Reps @40%
+• 3 reps @55%
+• 2 reps @65%
+• 1 rep @75%
+• 1 rep @85%
+• 1 rep@ 92-95@
+• 2-3 forsøg på at slå tidligere max.
+Accessories
+Every 90 sec x 8-10
+1) 10 Dual DB romanian deadlift
+2) 10 Dual DB reverse lunges
+Core
+30 sec på/ 15 sec af x 8 (4 af hver)
+1) Deadbug
+2) Planke
+
+Notes
+Strength class: max-out back squat day.
+Back squat 1RM: 150 kg. Failed 155 kg. Feels close to true max.
+
+Booking Board: attended OnTime (classId 1551350, Johannes B. P., 17:30, Power).`;
 
 const movement = (id: string, name: string, aliases: ReadonlyArray<string> = []) => ({
   id: MovementId.make(id),

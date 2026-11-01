@@ -272,7 +272,7 @@ const ROTATION_LINE = /^(\d{1,2})\)\s/;
 
 const stripBullet = (line: string) =>
   line
-    .replace(/^\s*[-+]\s+/, "")
+    .replace(/^\s*[-+•]\s+/, "")
     .replace(/^\*+\s+/, "")
     .trim();
 

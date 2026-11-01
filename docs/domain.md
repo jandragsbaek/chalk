@@ -293,6 +293,11 @@ re-derivable.
   line between intent and comment; the suggester always proposes intent.
 - `suggestSpans` (contracts) proposes spans: org headings (`** Session 167 <2026-10-28 on>`,
   `**** Workout #1`, `*** Notes`), format lines, catalog movements and aliases, quantities.
+  Plain text reads the same without stars or bullets: a line starting "Session 167" or a date,
+  and "Notes" or "Workout" on its own, head like their org twins; in the workout, a label on
+  top of a paragraph ("Workout #1", "Strength": first line or after a blank one, more lines
+  under it, no movement, format, number or benchmark, no sentence) opens a part. Bullets are
+  `-`, `+` or `•`.
   Quantities attach to the movement in the same `+` / `or` segment of their line; a line of only
   numbers ("5 reps @40%") attaches to the last movement of the part. Coach comments (`- *...`)
   and lines with a % or RPE but no movement become intent; asides in parentheses are skipped.
@@ -439,9 +444,10 @@ Read-only: GET requests only, never booking or check-in.
   without storing or logging it. Each class's `GET /classes/{id}` gives `program.workouts`
   (HTML `text`, else `description`); classes without one (open gym) are left out, and only
   set `openGym` on the day.
-- **Program text** (`program.ts`): the workouts as the athlete's org notes write them
-  (`*** Workout`, `**** <title>`, `- <line>`), so `suggestSpans` marks them like a pasted
-  session. Lines keep their leading `*` (a coach comment, read as intent).
+- **Program text** (`program.ts`): the workouts as plain text, not org: each title on a line
+  of its own, the coach's lines under it as typed, a blank line between workouts. `suggestSpans`
+  reads the titles as parts and marks the rest like a pasted session; a leading `*` is a coach
+  comment, read as intent.
 - Web: "Pull from bookingboard" on `/plan` (today) and on `/import` (a picked day, yesterday by
   default). It fills the text box; several classes on a day ask which one. On `/import` the
   draft takes the picked day as its date, since board text has no date line.

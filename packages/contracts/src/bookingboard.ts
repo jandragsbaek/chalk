@@ -41,7 +41,7 @@ export const BookingboardClass = Schema.Struct({
   coach: Schema.NullOr(Schema.String),
   /** Bookingboard's attendance: "OnTime" / "TooLate" attended; anything else booked only. */
   status: Schema.String,
-  /** The program as org text (`*** Workout`, `**** Workout #1`, `- line`), as the notes have it. */
+  /** The program as plain text: each workout's title on its own line, its lines under it. */
   text: Schema.String,
 }).annotate({ identifier: "BookingboardClass" });
 export type BookingboardClass = typeof BookingboardClass.Type;

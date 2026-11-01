@@ -120,7 +120,7 @@ describe("Bookingboard", () => {
             startsAt: "08:00",
             coach: null,
             status: "OnTime",
-            text: "*** Workout\n**** Strength\n- Back squat 5x5",
+            text: "Strength\nBack squat 5x5",
           },
           {
             classId: 1,
@@ -128,7 +128,7 @@ describe("Bookingboard", () => {
             startsAt: "15:30",
             coach: "Coach A.",
             status: "OnTime",
-            text: "*** Workout\n**** Workout #1\n- EMOM 16\n- 12 Burpee over rower",
+            text: "Workout #1\nEMOM 16\n12 Burpee over rower",
           },
         ],
         openGym: true,

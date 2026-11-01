@@ -7,9 +7,11 @@ import {
   BENCH_MAX_OUT,
   CATALOG,
   SESSION_160,
+  SESSION_160_PLAIN,
   SESSION_166,
   SESSION_167,
   SNATCH_EMOM,
+  SNATCH_EMOM_PLAIN,
 } from "./fixtures/sessions.ts";
 import { makeMovementMatcher, normalizeMovementPhrase } from "./movementMatcher.ts";
 import { parseBlockFormat, parseRoundRest, quantityFromText } from "./parse.ts";
@@ -193,6 +195,27 @@ describe("suggestSpans", () => {
       "quantity 3 = 3 reps -> Deadlift",
       "quantity @ 7-8 RPE = RPE 7-8 -> Deadlift",
     ]);
+  });
+});
+
+describe("suggestSpans on plain text", () => {
+  const rows = (text: string) => describeSpans(text, suggest(text));
+
+  it("reads bookingboard's program like the org notes of the same class", () => {
+    expect(rows(SNATCH_EMOM_PLAIN)).toEqual(rows(SNATCH_EMOM));
+  });
+
+  it("reads a session line, titles on top of a paragraph, bullets and notes without org", () => {
+    expect(rows(SESSION_160_PLAIN)).toEqual(rows(SESSION_160));
+  });
+
+  it("opens no part for a sentence, a lone line or a line inside the notes", () => {
+    expect(rows("Byg op.\nBack squat 5x5\n\nCore")).not.toContainEqual(
+      expect.stringMatching(/^part /),
+    );
+    expect(rows("Notes\nFelt heavy today\nBack squat 100 kg")).not.toContainEqual(
+      expect.stringMatching(/^part /),
+    );
   });
 });
 

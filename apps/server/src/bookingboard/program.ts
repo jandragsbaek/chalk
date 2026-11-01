@@ -88,8 +88,8 @@ const decodeEntities = (text: string) =>
 
 /**
  * The coach's HTML as lines: block ends and `<br>` break lines, tags go, entities and non-breaking
- * spaces become text, empty lines drop. A leading "-" or "•" goes too, since the org text adds
- * its own bullet; a leading "*" stays, as it marks the coach's comment.
+ * spaces become text, empty lines drop. Lines stay as the coach typed them, bullets and a leading
+ * "*" (the coach's comment) included: the importer reads both.
  */
 export const htmlLines = (html: string): ReadonlyArray<string> =>
   decodeEntities(
@@ -100,12 +100,7 @@ export const htmlLines = (html: string): ReadonlyArray<string> =>
   )
     .replace(/ /g, " ")
     .split("\n")
-    .map((line) =>
-      line
-        .replace(/^\s*[-•]\s+/, "")
-        .replace(/\s+/g, " ")
-        .trim(),
-    )
+    .map((line) => line.replace(/\s+/g, " ").trim())
     .filter((line) => line !== "");
 
 export interface ProgramWorkout {
@@ -115,16 +110,17 @@ export interface ProgramWorkout {
 }
 
 /**
- * A class's workouts as the athlete's notes write them: `*** Workout`, one `**** <title>` per
- * workout, one `- ` line each. Empty when no workout has any text.
+ * A class's workouts as plain text: each workout's title on a line of its own with its lines
+ * under it, a blank line between workouts; the importer reads each title as a part. Empty when
+ * no workout has any text.
  */
-export const programText = (workouts: ReadonlyArray<ProgramWorkout>): string => {
-  const parts = workouts.flatMap((workout, index) => {
-    const html = workout.text?.trim() ? workout.text : (workout.description ?? "");
-    const lines = htmlLines(html);
-    if (lines.length === 0) return [];
-    const title = workout.title?.trim() || `Workout #${index + 1}`;
-    return [[`**** ${title}`, ...lines.map((line) => `- ${line}`)].join("\n")];
-  });
-  return parts.length === 0 ? "" : ["*** Workout", ...parts].join("\n");
-};
+export const programText = (workouts: ReadonlyArray<ProgramWorkout>): string =>
+  workouts
+    .flatMap((workout, index) => {
+      const html = workout.text?.trim() ? workout.text : (workout.description ?? "");
+      const lines = htmlLines(html);
+      if (lines.length === 0) return [];
+      const title = workout.title?.trim() || `Workout #${index + 1}`;
+      return [[title, ...lines].join("\n")];
+    })
+    .join("\n\n");

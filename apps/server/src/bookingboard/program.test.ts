@@ -18,22 +18,22 @@ const SNATCH_EMOM_WORKOUTS = [
 ];
 
 describe("programText", () => {
-  it("writes a class's program the way the athlete's notes have it", () => {
-    expect(programText(SNATCH_EMOM_WORKOUTS)).toBe(`*** Workout
-**** Workout #1
-- Every 90 sec x 8
-- 1 Snatch pull + 1 snatch + 2 overhead squat
-- *Byg til en moderat vægt. Teknik frem for vægt.
-**** Workout #2
-- EMOM 16
-- 1) 18-15/15-12 cal row (max 50 sec)
-- 2) 12 Burpee over rower
-- 3) 3 squat snatch @75% of 1 RM
-- 4) Rest
-- *Inspiration fra Prepared programning`);
+  it("writes a class's program as plain text, a title on top of each workout", () => {
+    expect(programText(SNATCH_EMOM_WORKOUTS)).toBe(`Workout #1
+Every 90 sec x 8
+1 Snatch pull + 1 snatch + 2 overhead squat
+*Byg til en moderat vægt. Teknik frem for vægt.
+
+Workout #2
+EMOM 16
+1) 18-15/15-12 cal row (max 50 sec)
+2) 12 Burpee over rower
+3) 3 squat snatch @75% of 1 RM
+4) Rest
+*Inspiration fra Prepared programning`);
   });
 
-  it("keeps one bullet per line, reads entities and list markup, and names an untitled workout", () => {
+  it("keeps the coach's lines as typed, reads entities and list markup, and names an untitled workout", () => {
     expect(
       programText([
         {
@@ -41,9 +41,7 @@ describe("programText", () => {
           text: "<ul><li>- 5 Back squats &amp; 10 push&#45;ups</li><li>• R&oslash;d&nbsp;&#x2F;&nbsp;bl&aring;</li></ul>Line<br/>break",
         },
       ]),
-    ).toBe(
-      "*** Workout\n**** Workout #1\n- 5 Back squats & 10 push-ups\n- Rød / blå\n- Line\n- break",
-    );
+    ).toBe("Workout #1\n- 5 Back squats & 10 push-ups\n• Rød / blå\nLine\nbreak");
   });
 
   it("is empty for a class without a program, like open gym", () => {
