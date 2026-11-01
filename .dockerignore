@@ -1,0 +1,14 @@
+.git
+**/node_modules
+**/dist
+data
+*.sqlite
+*.sqlite-*
+.env
+.env.*
+.kamal
+.impeccable
+.vscode
+.vite-hooks
+**/*.tsbuildinfo
+**/.vitest-*

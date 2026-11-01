@@ -1,0 +1,56 @@
+# Kamal 2: `kamal setup` once, then `kamal deploy`. See docs/deploy.md.
+# No secrets: the image goes through Kamal's local registry over SSH, and the app needs none.
+service: chalk
+image: chalk
+
+servers:
+  # The app: Effect RPC + the web SPA.
+  web:
+    hosts:
+      - lab-chalk-01
+    env:
+      clear:
+        CHALK_MODE: api
+    proxy:
+      host: lab-chalk-01.llama-burbot.ts.net
+      app_port: 4300
+  # The backoffice: admin HttpApi + backoffice SPA. Caddy's :8443 site rewrites Host to chalk-admin.
+  admin:
+    hosts:
+      - lab-chalk-01
+    env:
+      clear:
+        CHALK_MODE: admin
+        CHALK_WEB_DIST: /app/apps/backoffice/dist
+    proxy:
+      host: chalk-admin
+      app_port: 4301
+
+# Tailnet only: Chalk has no login. Caddy holds the Tailscale :443/:8443 and forwards to
+# kamal-proxy on loopback. No ssl: here.
+proxy:
+  healthcheck:
+    path: /
+  run:
+    bind_ips:
+      - 127.0.0.1
+
+registry:
+  server: localhost:5555
+
+# SQLite (WAL) shared by both roles. A named volume takes /data's ownership (node) from the image.
+volumes:
+  - chalk_data:/data
+
+builder:
+  arch: amd64
+
+ssh:
+  user: semaphore
+  # Fleet nodes' ansible key. Kamal's SSH (net-ssh) ignores ~/.ssh/config `Match user` blocks.
+  keys:
+    - ~/.ssh/t3code_ansible
+
+aliases:
+  logs: app logs -f
+  shell: app exec --interactive --reuse "bash"

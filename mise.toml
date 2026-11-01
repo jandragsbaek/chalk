@@ -1,3 +1,6 @@
 [tools]
 node = "24.22.1"
 pnpm = "12.16.1"
+# Deploys (config/deploy.yml). Ruby is precompiled; the gem backend installs into it.
+ruby = "3.4.12"
+"gem:kamal" = "2.12.0"
