@@ -1,4 +1,5 @@
 import {
+  formatAmount,
   LEVELS,
   prescribedLoad,
   type CatalogMovement,
@@ -13,7 +14,9 @@ import { Input, NativeSelect } from "@chalk/ui/components/field.tsx";
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 
-import { describePlan } from "../../lib/plan.ts";
+import { parseAmount, toNumber } from "../../lib/amount.ts";
+import { MEASURE_LABELS } from "../../lib/blockLabels.ts";
+import { describePlan, describeReach, roundTarget } from "../../lib/plan.ts";
 import { LevelVerdict } from "./LevelVerdict.tsx";
 
 interface Draft {
@@ -24,12 +27,9 @@ interface Draft {
   readonly implements: 1 | 2;
   readonly rows: ReadonlyArray<{ readonly movementId: string; readonly reps: string }>;
   readonly unbroken: string;
+  /** Reached each round, "7-8" or "12". */
+  readonly perRound: string;
 }
-
-const toNumber = (raw: string) => {
-  const value = Number(raw.replace(",", "."));
-  return raw.trim() === "" || !Number.isFinite(value) || value < 0 ? undefined : value;
-};
 
 export const draftFromPerformance = (performance: Performance | undefined): Draft => ({
   recorded: performance !== undefined,
@@ -41,6 +41,7 @@ export const draftFromPerformance = (performance: Performance | undefined): Draf
     reps: String(entry.reps),
   })),
   unbroken: performance?.unbroken === undefined ? "" : String(performance.unbroken),
+  perRound: performance?.perRound === undefined ? "" : formatAmount(performance.perRound),
 });
 
 /**
@@ -51,6 +52,7 @@ export const performanceFromDraft = (draft: Draft, planning = false): Performanc
   if (!draft.recorded) return undefined;
   const loadKg = toNumber(draft.load);
   const unbroken = toNumber(draft.unbroken);
+  const perRound = parseAmount(draft.perRound);
   const variants = draft.rows.flatMap((row) => {
     const reps = toNumber(row.reps);
     return row.movementId === "" || reps === undefined || !Number.isInteger(reps)
@@ -62,6 +64,7 @@ export const performanceFromDraft = (draft: Draft, planning = false): Performanc
     ...(draft.implements === 2 ? { implements: 2 as const } : {}),
     ...(variants.length === 0 ? {} : { variants }),
     ...(unbroken === undefined || !Number.isInteger(unbroken) ? {} : { unbroken }),
+    ...(perRound === undefined ? {} : { perRound }),
   };
   return planning && !draft.asWritten && Object.keys(performance).length === 0
     ? undefined
@@ -150,6 +153,9 @@ export function PerformanceEditor({
   const showLoad = family === undefined || family.kind === "load" || written !== undefined;
   const showImplements = family?.group === "kb_db";
   const planning = mode === "plan";
+  const target = roundTarget(item);
+  const perRound = parseAmount(draft.perRound);
+  const reach = perRound === undefined ? undefined : describeReach(perRound, target);
   const scaleRows = () =>
     family?.kind === "variant" && item.movementId !== undefined
       ? [{ movementId: item.movementId, reps: "" }]
@@ -185,7 +191,7 @@ export function PerformanceEditor({
       {planned !== undefined && !planning ? (
         <p data-plan-box className="flex items-baseline gap-2 px-2.5 py-1.5 text-sm">
           <span className="form-label shrink-0 text-muted-foreground">Planned</span>
-          <span className="min-w-0">{describePlan(planned, nameOf)}</span>
+          <span className="min-w-0">{describePlan(planned, nameOf, item)}</span>
         </p>
       ) : null}
 
@@ -346,6 +352,23 @@ export function PerformanceEditor({
               Add variation
             </Button>
           </div>
+
+          {target === undefined ? null : (
+            <div className="grid gap-1">
+              <Field
+                label={`${planning ? "Aim each round" : "Each round"}, ${MEASURE_LABELS[target.measure].toLowerCase()}`}
+                value={draft.perRound}
+                placeholder="7-8 or 12"
+                onChange={(next) => edit({ ...draft, perRound: next })}
+              />
+              {reach === undefined ? null : (
+                <p className="text-xs text-muted-foreground">
+                  {perRound === undefined ? "" : `${formatAmount(perRound)} each round: `}
+                  {reach}
+                </p>
+              )}
+            </div>
+          )}
 
           {planning ? null : (
             <Field

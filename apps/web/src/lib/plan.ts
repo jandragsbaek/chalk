@@ -1,11 +1,17 @@
-import type {
-  DerivedBlock,
-  DerivedItem,
-  DerivedSession,
-  MovementId,
-  Performance,
-  SpanId,
-  SpanOf,
+import {
+  formatAmount,
+  LEVEL_NAMES,
+  reachOfTiers,
+  type Amount,
+  type DerivedBlock,
+  type DerivedItem,
+  type DerivedSession,
+  type Measure,
+  type MovementId,
+  type Performance,
+  type Quantity,
+  type SpanId,
+  type SpanOf,
 } from "@chalk/contracts";
 
 import { resultDefaults, type ResultDefaults } from "./resultDraft.ts";
@@ -13,15 +19,55 @@ import { WORKOUT_KIND_LABELS } from "./workoutKinds.ts";
 
 const kgFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
 
+const ROUND_UNITS: Partial<Record<Measure, string>> = {
+  reps: "reps",
+  calories: "cal",
+  distance_m: "m",
+};
+
+/**
+ * What a round asks of the item, when it is counted: its targets by level ("18-15/15-12 cal"),
+ * else its one count ("12 burpees"). A lift written as sets × reps has no rounds to count.
+ */
+export function roundTarget(item: DerivedItem): Quantity | undefined {
+  const quantities = item.sets.flatMap((set) => set.quantities);
+  if (quantities.some((quantity) => quantity.measure === "sets")) return undefined;
+  return (
+    quantities.find((quantity) => quantity.tiers !== undefined && quantity.tiers.length > 0) ??
+    quantities.find((quantity) => ROUND_UNITS[quantity.measure] !== undefined)
+  );
+}
+
+/** Where a count each round sits on the board's levels: "RX", "under RX (15)". */
+export function describeReach(perRound: Amount, target: Quantity | undefined): string | undefined {
+  if (target?.tiers === undefined || target.tiers.length === 0) return undefined;
+  const reach = reachOfTiers(target.tiers, perRound);
+  if (reach.met !== undefined) return LEVEL_NAMES[reach.met];
+  return reach.next === undefined
+    ? undefined
+    : `under ${LEVEL_NAMES[reach.next.level]} (${reach.next.target})`;
+}
+
+/** "7-8 cal each round, under RX (15)". */
+export function describePerRound(perRound: Amount, target: Quantity | undefined): string {
+  const unit = target === undefined ? undefined : ROUND_UNITS[target.measure];
+  const reach = describeReach(perRound, target);
+  return `${formatAmount(perRound)}${unit === undefined ? "" : ` ${unit}`} each round${reach === undefined ? "" : `, ${reach}`}`;
+}
+
 /**
  * A planned (or done) scaling in a few words: "As written", "2 × 22.5 kg", "25 Jumping pull-up
- * + 20 Pull-up". The unbroken set is left out; it is a result, not a plan.
+ * + 20 Pull-up", "7-8 cal each round, under RX (15)". The unbroken set is left out; it is a
+ * result, not a plan. `item` gives a count each round its unit and the board's levels.
  */
 export function describePlan(
   plan: Performance,
   nameOf: (id: MovementId) => string | undefined,
+  item?: DerivedItem,
 ): string {
   const parts: Array<string> = [];
+  if (plan.perRound !== undefined)
+    parts.push(describePerRound(plan.perRound, item === undefined ? undefined : roundTarget(item)));
   if (plan.loadKg !== undefined)
     parts.push(
       plan.implements === 2
@@ -56,7 +102,7 @@ export function plannedMovements(
   const row = (item: DerivedItem): PlannedMovement => ({
     spanId: item.spanId,
     name: (item.movementId === undefined ? undefined : nameOf(item.movementId)) ?? item.text,
-    plan: item.plan === undefined ? undefined : describePlan(item.plan, nameOf),
+    plan: item.plan === undefined ? undefined : describePlan(item.plan, nameOf, item),
   });
   return session.parts.flatMap((part) =>
     part.blocks.flatMap((block) =>

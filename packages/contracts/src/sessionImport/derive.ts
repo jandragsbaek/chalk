@@ -1,6 +1,6 @@
 import type { BenchmarkId, IsoDate, MovementId } from "../baseSchemas.ts";
 import { benchmarkById, type Benchmark, type BenchmarkItem } from "../benchmarks/index.ts";
-import type { Performance } from "../levels.ts";
+import { LEVEL_NAMES, type Performance } from "../levels.ts";
 import type {
   BlockFormat,
   BlockParams,
@@ -137,8 +137,17 @@ const MEASURE_LABELS: Record<Quantity["measure"], string> = {
 export const formatAmount = (amount: { min: number; max: number }) =>
   amount.min === amount.max ? `${amount.min}` : `${amount.min}-${amount.max}`;
 
-/** "12/10 cal", "21-15-9 reps", "@40/25 kg", "70-80 %", "RPE 8". */
+/** "12/10 cal", "21-15-9 reps", "@40/25 kg", "70-80 %", "RPE 8", "Elite 18/15 · RX 15/12 cal". */
 export const formatQuantity = (quantity: Quantity): string => {
+  if (quantity.tiers !== undefined && quantity.tiers.length > 0) {
+    const tiers = quantity.tiers
+      .map(
+        (tier) =>
+          `${LEVEL_NAMES[tier.level]} ${formatAmount(tier.amount)}${tier.female ? `/${formatAmount(tier.female)}` : ""}`,
+      )
+      .join(" · ");
+    return `${tiers} ${MEASURE_LABELS[quantity.measure]}`;
+  }
   const value = quantity.scheme ? quantity.scheme.join("-") : formatAmount(quantity.amount);
   const female = quantity.female ? `/${formatAmount(quantity.female)}` : "";
   if (quantity.measure === "rpe") return `RPE ${value}${female}`;
@@ -195,6 +204,8 @@ const resultProblem = (result: LiftResult): string | undefined => {
 
 /** Most reps, sets or kilograms one performance can claim; past this it is a typo. */
 const MAX_PERFORMANCE = 1000;
+/** Meters are counted per round too ("500 m row"), so the bound is higher than for reps. */
+const MAX_PER_ROUND = 10_000;
 
 /** Why a performance cannot be saved, or `undefined` when it can. */
 const performanceProblem = (
@@ -214,6 +225,11 @@ const performanceProblem = (
     (!Number.isInteger(performance.unbroken) || performance.unbroken > MAX_PERFORMANCE)
   )
     return `the biggest unbroken set must be 0 to ${MAX_PERFORMANCE}`;
+  if (performance.perRound !== undefined) {
+    const { min, max } = performance.perRound;
+    if (min > max) return "the count each round must run from low to high";
+    if (max > MAX_PER_ROUND) return `the count each round must be at most ${MAX_PER_ROUND}`;
+  }
   return undefined;
 };
 
@@ -465,13 +481,14 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     const sets = new Map<number, Array<Quantity>>();
     for (const quantity of quantitiesOf.get(movement.id) ?? []) {
       const line = lineOf(quantity.start);
-      const { measure, amount, female, scheme } = quantity;
+      const { measure, amount, female, scheme, tiers } = quantity;
       const list = sets.get(line) ?? [];
       list.push({
         measure,
         amount,
         ...(female === undefined ? {} : { female }),
         ...(scheme === undefined ? {} : { scheme }),
+        ...(tiers === undefined ? {} : { tiers }),
       });
       sets.set(line, list);
     }

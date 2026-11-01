@@ -5,23 +5,32 @@ import {
   BenchmarkId,
   BlockFormat,
   formatQuantity,
+  LEVEL_NAMES,
+  LEVELS,
+  levelIndex,
   Measure,
   parseQuantities,
+  tiersFromRange,
+  withTiers,
   type Amount,
   type BlockParams,
   type CatalogMovement,
   type DerivedItem,
   type ItemGrade,
+  type Level,
   type LiftResult,
   type MovementId,
+  type QuantityTier,
   type Span,
   type SpanId,
   type SpanOf,
 } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, NativeSelect } from "@chalk/ui/components/field.tsx";
-import { Link2, Trash2, X } from "lucide-react";
+import { Link2, Plus, Trash2, X } from "lucide-react";
+import { Fragment } from "react";
 
+import { parseAmount, toNumber } from "../../lib/amount.ts";
 import { BLOCK_FORMAT_LABELS, MEASURE_LABELS } from "../../lib/blockLabels.ts";
 import type { PickMode } from "../../lib/importEditor.ts";
 import type { ResultDefaults } from "../../lib/resultDraft.ts";
@@ -49,11 +58,6 @@ const BENCHMARK_GROUPS = (["girl", "hero", "notable"] as const).map((category) =
   benchmarks: BENCHMARKS.filter((benchmark) => benchmark.category === category),
 }));
 
-const toNumber = (raw: string) => {
-  const value = Number(raw.replace(",", "."));
-  return raw.trim() === "" || !Number.isFinite(value) || value < 0 ? undefined : value;
-};
-
 function NumberField({
   label,
   value,
@@ -74,15 +78,6 @@ function NumberField({
     </label>
   );
 }
-
-/** "8-10" or "12" into an amount; anything else is no amount. */
-const parseAmount = (raw: string): Amount | undefined => {
-  const parts = raw.split("-").map((part) => toNumber(part));
-  if (parts.length === 0 || parts.length > 2 || parts.some((part) => part === undefined))
-    return undefined;
-  const [min = 0, max = min] = parts as Array<number>;
-  return { min: Math.min(min, max), max: Math.max(min, max) };
-};
 
 const showAmount = (amount: Amount | undefined) =>
   amount === undefined
@@ -109,6 +104,99 @@ function AmountField({
         onChange={(event) => onChange(parseAmount(event.target.value))}
       />
     </label>
+  );
+}
+
+/** Counts a board can ask per level; loads and intensities are graded on the level sheet. */
+const TIERABLE: ReadonlySet<Measure> = new Set(["reps", "calories", "distance_m"]);
+
+/**
+ * Targets by level ("18-15/15-12 cal": 18/15 at Elite, 15/12 at RX), hardest first. Each row is
+ * a level with its male and female number; the quantity's range follows them.
+ */
+function TiersField({
+  span,
+  onUpdate,
+}: {
+  readonly span: SpanOf<"quantity">;
+  readonly onUpdate: (span: Span) => void;
+}) {
+  const tiers = span.tiers ?? [];
+  const setTiers = (next: ReadonlyArray<QuantityTier>) => onUpdate(withTiers(span, next));
+  const setTier = (index: number, tier: QuantityTier) =>
+    setTiers(tiers.map((candidate, at) => (at === index ? tier : candidate)));
+  const easier = (level: Level) => LEVELS[Math.max(0, levelIndex(level) - 1)]!;
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="form-label text-muted-foreground">Targets by level</span>
+        <Button variant="ghost" size="sm" onClick={() => setTiers([])}>
+          Read as a range
+        </Button>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_2rem] items-center gap-2">
+        <span className="form-label text-muted-foreground">Level</span>
+        <span className="form-label text-muted-foreground">Male</span>
+        <span className="form-label text-muted-foreground">Female</span>
+        <span aria-hidden />
+        {tiers.map((tier, index) => (
+          // oxlint-disable-next-line react/no-array-index-key -- a row is its position; remounts when rows are removed
+          <Fragment key={`${index}-${tiers.length}`}>
+            <NativeSelect
+              aria-label={`Level ${index + 1}`}
+              value={tier.level}
+              onChange={(event) => setTier(index, { ...tier, level: event.target.value as Level })}
+            >
+              {LEVELS.toReversed().map((level) => (
+                <option key={level} value={level}>
+                  {LEVEL_NAMES[level]}
+                </option>
+              ))}
+            </NativeSelect>
+            <Input
+              aria-label={`Level ${index + 1} male`}
+              defaultValue={showAmount(tier.amount)}
+              onChange={(event) => {
+                const amount = parseAmount(event.target.value);
+                if (amount !== undefined) setTier(index, { ...tier, amount });
+              }}
+            />
+            <Input
+              aria-label={`Level ${index + 1} female`}
+              defaultValue={showAmount(tier.female)}
+              onChange={(event) => {
+                const { female: _old, ...rest } = tier;
+                const female = parseAmount(event.target.value);
+                setTier(index, female === undefined ? rest : { ...rest, female });
+              }}
+            />
+            <Button
+              variant="ghost-destructive"
+              size="icon"
+              aria-label={`Remove level ${index + 1}`}
+              onClick={() => setTiers(tiers.filter((_, at) => at !== index))}
+            >
+              <X />
+            </Button>
+          </Fragment>
+        ))}
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-fit"
+        onClick={() => {
+          const last = tiers.at(-1)!;
+          setTiers([...tiers, { ...last, level: easier(last.level) }]);
+        }}
+      >
+        <Plus />
+        Add level
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        The board asks each level its own number. What you did each round is set on the movement.
+      </p>
+    </div>
   );
 }
 
@@ -290,18 +378,34 @@ export function SpanInspector({
               ))}
             </NativeSelect>
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            <AmountField
-              label="Amount"
-              value={span.amount}
-              onChange={(amount) => onUpdate(withAmount(span, "amount", amount))}
-            />
-            <AmountField
-              label="Female (optional)"
-              value={span.female}
-              onChange={(amount) => onUpdate(withAmount(span, "female", amount))}
-            />
-          </div>
+          {span.tiers !== undefined && span.tiers.length > 0 ? (
+            <TiersField span={span} onUpdate={onUpdate} />
+          ) : (
+            <div className="grid gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <AmountField
+                  label="Amount"
+                  value={span.amount}
+                  onChange={(amount) => onUpdate(withAmount(span, "amount", amount))}
+                />
+                <AmountField
+                  label="Female (optional)"
+                  value={span.female}
+                  onChange={(amount) => onUpdate(withAmount(span, "female", amount))}
+                />
+              </div>
+              {TIERABLE.has(span.measure) && tiersFromRange(span) !== undefined ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-fit"
+                  onClick={() => onUpdate(withTiers(span, tiersFromRange(span)))}
+                >
+                  Ends are levels
+                </Button>
+              ) : null}
+            </div>
+          )}
           {span.scheme ? (
             <p className="text-sm">
               <span className="form-label text-muted-foreground">Scheme</span>{" "}

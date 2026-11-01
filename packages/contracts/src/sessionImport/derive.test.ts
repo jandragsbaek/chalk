@@ -356,6 +356,9 @@ describe("performance", () => {
     expect(messages({ unbroken: 5000 })).toEqual([
       "Pull-up: the biggest unbroken set must be 0 to 1000.",
     ]);
+    expect(messages({ perRound: { min: 8, max: 7 } })).toEqual([
+      "Pull-up: the count each round must run from low to high.",
+    ]);
     expect(
       pullUps(deriveSession(withPerformance("pull-up", { loadKg: 2000 }), nameOf))?.performance,
     ).toBeUndefined();

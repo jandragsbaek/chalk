@@ -146,7 +146,7 @@ describe("suggestSpans", () => {
   it("matches aliases and plurals, and splits complexes on +", () => {
     const rows = describeSpans(SNATCH_EMOM, suggest(SNATCH_EMOM));
     expect(rows).toContain("movement squat snatch = snatch");
-    expect(rows).toContain("quantity 18-15/15-12 cal = 15-18/12-15 cal -> row");
+    expect(rows).toContain("quantity 18-15/15-12 cal = Elite 18/15 · RX 15/12 cal -> row");
     expect(rows).toContain("quantity 2 = 2 reps -> overhead squat");
     // The 50 second cap describes the station, not the row.
     expect(rows.some((row) => row.includes("50 sec"))).toBe(false);

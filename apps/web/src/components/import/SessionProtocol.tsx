@@ -56,14 +56,16 @@ const blockItems = (blocks: ReadonlyArray<DerivedBlock>) =>
 
 /**
  * What the row's level line leads with. Planning: the plan. Logging a plan: what was done once
- * it is recorded (the plan noted when it differs), else the plan still waiting.
+ * it is recorded (the plan noted when it differs), else the plan still waiting. Without a plan,
+ * a count reached each round ("7-8 cal each round") is the one thing the row shows as done.
  */
 const leadOf = (item: DerivedItem, names: ProtocolNames): LevelLead | undefined => {
-  const plan = item.plan === undefined ? undefined : describePlan(item.plan, names.nameOf);
+  const plan = item.plan === undefined ? undefined : describePlan(item.plan, names.nameOf, item);
   if (names.gradeSide === "planned" || item.performance === undefined)
     return plan === undefined ? undefined : { label: "Planned", text: plan };
-  if (plan === undefined) return undefined;
-  const done = describePlan(item.performance, names.nameOf);
+  const done = describePlan(item.performance, names.nameOf, item);
+  if (plan === undefined)
+    return item.performance.perRound === undefined ? undefined : { label: "Done", text: done };
   return done === plan
     ? { label: "Done", text: done, note: "as planned" }
     : { label: "Done", text: done, note: `planned ${plan}` };

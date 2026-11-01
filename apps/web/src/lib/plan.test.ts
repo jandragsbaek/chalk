@@ -1,4 +1,4 @@
-import { MovementId, type Quantity } from "@chalk/contracts";
+import { MovementId, quantityFromText, type Quantity } from "@chalk/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { asPlanned, describePlan, planTitle } from "./plan.ts";
@@ -29,6 +29,28 @@ describe("describePlan", () => {
         nameOf,
       ),
     ).toBe("30 kg, 25 Jumping pull-up + 20 Pull-up");
+  });
+
+  it("places a count each round on the board's levels", () => {
+    const row = (...quantities: ReadonlyArray<Quantity>) => ({
+      spanId: "row",
+      movementId: MovementId.make("row"),
+      text: "cal row",
+      sets: [{ line: 0, quantities }],
+      performed: [],
+      performance: undefined,
+      plan: undefined,
+      alternatives: [],
+    });
+    const tiered = quantityFromText("18-15/15-12 cal", "calories")!;
+    expect(describePlan({ perRound: { min: 7, max: 8 } }, nameOf, row(tiered))).toBe(
+      "7-8 cal each round, under RX (15)",
+    );
+    expect(describePlan({ perRound: { min: 16, max: 16 } }, nameOf, row(tiered))).toBe(
+      "16 cal each round, RX",
+    );
+    const lift = row(quantityFromText("5", "reps")!, quantityFromText("3", "sets")!);
+    expect(describePlan({ perRound: { min: 4, max: 4 } }, nameOf, lift)).toBe("4 each round");
   });
 });
 
