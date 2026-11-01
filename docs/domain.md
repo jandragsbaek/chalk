@@ -95,7 +95,8 @@ muscle-up). The sheet is data in `packages/contracts/src/levels.ts` (`LEVEL_FAMI
 - **Grading**: a load meets the highest rung at or under it, and sits between rungs on the
   ruler. A variation meets the rung it enters at and every rung above that asks for nothing new
   (toes-to-bar enter at Intermediate and also meet RX). Rungs the sheet leaves out ("-") are
-  skipped. Loads use the athlete's side of M/F (`ATHLETE_SEX`, male until the setup wizard).
+  skipped. Loads use the athlete's side of M/F (`AthleteProfile.sex`, see Athlete profile);
+  every grading helper takes `sex` explicitly, so nothing grades on a silent default.
 - **Performance** (on the movement span, stored as `workout_items.performance`): how it was
   done. Empty means as prescribed; `loadKg` per implement and `implements` (1 or 2); `variants`
   splits the reps ("6 pull-ups, 44 jumping"); `unbroken` is the biggest unbroken set of the
@@ -125,7 +126,35 @@ muscle-up). The sheet is data in `packages/contracts/src/levels.ts` (`LEVEL_FAMI
   height is not recorded, so box jumps stop at Scaled.
 
 Later: standards from Competition Corner divisions (national and international) as more
-sources next to GymDanmark's; the athlete's sex from a setup wizard.
+sources next to GymDanmark's.
+
+### Athlete profile (built)
+
+Who is training, on `/settings`. `AthleteProfile` (contracts, `profile.ts`) is the whole thing in
+one read (`profile.get`):
+
+| Field         | Notes                                                                            |
+| ------------- | -------------------------------------------------------------------------------- |
+| `sex`         | `m` or `f`: which side of an M/F load applies. `DEFAULT_SEX` (`m`) until set.    |
+| `heightCm`    | Standing height, 100 to 250, or null. One value, no history.                     |
+| `armLengthCm` | Optional: acromion (shoulder tip) to the knuckles of a closed fist, arm hanging. |
+| `legLengthCm` | Optional: inseam, floor to crotch, barefoot.                                     |
+| `bodyweights` | Every weigh-in `{ performedOn, kg }`, oldest first; one per local day.           |
+
+- **Storage**: migration `013_AthleteProfile`. `athlete_profile` is one row (`id = 1`), absent
+  until the first save, so the store reads `EMPTY_ATHLETE_PROFILE` (male, nulls) before then.
+  `bodyweights` is keyed by `performed_on`; logging a day again replaces its reading
+  (`bodyweights.log`), `bodyweights.delete` removes a day. Centimetres and kilograms.
+- **Bodyweight on a day**: `bodyweightOn(profile, date)` is the latest weigh-in on or before
+  `date`, else the earliest weigh-in (a session before the first weigh-in uses it), else null.
+  Estimates that need the athlete's mass at a session (work and power) read it through this.
+- **Sex in the app**: the web reads it with `useAthleteSex()` and passes it to every level,
+  benchmark and tier helper (`gradeItem`, `gradeLoad`, `prescribedLoad`, `familyStops`,
+  `reachOfTiers`, ...). Switching it regrades everything client-side; nothing stored changes.
+- Limb lengths are optional because they can be estimated from height; whoever needs them
+  estimates when they are null.
+- Web: `/settings` (sex, height, limbs with how to measure; bodyweight trend, the day's log, every
+  weigh-in with its change and delete).
 
 ### Workout, parts and items
 

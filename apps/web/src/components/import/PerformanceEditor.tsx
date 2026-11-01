@@ -17,6 +17,7 @@ import { useState } from "react";
 import { parseAmount, toNumber } from "../../lib/amount.ts";
 import { MEASURE_LABELS } from "../../lib/blockLabels.ts";
 import { describePlan, describeReach, roundTarget } from "../../lib/plan.ts";
+import { useAthleteSex } from "../../lib/profile.ts";
 import { LevelVerdict } from "./LevelVerdict.tsx";
 
 interface Draft {
@@ -147,17 +148,18 @@ export function PerformanceEditor({
   /** A complex: the grade of each of its movements, which share this load. */
   readonly complexGrades?: ReadonlyArray<ItemGrade | undefined> | undefined;
 }) {
+  const sex = useAthleteSex();
   const [draft, setDraft] = useState(() => draftFromPerformance(performance));
   const family = grade?.family;
   const { known, rest } = variationOptions(family, catalog);
   const nameOf = (id: MovementId) => catalog.find((movement) => movement.id === id)?.name;
-  const written = prescribedLoad(item.sets);
+  const written = prescribedLoad(item.sets, sex);
   const showLoad = family === undefined || family.kind === "load" || written !== undefined;
   const showImplements = family?.group === "kb_db";
   const planning = mode === "plan";
   const target = roundTarget(item);
   const perRound = parseAmount(draft.perRound);
-  const reach = perRound === undefined ? undefined : describeReach(perRound, target);
+  const reach = perRound === undefined ? undefined : describeReach(perRound, target, sex);
   const complex = complexGrades !== undefined;
   // One verdict per level-sheet row: a power clean and a hang power clean grade on the same one.
   const verdicts = complex
@@ -204,7 +206,7 @@ export function PerformanceEditor({
       {planned !== undefined && !planning ? (
         <p data-plan-box className="flex items-baseline gap-2 px-2.5 py-1.5 text-sm">
           <span className="form-label shrink-0 text-muted-foreground">Planned</span>
-          <span className="min-w-0">{describePlan(planned, nameOf, item)}</span>
+          <span className="min-w-0">{describePlan(planned, nameOf, sex, item)}</span>
         </p>
       ) : null}
 

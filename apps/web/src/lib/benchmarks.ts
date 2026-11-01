@@ -1,5 +1,4 @@
 import {
-  ATHLETE_SEX,
   benchmarkMovementIds,
   divisionOf,
   gradeItem,
@@ -13,6 +12,7 @@ import {
   type GradableMovement,
   type Level,
   type MovementId,
+  type Sex,
 } from "@chalk/contracts";
 
 export interface BenchmarkHistory {
@@ -116,6 +116,7 @@ export const filterBenchmarks = (
 export const rxDivision = (
   benchmark: Benchmark,
   movements: ReadonlyMap<MovementId, GradableMovement>,
+  sex: Sex,
 ): { readonly level: Level | undefined; readonly graded: number } | undefined =>
   divisionOf(
     benchmark.blocks.flatMap((block) =>
@@ -124,7 +125,7 @@ export const rxDivision = (
           gradeItem(
             { movementId: item.movementId, sets: [{ quantities: item.quantities }] },
             movements,
-            ATHLETE_SEX,
+            sex,
           )?.prescribed,
       ),
     ),

@@ -11,12 +11,12 @@ const nameOf = (id: MovementId) => names[id];
 
 describe("describePlan", () => {
   it("reads an empty plan as the board", () => {
-    expect(describePlan({}, nameOf)).toBe("As written");
-    expect(describePlan({ unbroken: 10 }, nameOf)).toBe("As written");
+    expect(describePlan({}, nameOf, "m")).toBe("As written");
+    expect(describePlan({ unbroken: 10 }, nameOf, "m")).toBe("As written");
   });
 
   it("names the load per implement, and the reps by variation", () => {
-    expect(describePlan({ loadKg: 22.5, implements: 2 }, nameOf)).toBe("2 × 22.5 kg");
+    expect(describePlan({ loadKg: 22.5, implements: 2 }, nameOf, "m")).toBe("2 × 22.5 kg");
     expect(
       describePlan(
         {
@@ -27,6 +27,7 @@ describe("describePlan", () => {
           ],
         },
         nameOf,
+        "m",
       ),
     ).toBe("30 kg, 25 Jumping pull-up + 20 Pull-up");
   });
@@ -44,14 +45,17 @@ describe("describePlan", () => {
       alternatives: [],
     });
     const tiered = quantityFromText("18-15/15-12 cal", "calories")!;
-    expect(describePlan({ perRound: { min: 7, max: 8 } }, nameOf, row(tiered))).toBe(
+    expect(describePlan({ perRound: { min: 7, max: 8 } }, nameOf, "m", row(tiered))).toBe(
       "7-8 cal each round, under RX (15)",
     );
-    expect(describePlan({ perRound: { min: 16, max: 16 } }, nameOf, row(tiered))).toBe(
+    expect(describePlan({ perRound: { min: 16, max: 16 } }, nameOf, "m", row(tiered))).toBe(
       "16 cal each round, RX",
     );
+    expect(describePlan({ perRound: { min: 13, max: 13 } }, nameOf, "f", row(tiered))).toBe(
+      "13 cal each round, RX",
+    );
     const lift = row(quantityFromText("5", "reps")!, quantityFromText("3", "sets")!);
-    expect(describePlan({ perRound: { min: 4, max: 4 } }, nameOf, lift)).toBe("4 each round");
+    expect(describePlan({ perRound: { min: 4, max: 4 } }, nameOf, "m", lift)).toBe("4 each round");
   });
 });
 
@@ -164,10 +168,10 @@ describe("plannedMovements", () => {
 
   it("lists a station once, by the option its plan picked", () => {
     expect(
-      plannedMovements(withStation(option("pull-up"), option("jumping-pull-up")), nameOf),
+      plannedMovements(withStation(option("pull-up"), option("jumping-pull-up")), nameOf, "m"),
     ).toEqual([{ spanId: "pull-up", name: "Pull-up", plan: undefined }]);
     expect(
-      plannedMovements(withStation(option("pull-up"), option("jumping-pull-up", {})), nameOf),
+      plannedMovements(withStation(option("pull-up"), option("jumping-pull-up", {})), nameOf, "m"),
     ).toEqual([{ spanId: "jumping-pull-up", name: "Jumping pull-up", plan: "As written" }]);
   });
 });

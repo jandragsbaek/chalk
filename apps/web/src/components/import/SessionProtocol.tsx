@@ -12,6 +12,7 @@ import {
   levelKey,
   levelName,
   type MovementId,
+  type Sex,
   type SpanId,
 } from "@chalk/contracts";
 import { LevelBadge } from "@chalk/ui/components/level-ruler.tsx";
@@ -20,6 +21,7 @@ import type { ReactNode } from "react";
 import { formatKg } from "../../lib/blockLabels.ts";
 import { formatComplex, type Complex } from "../../lib/complexes.ts";
 import { describePlan } from "../../lib/plan.ts";
+import { useAthleteSex } from "../../lib/profile.ts";
 import { chosenOption } from "../../lib/station.ts";
 import { LevelLine, type GradeSide, type LevelLead } from "./LevelVerdict.tsx";
 
@@ -66,11 +68,12 @@ const stationCount = (blocks: ReadonlyArray<DerivedBlock>) =>
  * it is recorded (the plan noted when it differs), else the plan still waiting. Without a plan,
  * a count reached each round ("7-8 cal each round") is the one thing the row shows as done.
  */
-const leadOf = (item: DerivedItem, names: ProtocolNames): LevelLead | undefined => {
-  const plan = item.plan === undefined ? undefined : describePlan(item.plan, names.nameOf, item);
+const leadOf = (item: DerivedItem, names: ProtocolNames, sex: Sex): LevelLead | undefined => {
+  const plan =
+    item.plan === undefined ? undefined : describePlan(item.plan, names.nameOf, sex, item);
   if (names.gradeSide === "planned" || item.performance === undefined)
     return plan === undefined ? undefined : { label: "Planned", text: plan };
-  const done = describePlan(item.performance, names.nameOf, item);
+  const done = describePlan(item.performance, names.nameOf, sex, item);
   if (plan === undefined)
     return item.performance.perRound === undefined ? undefined : { label: "Done", text: done };
   return done === plan
@@ -102,6 +105,7 @@ function OptionRow({
   /** In a complex sharing one bar, which prints what was lifted once for all its rows. */
   readonly inComplex?: boolean;
 }) {
+  const sex = useAthleteSex();
   const name = item.movementId === undefined ? undefined : names.nameOf(item.movementId);
   const core = item.movementId === undefined ? undefined : names.coreOf(item.movementId);
   // Re-keyed when the row's content changes, so an edit lights the rows it touched.
@@ -113,7 +117,7 @@ function OptionRow({
     item.plan,
   ]);
   const grade = names.gradeOf(item.spanId);
-  const lead = full ? leadOf(item, names) : undefined;
+  const lead = full ? leadOf(item, names, sex) : undefined;
   const content = (
     <>
       {editor ? <span key={signature} data-flash aria-hidden /> : null}

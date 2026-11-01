@@ -91,6 +91,9 @@ describe("rxDivision", () => {
       ],
       [MovementId.make("pull-up"), { id: MovementId.make("pull-up"), levelFamily: "pull-ups" }],
     ]);
-    expect(rxDivision(benchmarkById("fran")!, movements)).toEqual({ level: "scaled", graded: 2 });
+    expect(rxDivision(benchmarkById("fran")!, movements, "m")).toEqual({
+      level: "scaled",
+      graded: 2,
+    });
   });
 });

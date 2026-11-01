@@ -2,7 +2,7 @@ import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as Schema from "effect/Schema";
 
-import { LiftSetId, WorkoutId } from "./baseSchemas.ts";
+import { IsoDate, LiftSetId, WorkoutId } from "./baseSchemas.ts";
 import {
   CoachEvent,
   CoachModelNotAllowedError,
@@ -16,6 +16,13 @@ import {
   CoachUnavailableError,
 } from "./coach.ts";
 import { LevelOverview, LevelStorageError } from "./levelOverview.ts";
+import {
+  AthleteBody,
+  AthleteProfile,
+  BodyweightEntry,
+  BodyweightNotFoundError,
+  ProfileStorageError,
+} from "./profile.ts";
 import {
   LiftSet,
   LiftSetNotFoundError,
@@ -48,6 +55,10 @@ export const RPC_METHODS = {
   coachThreads: "coach.threads",
   coachThread: "coach.thread",
   coachSend: "coach.send",
+  profileGet: "profile.get",
+  profileUpdate: "profile.update",
+  bodyweightsLog: "bodyweights.log",
+  bodyweightsDelete: "bodyweights.delete",
 } as const;
 
 /** Mount point for the RPC endpoint on the server, and the web dev proxy. */
@@ -133,6 +144,30 @@ const CoachSendRpc = Rpc.make(RPC_METHODS.coachSend, {
   stream: true,
 });
 
+/** The athlete's whole profile (sex, height, limbs, every weigh-in), so a page loads it once. */
+const ProfileGetRpc = Rpc.make(RPC_METHODS.profileGet, {
+  success: AthleteProfile,
+  error: ProfileStorageError,
+});
+
+const ProfileUpdateRpc = Rpc.make(RPC_METHODS.profileUpdate, {
+  payload: AthleteBody,
+  success: AthleteProfile,
+  error: ProfileStorageError,
+});
+
+/** Logs the day's weigh-in; logging a day again replaces its reading. */
+const BodyweightsLogRpc = Rpc.make(RPC_METHODS.bodyweightsLog, {
+  payload: BodyweightEntry,
+  success: BodyweightEntry,
+  error: ProfileStorageError,
+});
+
+const BodyweightsDeleteRpc = Rpc.make(RPC_METHODS.bodyweightsDelete, {
+  payload: { performedOn: IsoDate },
+  error: Schema.Union([BodyweightNotFoundError, ProfileStorageError]),
+});
+
 export const ChalkRpcGroup = RpcGroup.make(
   WorkoutsListRpc,
   WorkoutsLogRpc,
@@ -148,4 +183,8 @@ export const ChalkRpcGroup = RpcGroup.make(
   CoachThreadsRpc,
   CoachThreadRpc,
   CoachSendRpc,
+  ProfileGetRpc,
+  ProfileUpdateRpc,
+  BodyweightsLogRpc,
+  BodyweightsDeleteRpc,
 );

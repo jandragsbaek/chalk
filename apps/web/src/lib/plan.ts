@@ -11,6 +11,7 @@ import {
   type Performance,
   type Quantity,
   type SpanId,
+  type Sex,
   type SpanOf,
 } from "@chalk/contracts";
 
@@ -40,9 +41,13 @@ export function roundTarget(item: DerivedItem): Quantity | undefined {
 }
 
 /** Where a count each round sits on the board's levels: "RX", "under RX (15)". */
-export function describeReach(perRound: Amount, target: Quantity | undefined): string | undefined {
+export function describeReach(
+  perRound: Amount,
+  target: Quantity | undefined,
+  sex: Sex,
+): string | undefined {
   if (target?.tiers === undefined || target.tiers.length === 0) return undefined;
-  const reach = reachOfTiers(target.tiers, perRound);
+  const reach = reachOfTiers(target.tiers, perRound, sex);
   if (reach.met !== undefined) return LEVEL_NAMES[reach.met];
   return reach.next === undefined
     ? undefined
@@ -50,9 +55,9 @@ export function describeReach(perRound: Amount, target: Quantity | undefined): s
 }
 
 /** "7-8 cal each round, under RX (15)". */
-export function describePerRound(perRound: Amount, target: Quantity | undefined): string {
+export function describePerRound(perRound: Amount, target: Quantity | undefined, sex: Sex): string {
   const unit = target === undefined ? undefined : ROUND_UNITS[target.measure];
-  const reach = describeReach(perRound, target);
+  const reach = describeReach(perRound, target, sex);
   return `${formatAmount(perRound)}${unit === undefined ? "" : ` ${unit}`} each round${reach === undefined ? "" : `, ${reach}`}`;
 }
 
@@ -64,11 +69,14 @@ export function describePerRound(perRound: Amount, target: Quantity | undefined)
 export function describePlan(
   plan: Performance,
   nameOf: (id: MovementId) => string | undefined,
+  sex: Sex,
   item?: DerivedItem,
 ): string {
   const parts: Array<string> = [];
   if (plan.perRound !== undefined)
-    parts.push(describePerRound(plan.perRound, item === undefined ? undefined : roundTarget(item)));
+    parts.push(
+      describePerRound(plan.perRound, item === undefined ? undefined : roundTarget(item), sex),
+    );
   if (plan.loadKg !== undefined)
     parts.push(
       plan.implements === 2
@@ -99,11 +107,12 @@ export interface PlannedMovement {
 export function plannedMovements(
   session: DerivedSession,
   nameOf: (id: MovementId) => string | undefined,
+  sex: Sex,
 ): ReadonlyArray<PlannedMovement> {
   const row = (item: DerivedItem): PlannedMovement => ({
     spanId: item.spanId,
     name: (item.movementId === undefined ? undefined : nameOf(item.movementId)) ?? item.text,
-    plan: item.plan === undefined ? undefined : describePlan(item.plan, nameOf, item),
+    plan: item.plan === undefined ? undefined : describePlan(item.plan, nameOf, sex, item),
   });
   return session.parts.flatMap((part) =>
     part.blocks.flatMap((block) =>

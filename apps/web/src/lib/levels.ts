@@ -1,5 +1,4 @@
 import {
-  ATHLETE_SEX,
   Complement as ComplementSchema,
   COMPLEMENT_PATTERNS,
   definedLevels,
@@ -26,6 +25,7 @@ import {
   type LevelShare,
   type LiftSet,
   type MovementId,
+  type Sex,
 } from "@chalk/contracts";
 
 export const LEVEL_WINDOWS = [
@@ -88,6 +88,7 @@ export function summarizeFamilies(
   items: ReadonlyArray<LevelItem>,
   liftSets: ReadonlyArray<LiftSet>,
   since: string | undefined,
+  sex: Sex,
 ): ReadonlyMap<LevelFamilyId, FamilySummary> {
   const byId = movementsById(movements);
   const current = items.filter(inWindow(since));
@@ -117,7 +118,7 @@ export function summarizeFamilies(
   );
 
   for (const item of current) {
-    const grade = gradeItem(item, byId);
+    const grade = gradeItem(item, byId, sex);
     if (grade === undefined) continue;
     if (!item.alternative && grade.prescribed !== undefined) {
       const acc = accs.get(grade.family.id)!;
@@ -184,7 +185,7 @@ export function summarizeFamilies(
           ? undefined
           : { level, position: level === undefined ? floor - 0.5 : levelIndex(level) };
     } else if (estimateKg !== undefined) {
-      const graded = gradeLoad(family, estimateKg);
+      const graded = gradeLoad(family, estimateKg, { sex });
       capability = { position: graded.position, level: graded.level, estimateKg };
     }
     summaries.set(family.id, {
@@ -216,7 +217,11 @@ export interface Verdict {
  * it is next to the estimated 1RM. Variants: Volume when the next rung's variation has been
  * done, Skill when it has not, Skill + strength under the sheet.
  */
-export function verdictOf(summary: FamilySummary, nameOf: (id: MovementId) => string): Verdict {
+export function verdictOf(
+  summary: FamilySummary,
+  nameOf: (id: MovementId) => string,
+  sex: Sex,
+): Verdict {
   const { family, performed, capability } = summary;
   if (performed === undefined)
     return summary.programmedSessions > 0
@@ -236,7 +241,7 @@ export function verdictOf(summary: FamilySummary, nameOf: (id: MovementId) => st
 
   if (family.kind === "load") {
     const implementCount = performed.implements ?? 1;
-    const threshold = rungThreshold(family.rungs[next]!, implementCount, ATHLETE_SEX);
+    const threshold = rungThreshold(family.rungs[next]!, implementCount, sex);
     const gap =
       threshold === undefined || performed.loadKg === undefined
         ? undefined
@@ -256,7 +261,7 @@ export function verdictOf(summary: FamilySummary, nameOf: (id: MovementId) => st
     return { heading, detail: `${toNext}.` };
   }
 
-  const nextLabel = rungLabel(family, next) ?? LEVEL_NAMES[next];
+  const nextLabel = rungLabel(family, next, sex) ?? LEVEL_NAMES[next];
   if (performed.level === undefined) {
     return {
       heading: "Skill + strength",
@@ -298,6 +303,7 @@ export function summarizeAccessories(
   items: ReadonlyArray<LevelItem>,
   liftSets: ReadonlyArray<LiftSet>,
   since: string | undefined,
+  sex: Sex,
 ): ReadonlyArray<AccessorySummary> {
   const byId = movementsById(movements);
   const current = items.filter(inWindow(since));
@@ -307,7 +313,7 @@ export function summarizeAccessories(
       const own = current.filter((item) => item.movementId === movement.id);
       const loads = [
         ...own.flatMap((item) => {
-          const kg = item.performance?.loadKg ?? item.liftedKg ?? prescribedLoad(item.sets);
+          const kg = item.performance?.loadKg ?? item.liftedKg ?? prescribedLoad(item.sets, sex);
           return kg === undefined ? [] : [{ day: item.performedOn, kg }];
         }),
         ...liftSets
@@ -317,7 +323,7 @@ export function summarizeAccessories(
       ].sort((left, right) => left.day.localeCompare(right.day));
       if (own.length === 0 && loads.length === 0) return [];
       const graded = own
-        .map((item) => gradeItem(item, byId)?.performed)
+        .map((item) => gradeItem(item, byId, sex)?.performed)
         .filter((grade) => grade !== undefined)
         .reduce<Grade | undefined>(
           (best, grade) => (best === undefined || grade.position > best.position ? grade : best),

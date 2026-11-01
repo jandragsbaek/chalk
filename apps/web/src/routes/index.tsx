@@ -1,4 +1,10 @@
-import { deriveSession, type Movement, type MovementId, type SessionPlan } from "@chalk/contracts";
+import {
+  deriveSession,
+  type Movement,
+  type MovementId,
+  type SessionPlan,
+  type Sex,
+} from "@chalk/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { createFileRoute } from "@tanstack/react-router";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
@@ -18,6 +24,7 @@ import {
   trainingDays,
 } from "../lib/dashboard.ts";
 import { plannedMovements, planTitle } from "../lib/plan.ts";
+import { useAthleteSex } from "../lib/profile.ts";
 import { localIsoDate } from "../lib/utils.ts";
 import { benchmarkResultsAtom } from "../state/benchmarks.ts";
 import { plansAtom } from "../state/plans.ts";
@@ -30,6 +37,7 @@ export const Route = createFileRoute("/")({ component: TodayPage });
 const plansByDay = (
   plans: ReadonlyArray<SessionPlan>,
   nameOf: (id: MovementId) => string | undefined,
+  sex: Sex,
 ): ReadonlyMap<string, ReadonlyArray<DayPlan>> => {
   const byDay = new Map<string, Array<DayPlan>>();
   for (const plan of plans) {
@@ -39,7 +47,7 @@ const plansByDay = (
       plannedOn: plan.plannedOn,
       session,
       title: planTitle(session, nameOf),
-      movements: plannedMovements(session, nameOf),
+      movements: plannedMovements(session, nameOf, sex),
     };
     byDay.set(plan.plannedOn, [...(byDay.get(plan.plannedOn) ?? []), entry]);
   }
@@ -57,6 +65,7 @@ function TodayPage() {
     results: useAtomValue(benchmarkResultsAtom),
     plans: useAtomValue(plansAtom),
   });
+  const sex = useAthleteSex();
   const [today] = useState(() => new Date());
   const [activeDay, setActiveDay] = useState<string | null>(null);
 
@@ -88,7 +97,7 @@ function TodayPage() {
               names={names}
               activeDay={activeDay}
               onActivate={setActiveDay}
-              plans={plansByDay(plans, (id) => names.get(id))}
+              plans={plansByDay(plans, (id) => names.get(id), sex)}
             />
           </aside>
           <div className="grid min-w-0 grid-cols-1 content-start gap-10 px-8 py-8">

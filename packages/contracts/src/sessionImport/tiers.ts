@@ -1,4 +1,4 @@
-import { ATHLETE_SEX, LEVELS, type Level, type Sex } from "../levels.ts";
+import { LEVELS, type Level, type Sex } from "../levels.ts";
 import type { Amount, Quantity, QuantityTier } from "../sessionImport.ts";
 
 /**
@@ -99,7 +99,7 @@ export interface TierReach {
 export const reachOfTiers = (
   tiers: ReadonlyArray<QuantityTier>,
   perRound: Amount,
-  sex: Sex = ATHLETE_SEX,
+  sex: Sex,
 ): TierReach => {
   const metAt = tiers.findIndex((tier) => perRound.min >= targetOf(tier, sex));
   const met = metAt === -1 ? undefined : tiers[metAt];
