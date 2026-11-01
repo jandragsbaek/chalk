@@ -5,17 +5,22 @@ import {
   BenchmarkId,
   BENCHMARKS,
   BenchmarkScoring,
+  describeDifference,
   estimateOneRepMax,
   IsoDate,
+  MatchKind,
   MAX_ESTIMATE_REPS,
   MovementCategory,
   MovementId,
   normalizeBenchmarkName,
+  partLabel,
+  WorkoutId,
   WorkoutKind,
   type CoachReceipt,
   type CoachRequestPart,
   type LiftSet,
   type Movement,
+  type PartRef,
 } from "@chalk/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -167,6 +172,56 @@ const ListBenchmarks = Tool.make("list_benchmarks", {
   ...common,
 });
 
+/** Sessions a similar-sessions read covers, newest first, and matches it lists per part. */
+const SIMILAR_SESSIONS = 10;
+const SIMILAR_MATCHES = 3;
+
+const SimilarSide = {
+  workoutId: Schema.String,
+  performedOn: IsoDate,
+  workout: Schema.String,
+  /** The part's title and headline, "Workout #2 · AMRAP 15 min". */
+  part: Schema.String,
+  result: Schema.optionalKey(Schema.String),
+  /** The heaviest lift set the part wrote, "5 x 105 kg Back squat". */
+  topSet: Schema.optionalKey(Schema.String),
+};
+
+const FindSimilarSessions = Tool.make("find_similar_sessions", {
+  description:
+    "Whether a session's parts repeat earlier or later logged parts (the same workout again, " +
+    "or the same benchmark) or look like them (at least 60 % alike), with each side's date, " +
+    "result or heaviest set, and what the other side did differently. Use it for 'have I done " +
+    "this before, and how did I do?' or a retest. Give a session id from list_workouts, or a " +
+    `date range; it covers at most ${SIMILAR_SESSIONS} sessions, newest first, and lists only ` +
+    "parts with a match. A part of one movement only reports repeats; for that lift's " +
+    "history use list_lift_sets.",
+  parameters: Schema.Struct({
+    workoutId: Schema.optionalKey(WorkoutId).annotate({
+      description: "A session id from list_workouts; omit for every session in the range",
+    }),
+    ...Range,
+  }),
+  success: Schema.Array(
+    Schema.Struct({
+      ...SimilarSide,
+      matches: Schema.Array(
+        Schema.Struct({
+          kind: MatchKind,
+          /** Percent; 100 for a repeat. */
+          alike: Schema.Int,
+          ...SimilarSide,
+          /** What the other side did, said as "then" (earlier) or "later". */
+          differences: Schema.Array(Schema.String),
+        }),
+      ),
+      /** Matches beyond the ones listed. */
+      moreMatches: Schema.Int,
+    }),
+  ),
+  ...common,
+});
+
 export const CoachToolkit = Toolkit.make(
   ListMovements,
   ListWorkouts,
@@ -174,6 +229,7 @@ export const CoachToolkit = Toolkit.make(
   GetRepMaxes,
   ListBenchmarks,
   ListBenchmarkResults,
+  FindSimilarSessions,
 );
 
 /** Rows a receipt keeps; the model gets every row, the athlete's copy is capped. */
@@ -554,5 +610,110 @@ export const makeHandlers = (deps: {
           ]),
         }),
       ),
+
+    find_similar_sessions: Effect.fn("CoachTools.find_similar_sessions")(function* ({
+      workoutId,
+      from,
+      to,
+    }) {
+      const all = yield* workouts.list().pipe(Effect.orElseSucceed(() => []));
+      const named = all.find((workout) => workout.id === workoutId);
+      return yield* read(
+        "find_similar_sessions",
+        [
+          ...(workoutId === undefined
+            ? []
+            : [
+                {
+                  tag: "text" as const,
+                  text:
+                    named === undefined ? workoutId : `${named.name}, ${day(named.performedOn)}`,
+                },
+              ]),
+          ...(workoutId === undefined || from !== undefined || to !== undefined
+            ? [range({ from, to })]
+            : []),
+        ],
+        Effect.gen(function* () {
+          if (workoutId !== undefined && named === undefined)
+            return yield* Effect.fail<ToolFailure>({
+              message: `No session '${workoutId}'. Use list_workouts to find its id.`,
+            });
+          const [similar, names] = yield* Effect.all([workouts.similar(), movementNames]);
+          const nameOf = (id: MovementId) => names.get(id) ?? id;
+          const refs = new Map(similar.parts.map((part) => [part.id, part]));
+          const side = (part: PartRef) => ({
+            workoutId: part.workoutId,
+            performedOn: part.performedOn,
+            workout: part.workoutName,
+            part: partLabel(part),
+            ...(part.result === "" ? {} : { result: part.result }),
+            ...(part.top === null
+              ? {}
+              : {
+                  topSet: `${part.top.reps} x ${kg(part.top.loadKg)} ${nameOf(part.top.movementId)}`,
+                }),
+          });
+          const sessions = new Set<string>();
+          return similar.echoes.flatMap((echo) => {
+            const part = refs.get(echo.part);
+            if (
+              part === undefined ||
+              (workoutId !== undefined && part.workoutId !== workoutId) ||
+              !inRange(part.performedOn, { from, to })
+            )
+              return [];
+            if (!sessions.has(part.workoutId)) {
+              if (sessions.size === SIMILAR_SESSIONS) return [];
+              sessions.add(part.workoutId);
+            }
+            const matches = echo.matches.slice(0, SIMILAR_MATCHES).flatMap((match) => {
+              const other = refs.get(match.other);
+              if (other === undefined) return [];
+              const when = other.performedOn > part.performedOn ? "later" : "then";
+              return [
+                {
+                  kind: match.kind,
+                  alike: Math.round(match.score * 100),
+                  ...side(other),
+                  differences: match.differences.map((difference) =>
+                    describeDifference(difference, nameOf, when),
+                  ),
+                },
+              ];
+            });
+            return [{ ...side(part), matches, moreMatches: echo.total - matches.length }];
+          });
+        }),
+        (found) => {
+          const matches = found.flatMap((part) => part.matches);
+          const repeats = matches.filter((match) => match.kind === "repeat").length;
+          const outcome = (side: { readonly result?: string; readonly topSet?: string }) =>
+            side.result ?? side.topSet ?? "";
+          return {
+            summary:
+              found.length === 0
+                ? "No repeats or look-alikes"
+                : [
+                    ...(repeats === 0 ? [] : [plural(repeats, "repeat")]),
+                    ...(matches.length === repeats
+                      ? []
+                      : [plural(matches.length - repeats, "look-alike")]),
+                  ].join(", "),
+            columns: ["Date", "Part", "Result", "Match", "Other", "Its result"],
+            rows: found.flatMap((part) =>
+              part.matches.map((match) => [
+                day(part.performedOn),
+                part.part,
+                outcome(part),
+                match.kind === "repeat" ? "Repeat" : `${match.alike} % alike`,
+                `${day(match.performedOn)}, ${match.part}`,
+                outcome(match),
+              ]),
+            ),
+          };
+        },
+      );
+    }),
   });
 };

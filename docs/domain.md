@@ -319,7 +319,8 @@ contracts, `GET /workouts/similar`), from the stored blocks and items; nothing i
 - Each part shows its result (block scores, or the session's for a one-part session) or its
   heaviest lift set, so a repeat reads as then versus now.
 - Web: the session sheet's "Similar sessions" (up to five per part, repeats first), and a
-  repeat mark on register rows that repeat an earlier session.
+  repeat mark on register rows that repeat an earlier session. The wording (`partLabel`,
+  `describeDifference`) lives in contracts, shared with the coach's `find_similar_sessions`.
 
 ## Planned sessions (built)
 

@@ -1,4 +1,11 @@
-import { COACH_MODELS, CoachThreadId, MovementId, type CoachEvent } from "@chalk/contracts";
+import {
+  COACH_MODELS,
+  CoachThreadId,
+  makeMovementMatcher,
+  MovementId,
+  suggestSpans,
+  type CoachEvent,
+} from "@chalk/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as AiError from "effect/ai/AiError";
 import * as ConfigProvider from "effect/ConfigProvider";
@@ -11,7 +18,9 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 
+import * as CatalogStore from "../catalog/CatalogStore.ts";
 import * as ServerConfig from "../config.ts";
+import * as ImportStore from "../import/ImportStore.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
 import * as StrengthStore from "../strength/StrengthStore.ts";
 import * as WorkoutStore from "../workout/WorkoutStore.ts";
@@ -92,7 +101,13 @@ const layerWith = <E>(
   CoachService.layer.pipe(
     Layer.provide(model),
     Layer.provideMerge(
-      Layer.mergeAll(coachStore, StrengthStore.layer, WorkoutStore.layer).pipe(
+      Layer.mergeAll(
+        coachStore,
+        StrengthStore.layer,
+        WorkoutStore.layer,
+        ImportStore.layer,
+        CatalogStore.layer,
+      ).pipe(
         Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)),
         Layer.provide(ServerConfig.layerTest()),
       ),
@@ -229,6 +244,72 @@ describe("CoachService", () => {
       expect(shown).toContain("21-15-9");
       expect(shown).toContain("Thrusters");
     }).pipe(Effect.provide(layerWith(browsesCatalog.model))),
+  );
+
+  /** Two imports of one session, a month apart: the squat repeats, the AMRAP got shorter. */
+  const seedRetest = Effect.gen(function* () {
+    const imports = yield* ImportStore.ImportStore;
+    const catalog = yield* (yield* CatalogStore.CatalogStore).list();
+    const save = (number: number, day: string, minutes: number, squatKg: number) => {
+      const text = `** Session ${number} <${day} ti>
+**** Workout #1
+- Back squat 5x5 @80%
+**** Workout #2
+- Amrap ${minutes}
+- 12 Thrusters @40/25
+- 10 Burpee over barbell
+*** Notes
+- Back squat 5x5 @ ${squatKg} kg`;
+      let next = 0;
+      const spans = suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`);
+      return imports.save({ document: { text, spans } });
+    };
+    yield* save(150, "2026-09-01", 15, 100);
+    return yield* save(151, "2026-10-01", 12, 105);
+  });
+
+  let retestId = "";
+  const comparesRetest = scriptedModel((options) =>
+    Effect.succeed(
+      options.prompt.content.at(-1)?.role === "tool"
+        ? text("Same squat, 5 kg heavier (R1).")
+        : toolCalls([{ name: "find_similar_sessions", params: { workoutId: retestId } }]),
+    ),
+  );
+
+  it.effect("finds a session's repeats and look-alikes, with both results and what differs", () =>
+    Effect.gen(function* () {
+      retestId = (yield* seedRetest).workoutId;
+      const events = yield* send({ text: "How did my retest compare?" });
+      const receipt = (events[2] as Extract<CoachEvent, { _tag: "ReadFinished" }>).receipt;
+      expect(receipt).toMatchObject({
+        tool: "find_similar_sessions",
+        request: [{ tag: "text", text: "Session 151, 1 Oct 2026" }],
+        summary: "1 repeat, 1 look-alike",
+        columns: ["Date", "Part", "Result", "Match", "Other", "Its result"],
+      });
+      expect(receipt.rows).toEqual([
+        [
+          "1 Oct 2026",
+          "Workout #1",
+          "5 x 105 kg Back squat",
+          "Repeat",
+          "1 Sep 2026, Workout #1",
+          "5 x 100 kg Back squat",
+        ],
+        [
+          "1 Oct 2026",
+          "Workout #2 · AMRAP 12 min",
+          "",
+          "93 % alike",
+          "1 Sep 2026, Workout #2 · AMRAP 15 min",
+          "",
+        ],
+      ]);
+      const shown = JSON.stringify(comparesRetest.calls[1]?.prompt.content.at(-1));
+      expect(shown).toContain("AMRAP 15 min then");
+      expect(shown).toContain("5 x 100 kg Back squat");
+    }).pipe(Effect.provide(layerWith(comparesRetest.model))),
   );
 
   const picked = scriptedModel(() => Effect.succeed(text("Answered.")));

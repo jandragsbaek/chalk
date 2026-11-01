@@ -1,8 +1,8 @@
-import type { MovementId, PartRef } from "@chalk/contracts";
+import { describeDifference, partLabel, type MovementId, type PartRef } from "@chalk/contracts";
 import { Badge } from "@chalk/ui/components/badge.tsx";
 
 import { formatKg } from "../../lib/blockLabels.ts";
-import { describeDifference, partLabel, type Echo, type PartEchoGroup } from "../../lib/similar.ts";
+import type { Echo, PartEchoGroup } from "../../lib/similar.ts";
 import { formatDay } from "../../lib/utils.ts";
 import { SectionHeader } from "../import/SessionProtocol.tsx";
 
