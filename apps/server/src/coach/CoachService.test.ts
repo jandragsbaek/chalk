@@ -373,12 +373,12 @@ describe("CoachService", () => {
     ),
   );
 
-  it.effect("refuses to mark a day before today", () =>
+  it.effect("refuses to mark a day before the athlete's today", () =>
     Effect.gen(function* () {
-      const events = yield* send({ text: "Mark yesterday as rest." });
+      const events = yield* send({ text: "Mark yesterday as rest.", today: "1970-01-02" });
       const receipt = (events[2] as Extract<CoachEvent, { _tag: "ReadFinished" }>).receipt;
       expect(receipt).toMatchObject({ status: "failed" });
-      expect(receipt.summary).toMatch(/^31 Dec 1969 is past; only today \(1 Jan 1970\)/);
+      expect(receipt.summary).toMatch(/^31 Dec 1969 is past; only today \(2 Jan 1970\)/);
       expect(yield* (yield* RestDayStore.RestDayStore).list()).toEqual([]);
     }).pipe(Effect.provide(layerWith(marksPast.model))),
   );

@@ -191,6 +191,8 @@ const make = Effect.gen(function* () {
     readonly model: CoachModelChoice;
     readonly history: string;
     readonly text: string;
+    /** The athlete's local day; the server's UTC day when the browser did not say. */
+    readonly today: string | undefined;
     readonly firstReceipt: number;
     readonly emit: (event: CoachEvent) => Effect.Effect<unknown>;
   }) {
@@ -219,7 +221,7 @@ const make = Effect.gen(function* () {
         }),
     };
 
-    const today = DateTime.formatIsoDateUtc(yield* DateTime.now);
+    const today = options.today ?? DateTime.formatIsoDateUtc(yield* DateTime.now);
     const handlers = yield* CoachToolkit.toHandlers(
       makeHandlers({ workouts, strength, restDays, today, log }),
     );
@@ -330,6 +332,7 @@ const make = Effect.gen(function* () {
               model,
               history,
               text: input.text,
+              today: input.today,
               firstReceipt: started.reads + 1,
               emit,
             });
