@@ -1,5 +1,6 @@
 # Kamal 2: `kamal setup` once, then `kamal deploy`. See docs/deploy.md.
-# No secrets: the image goes through Kamal's local registry over SSH, and the app needs none.
+# The image goes through Kamal's local registry over SSH. The one secret, OPENROUTER_API_KEY, is
+# on the VM in /etc/chalk/chalk.env (ansible); Kamal never sees it. See docs/deploy.md#secrets.
 service: chalk
 image: chalk
 
@@ -11,6 +12,9 @@ servers:
     proxy:
       host: lab-chalk-01.llama-burbot.ts.net
       app_port: 4300
+    # docker run --env-file: the coach's OpenRouter key, written by ansible. Must exist before a deploy.
+    options:
+      env-file: /etc/chalk/chalk.env
 
 # Tailnet only: Chalk has no login. Caddy holds the Tailscale :443 and forwards to
 # kamal-proxy on loopback. No ssl: here.
