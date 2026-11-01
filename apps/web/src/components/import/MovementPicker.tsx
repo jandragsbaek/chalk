@@ -184,7 +184,7 @@ export function MovementPicker({
         aria-label="Matching movements"
       >
         {candidates.map((movement) => (
-          <li key={movement.id}>
+          <li key={movement.id} className="min-w-0">
             <button
               type="button"
               data-current={movement.id === value ? "" : undefined}
@@ -196,8 +196,8 @@ export function MovementPicker({
               }
               onClick={() => void handlePick(movement)}
             >
-              <span className="font-semibold">{movement.name}</span>
-              <span className="truncate text-xs text-muted-foreground">
+              <span className="max-w-full shrink-0 font-semibold">{movement.name}</span>
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
                 {[
                   movement.variationOf === undefined
                     ? undefined
