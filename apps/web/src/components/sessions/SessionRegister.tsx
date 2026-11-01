@@ -1,4 +1,11 @@
-import { coachingPhrase, type MovementId, type PartRef, type SessionEntry } from "@chalk/contracts";
+import {
+  sessionPhrase,
+  sessionTypeOf,
+  type MovementId,
+  type PartRef,
+  type SessionEntry,
+  type Workout,
+} from "@chalk/contracts";
 import { Badge } from "@chalk/ui/components/badge.tsx";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, NativeSelect } from "@chalk/ui/components/field.tsx";
@@ -24,6 +31,14 @@ const asDate = (iso: string) => new Date(`${iso}T00:00:00`);
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 const shortDay = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+
+/** "WOD class with Rikke L." when its type is known; else its format, then any coach. */
+const workoutLead = (workout: Workout) => {
+  const phrase = sessionPhrase(workout);
+  if (sessionTypeOf(workout) !== undefined) return phrase;
+  const kind = WORKOUT_KIND_LABELS[workout.kind];
+  return phrase === undefined ? kind : `${kind} · ${phrase}`;
+};
 
 function Row({
   entry,
@@ -86,10 +101,7 @@ function Row({
             ) : null}
           </span>
           <span className="truncate text-xs text-muted-foreground">
-            {entry._tag === "workout" ? WORKOUT_KIND_LABELS[entry.workout.kind] : "Lift sets"}
-            {entry._tag === "workout" && entry.workout.coaching
-              ? ` · ${coachingPhrase(entry.workout.coaching)}`
-              : ""}
+            {entry._tag === "workout" ? workoutLead(entry.workout) : "Lift sets"}
             {movements === "" ? "" : ` · ${movements}`}
           </span>
         </span>

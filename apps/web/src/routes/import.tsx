@@ -1,11 +1,11 @@
 import {
-  classCoaching,
+  classMarks,
   PlanId,
   WorkoutId,
   type CatalogMovement,
-  type Coaching,
   type ImportDocument,
   type ImportSummary,
+  type SessionMarks,
 } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, Label, Textarea } from "@chalk/ui/components/field.tsx";
@@ -99,9 +99,9 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
   const [saved, setSaved] = useState<ImportSummary | undefined>();
   const [today] = useState(() => localIsoDate(new Date()));
   const [boardDay, setBoardDay] = useState(yesterday);
-  // The pulled class's day and coach: board text has neither, so the draft carries them.
+  // The pulled class's day, coach and type: board text has none, so the draft carries them.
   const [pulled, setPulled] = useState<
-    { readonly on: string; readonly coaching: Coaching | undefined } | undefined
+    { readonly on: string; readonly marks: SessionMarks } | undefined
   >();
   const imported = AsyncResult.getOrElse(useAtomValue(importsAtom), () => []);
   const importedOnDay = imported.find((entry) => entry.performedOn === boardDay);
@@ -114,13 +114,7 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
     setDraft({
       key: Date.now(),
       document:
-        pulled === undefined
-          ? document
-          : {
-              ...document,
-              performedOn: pulled.on,
-              ...(pulled.coaching === undefined ? {} : { coaching: pulled.coaching }),
-            },
+        pulled === undefined ? document : { ...document, performedOn: pulled.on, ...pulled.marks },
     });
   }
 
@@ -183,7 +177,7 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
               disabled={boardDay === ""}
               onPulled={(entry) => {
                 setText(entry.text);
-                setPulled({ on: boardDay, coaching: classCoaching(entry) });
+                setPulled({ on: boardDay, marks: classMarks(entry) });
               }}
             />
           </div>

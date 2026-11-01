@@ -469,6 +469,16 @@ Read-only: GET requests only, never booking or check-in.
   `workouts.coach` / `workouts.solo` (migration `016_SessionCoaching`), written from the
   document on save; `/log` takes it too. Shown on the session sheet and register, searchable
   ("rikke", "solo"), and in the AI coach's `list_workouts`.
+- **Session type** (`SessionType`: `wod`, `strength` or `solo`; absent = not recorded): a WOD
+  class, a strength class, or trained alone. Solo is the coaching's, so only the class is its
+  own field (`ClassType`, on `ImportDocument.classType` and `workouts.class_type`, migration
+  `019_SessionClassType`) and a session is never a class and solo at once (`sessionTypeOf`).
+  A pulled class gives it by name (`classTypeOf`: "WOD" the WOD class, "Power" a strength
+  class), as does the coach look-up. The workbench header's Session picker replaces the derived
+  workout kind there; picking Solo fills Coached by, a class over Solo empties it, and a coach
+  named over Solo makes it the WOD class (`withSessionType`, `withCoaching`). `/log` takes it;
+  shown on the session sheet and register ("WOD class with Rikke L."), searchable ("wod
+  class"), and in the AI coach's `list_workouts`.
 
 ## Garmin Connect (built)
 

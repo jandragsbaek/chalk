@@ -9,7 +9,7 @@ import {
   TrimmedNonEmptyString,
   WorkoutId,
 } from "./baseSchemas.ts";
-import { Coaching } from "./coaching.ts";
+import { ClassType, Coaching } from "./coaching.ts";
 import { Debrief } from "./debrief.ts";
 import { Complement, Level, LevelFamilyId, Performance } from "./levels.ts";
 import { MovementCategory } from "./strength.ts";
@@ -169,6 +169,11 @@ export const ImportDocument = Schema.Struct({
    * was pulled from, or entered in the editor. A plan keeps it for the session logged from it.
    */
   coaching: Schema.optionalKey(Coaching),
+  /**
+   * The class it was (WOD or strength): from the pulled class's name, or picked in the editor.
+   * Never set beside solo coaching; see `withSessionType`.
+   */
+  classType: Schema.optionalKey(ClassType),
 }).annotate({ identifier: "ImportDocument" });
 export type ImportDocument = typeof ImportDocument.Type;
 

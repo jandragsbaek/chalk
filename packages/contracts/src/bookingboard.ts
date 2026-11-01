@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 
 import { IsoDate, IsoDateTime, TrimmedNonEmptyString } from "./baseSchemas.ts";
-import type { Coaching } from "./coaching.ts";
+import type { ClassType, Coaching, SessionMarks } from "./coaching.ts";
 
 /**
  * The box's booking system (bookingboard.io): Chalk reads the program of the classes the athlete
@@ -58,6 +58,27 @@ export type BookingboardDay = typeof BookingboardDay.Type;
 /** A pulled class's coach; none when bookingboard names nobody for it. */
 export const classCoaching = (entry: BookingboardClass): Coaching | undefined =>
   entry.coach === null ? undefined : { _tag: "coached", coach: entry.coach };
+
+/**
+ * What a pulled class is, by the name the box gives it: "WOD" the WOD class, "Power" (or
+ * strength, styrke) a strength class; any other name is left to the athlete.
+ */
+export const classTypeOf = (entry: BookingboardClass): ClassType | undefined => {
+  const title = entry.title.toLowerCase();
+  if (/\bwod\b/.test(title)) return "wod";
+  if (/\b(power|strength|styrke)\b/.test(title)) return "strength";
+  return undefined;
+};
+
+/** What a pulled class puts on the draft: its coach and, by its name, what class it was. */
+export const classMarks = (entry: BookingboardClass): SessionMarks => {
+  const coaching = classCoaching(entry);
+  const classType = classTypeOf(entry);
+  return {
+    ...(coaching === undefined ? {} : { coaching }),
+    ...(classType === undefined ? {} : { classType }),
+  };
+};
 
 /**
  * Who coached the athlete on a day, by its bookings: its one class's coach, or solo when no class

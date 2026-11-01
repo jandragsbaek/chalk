@@ -1,8 +1,8 @@
 import {
-  classCoaching,
+  classMarks,
   PlanId,
   type CatalogMovement,
-  type Coaching,
+  type SessionMarks,
   type SessionPlan,
 } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
@@ -71,7 +71,7 @@ function PlanEditor({ plan }: { readonly plan: PlanId | undefined }) {
 type Draft = {
   readonly key: number;
   readonly text: string;
-  readonly coaching: Coaching | undefined;
+  readonly marks: SessionMarks;
 };
 
 /** The morning: paste the posted workout, mark it up, plan the scaling, save for later. */
@@ -80,8 +80,8 @@ function PlanPaste({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
   const [text, setText] = useState("");
   const [draft, setDraft] = useState<Draft | undefined>();
   const [saved, setSaved] = useState<SessionPlan | undefined>();
-  // The pulled class's coach, until the text is cleared.
-  const [pulledCoaching, setPulledCoaching] = useState<Coaching | undefined>();
+  // The pulled class's coach and type, until the text is cleared.
+  const [pulledMarks, setPulledMarks] = useState<SessionMarks>({});
 
   function handleSuggest(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,7 +90,7 @@ function PlanPaste({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
     setDraft({
       key: Date.now(),
       text: text.replace(/\r\n/g, "\n").trimEnd(),
-      coaching: pulledCoaching,
+      marks: pulledMarks,
     });
   }
 
@@ -103,7 +103,7 @@ function PlanPaste({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
         initial={{
           ...suggestDocument(draft.text, catalog),
           performedOn: today,
-          ...(draft.coaching === undefined ? {} : { coaching: draft.coaching }),
+          ...draft.marks,
         }}
         replace={undefined}
         catalog={catalog}
@@ -111,7 +111,7 @@ function PlanPaste({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
           setSaved(plan);
           setDraft(undefined);
           setText("");
-          setPulledCoaching(undefined);
+          setPulledMarks({});
         }}
         onDiscard={() => setDraft(undefined)}
       />
@@ -142,7 +142,7 @@ function PlanPaste({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
           date={today}
           onPulled={(entry) => {
             setText(entry.text);
-            setPulledCoaching(classCoaching(entry));
+            setPulledMarks(classMarks(entry));
           }}
         />
         <div className="grid gap-1.5">
@@ -153,7 +153,7 @@ function PlanPaste({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
               value={text}
               onChange={(event) => {
                 setText(event.target.value);
-                if (event.target.value.trim() === "") setPulledCoaching(undefined);
+                if (event.target.value.trim() === "") setPulledMarks({});
               }}
               placeholder={"For time\n21-15-9\nThrusters @43/29 kg\nPull-ups"}
               className="min-h-80"

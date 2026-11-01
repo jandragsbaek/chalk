@@ -1,5 +1,6 @@
 import {
   describeCoaching,
+  SESSION_TYPE_LABELS,
   type CatalogMovement,
   type MovementId,
   type SessionEntry,
@@ -18,8 +19,8 @@ export const monthOf = (iso: string): string => iso.slice(0, 7);
 
 export interface SessionFilter {
   /**
-   * Matches name, score, notes (the session's and its lift sets'), who coached it ("Solo" too)
-   * and movement names, ignoring case.
+   * Matches name, score, notes (the session's and its lift sets'), who coached it ("Solo" too),
+   * its class ("WOD class") and movement names, ignoring case.
    */
   readonly query: string;
   /** A movement, or a core movement with its variations. */
@@ -59,6 +60,9 @@ export function filterSessions(
             entry.workout.score,
             entry.workout.notes,
             entry.workout.coaching === undefined ? "" : describeCoaching(entry.workout.coaching),
+            entry.workout.classType === undefined
+              ? ""
+              : SESSION_TYPE_LABELS[entry.workout.classType],
           ]
         : []),
       ...entry.movementIds.map((id) => names.get(id) ?? id),
