@@ -51,17 +51,15 @@ new container starts, so keep them additive.
 
 ## The VM
 
-Provisioned from the ansible repo (`coldbrewwithmilk/ansible`), like `lab-chess-01` (see its
-`docs/CHESS.md`):
+`lab-chalk-01` (tailscale `100.122.93.105`) is provisioned from the ansible repo
+(`coldbrewwithmilk/ansible`, `playbooks/chalk.yml`, `docs/CHALK.md`): Tailscale with `tag:lab`,
+Docker, and Caddy with ts.net certificates on the tailscale IPs. Caddy's `:443` forwards to
+`127.0.0.1:80` unchanged; `:8443` sets `Host: chalk-admin`. kamal-proxy stays on loopback
+(`proxy.run.bind_ips`) so Caddy can hold the tailscale ports.
 
-- Tailscale as `lab-chalk-01`, tag `tag:lab`; Docker; `baseline_disable_ip_forward: false`.
-- SSH user `semaphore` in the `docker` group, reachable from the machine you deploy from.
-- Caddy with ts.net certificates, bound to the tailscale IPs, two sites:
-  - `:443` reverse proxies to `127.0.0.1:80`, Host unchanged.
-  - `:8443` reverse proxies to `127.0.0.1:80` with `header_up Host chalk-admin`.
-
-  The caddy role serves one site today; the second needs a small addition there. kamal-proxy
-  stays on loopback (`proxy.run.bind_ips`) so Caddy can hold the tailscale ports.
+Kamal connects as `semaphore` with the fleet nodes' ansible key, `~/.ssh/t3code_ansible`, named in
+`deploy.yml` because Kamal's SSH ignores `Match user` blocks in `~/.ssh/config`. Deploying from
+elsewhere needs a key `semaphore` accepts.
 
 - Backups: the database lives in the `chalk_data` volume
   (`/var/lib/docker/volumes/chalk_data/_data/chalk.sqlite`). Copy it with
