@@ -1,4 +1,4 @@
-import { BodyweightEntry, type IsoDate } from "@chalk/contracts";
+import { BodyweightEntry, type Bodyweight, type IsoDate } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input } from "@chalk/ui/components/field.tsx";
 import { useAtomSet } from "@effect/atom-react";
@@ -15,7 +15,13 @@ import * as Schema from "effect/Schema";
 import { Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 
-import { bodyweightRows, bodyweightTrend, parseMeasure, shiftDay } from "../../lib/bodyweight.ts";
+import {
+  bodyweightRows,
+  bodyweightTrend,
+  parseMeasure,
+  shiftDay,
+  trailingAverage,
+} from "../../lib/bodyweight.ts";
 import { toDate } from "../../lib/progress.ts";
 import { formatDay, localIsoDate } from "../../lib/utils.ts";
 import {
@@ -29,8 +35,11 @@ import {
   formatFullDay,
   formatMonthTick,
   kg,
+  Legend,
+  LegendItem,
   monthTicks,
   nearestIndex,
+  Segmented,
   signedKg,
   stepIndexOnKey,
   TooltipRow,
@@ -43,33 +52,62 @@ const decodeEntry = Schema.decodeUnknownOption(BodyweightEntry);
 /** The window the headline change covers. */
 const TREND_DAYS = 30;
 
+const DAY_MS = 86_400_000;
 const HEIGHT = 200;
 const MARGIN = { top: 12, right: 64, bottom: 28, left: 40 };
 
-/** Every weigh-in from the first to today: an ink line through square marks, latest labelled. */
+type Range = "90d" | "1y" | "all";
+
+const RANGES: ReadonlyArray<{ value: Range; label: string; days?: number }> = [
+  { value: "90d", label: "90 days", days: 90 },
+  { value: "1y", label: "1 year", days: 365 },
+  { value: "all", label: "All" },
+];
+
+/** Days the line averages over: a week of daily scale readings. */
+const AVERAGE_DAYS = 7;
+
+const sourceLabel = (entry: Bodyweight) =>
+  entry.source === "garmin"
+    ? entry.measuredAt === null
+      ? "Scale"
+      : `Scale, ${entry.measuredAt}`
+    : "Typed";
+
+/**
+ * Weigh-ins over the chosen range: the week's mean as the ink line, scale readings as faint
+ * marks under it, typed weigh-ins as solid squares; the latest mean labelled.
+ */
 function BodyweightChart({
   entries,
   today,
 }: {
-  readonly entries: ReadonlyArray<BodyweightEntry>;
+  readonly entries: ReadonlyArray<Bodyweight>;
   readonly today: IsoDate;
 }) {
   const { parentRef, width } = useParentSize({ debounceTime: 50 });
   const [active, setActive] = useState<number | null>(null);
-  const points = [...entries]
-    .sort((a, b) => a.performedOn.localeCompare(b.performedOn))
+  const [range, setRange] = useState<Range>("all");
+  const averaged = trailingAverage(entries, AVERAGE_DAYS);
+  const firstDay = averaged[0]?.performedOn;
+  const latestDay = averaged.at(-1)?.performedOn;
+  if (firstDay === undefined || latestDay === undefined) return null;
+
+  const endDay = today > latestDay ? today : latestDay;
+  const spanDays = Math.round((toDate(endDay).getTime() - toDate(firstDay).getTime()) / DAY_MS);
+  const rangeDays = RANGES.find((option) => option.value === range)?.days;
+  const fromDay =
+    rangeDays === undefined || spanDays <= rangeDays ? firstDay : shiftDay(endDay, -rangeDays);
+  const points = averaged
+    .filter((entry) => entry.performedOn >= fromDay)
     .map((entry) => ({ ...entry, date: toDate(entry.performedOn) }));
-  const first = points[0];
   const latest = points.at(-1);
-  if (first === undefined || latest === undefined) return null;
+  if (latest === undefined) return null;
+  const hasScale = points.some((point) => point.source === "garmin");
 
   // A fortnight at least, so a first weigh-in does not sit on the axis edge.
-  const end = toDate(today > latest.performedOn ? today : latest.performedOn);
-  const start = toDate(
-    first.performedOn < shiftDay(localIsoDate(end), -14)
-      ? first.performedOn
-      : shiftDay(localIsoDate(end), -14),
-  );
+  const end = toDate(endDay);
+  const start = toDate(fromDay < shiftDay(endDay, -14) ? fromDay : shiftDay(endDay, -14));
   const innerWidth = Math.max(0, width - MARGIN.left - MARGIN.right);
   const innerHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
   const values = points.map((point) => point.kg);
@@ -89,101 +127,148 @@ function BodyweightChart({
   }
 
   return (
-    <div ref={parentRef} data-viz className="relative">
-      {width > 0 ? (
-        <svg
-          width={width}
-          height={HEIGHT}
-          role="img"
-          aria-label={`Bodyweight over time, ${points.length} weigh-ins. Use arrow keys to step through them.`}
-          tabIndex={0}
-          onKeyDown={(event) => {
-            const next = stepIndexOnKey(event, active, points.length);
-            if (next !== undefined) {
-              event.preventDefault();
-              setActive(next);
-            }
-          }}
-          onBlur={() => setActive(null)}
-        >
-          <Group left={MARGIN.left} top={MARGIN.top}>
-            <GridRows scale={yScale} width={innerWidth} stroke="var(--viz-grid)" numTicks={4} />
-            <LinePath
-              data={points}
-              x={(point) => xScale(point.date)}
-              y={(point) => yScale(point.kg)}
-              stroke="var(--viz-1)"
-              strokeWidth={1.5}
-              strokeLinejoin="round"
-            />
-            {activePoint ? (
-              <line
-                x1={xScale(activePoint.date)}
-                x2={xScale(activePoint.date)}
-                y1={0}
-                y2={innerHeight}
-                stroke="var(--muted-foreground)"
-                strokeOpacity={0.5}
+    <div data-viz className="grid gap-2">
+      <div className="flex items-center justify-between gap-4 px-2">
+        {hasScale ? (
+          <Legend>
+            <LegendItem mark="square" color="var(--viz-quiet)" label="Scale reading" />
+            <LegendItem mark="line" color="var(--viz-1)" label={`${AVERAGE_DAYS}-day average`} />
+            <LegendItem mark="square" color="var(--viz-1)" label="Typed" />
+          </Legend>
+        ) : (
+          <span />
+        )}
+        {spanDays > 90 ? (
+          <Segmented
+            label="Range"
+            value={range}
+            onChange={(value) => {
+              setActive(null);
+              setRange(value);
+            }}
+            options={RANGES.filter((option) => option.days === undefined || option.days < spanDays)}
+          />
+        ) : null}
+      </div>
+      <div ref={parentRef} className="relative">
+        {width > 0 ? (
+          <svg
+            width={width}
+            height={HEIGHT}
+            role="img"
+            aria-label={`Bodyweight over time, ${points.length} weigh-ins, with a ${AVERAGE_DAYS}-day average. Use arrow keys to step through them.`}
+            tabIndex={0}
+            onKeyDown={(event) => {
+              const next = stepIndexOnKey(event, active, points.length);
+              if (next !== undefined) {
+                event.preventDefault();
+                setActive(next);
+              }
+            }}
+            onBlur={() => setActive(null)}
+          >
+            <Group left={MARGIN.left} top={MARGIN.top}>
+              <GridRows scale={yScale} width={innerWidth} stroke="var(--viz-grid)" numTicks={4} />
+              {points.map((point) =>
+                point.source === "garmin" ? (
+                  <rect
+                    key={point.performedOn}
+                    x={xScale(point.date) - 1.5}
+                    y={yScale(point.kg) - 1.5}
+                    width={3}
+                    height={3}
+                    fill="var(--viz-quiet)"
+                  />
+                ) : null,
+              )}
+              <LinePath
+                data={points}
+                x={(point) => xScale(point.date)}
+                y={(point) => yScale(point.average)}
+                stroke="var(--viz-1)"
+                strokeWidth={hasScale ? 2 : 1.5}
+                strokeLinejoin="round"
               />
-            ) : null}
-            {points.map((point, index) => {
-              const size = index === active ? 9 : 6;
-              return (
-                <rect
-                  key={point.performedOn}
-                  x={xScale(point.date) - size / 2}
-                  y={yScale(point.kg) - size / 2}
-                  width={size}
-                  height={size}
-                  fill="var(--viz-1)"
-                  stroke="var(--viz-ring)"
-                  strokeWidth={1.5}
+              {activePoint ? (
+                <line
+                  x1={xScale(activePoint.date)}
+                  x2={xScale(activePoint.date)}
+                  y1={0}
+                  y2={innerHeight}
+                  stroke="var(--muted-foreground)"
+                  strokeOpacity={0.5}
                 />
-              );
-            })}
-            <text
-              x={innerWidth + 8}
-              y={yScale(latest.kg)}
-              dy="0.32em"
-              fontSize={12}
-              fontWeight={600}
-              fill="var(--foreground)"
-            >
-              {kg(latest.kg)}
-            </text>
-            <AxisLeft
-              scale={yScale}
-              numTicks={4}
-              hideAxisLine
-              hideTicks
-              tickLabelProps={{ ...AXIS.tickLabel, textAnchor: "end", dx: -4, dy: "0.32em" }}
+              ) : null}
+              {points.map((point, index) => {
+                if (point.source === "garmin" && index !== active) return null;
+                const size = index === active ? 9 : 6;
+                return (
+                  <rect
+                    key={point.performedOn}
+                    x={xScale(point.date) - size / 2}
+                    y={yScale(point.kg) - size / 2}
+                    width={size}
+                    height={size}
+                    fill="var(--viz-1)"
+                    stroke="var(--viz-ring)"
+                    strokeWidth={1.5}
+                  />
+                );
+              })}
+              <text
+                x={innerWidth + 8}
+                y={yScale(latest.average)}
+                dy="0.32em"
+                fontSize={12}
+                fontWeight={600}
+                fill="var(--foreground)"
+              >
+                {kg(latest.average)}
+              </text>
+              <AxisLeft
+                scale={yScale}
+                numTicks={4}
+                hideAxisLine
+                hideTicks
+                tickLabelProps={{ ...AXIS.tickLabel, textAnchor: "end", dx: -4, dy: "0.32em" }}
+              />
+              <AxisBottom
+                top={innerHeight}
+                scale={xScale}
+                tickValues={monthTicks(start, end, Math.floor(innerWidth / 56))}
+                stroke={AXIS.stroke}
+                tickStroke={AXIS.tickStroke}
+                tickLength={AXIS.tickLength}
+                tickFormat={(value) => formatMonthTick(value as Date)}
+                tickLabelProps={{ ...AXIS.tickLabel, textAnchor: "middle" }}
+              />
+              <rect
+                width={innerWidth}
+                height={innerHeight}
+                fill="transparent"
+                onPointerMove={handlePointer}
+                onPointerLeave={() => setActive(null)}
+              />
+            </Group>
+          </svg>
+        ) : null}
+        {activePoint ? (
+          <ChartTooltip x={MARGIN.left + xScale(activePoint.date)} width={width}>
+            <span className="text-muted-foreground">{formatFullDay(activePoint.date)}</span>
+            <TooltipRow
+              color="var(--viz-1)"
+              mark="dot"
+              value={kg(activePoint.kg)}
+              label={sourceLabel(activePoint).toLowerCase()}
             />
-            <AxisBottom
-              top={innerHeight}
-              scale={xScale}
-              tickValues={monthTicks(start, end, Math.floor(innerWidth / 56))}
-              stroke={AXIS.stroke}
-              tickStroke={AXIS.tickStroke}
-              tickLength={AXIS.tickLength}
-              tickFormat={(value) => formatMonthTick(value as Date)}
-              tickLabelProps={{ ...AXIS.tickLabel, textAnchor: "middle" }}
+            <TooltipRow
+              color="var(--viz-1)"
+              value={kg(activePoint.average)}
+              label={`${AVERAGE_DAYS}-day average`}
             />
-            <rect
-              width={innerWidth}
-              height={innerHeight}
-              fill="transparent"
-              onPointerMove={handlePointer}
-              onPointerLeave={() => setActive(null)}
-            />
-          </Group>
-        </svg>
-      ) : null}
-      {activePoint ? (
-        <ChartTooltip x={MARGIN.left + xScale(activePoint.date)} width={width}>
-          <span className="text-muted-foreground">{formatFullDay(activePoint.date)}</span>
-          <TooltipRow color="var(--viz-1)" mark="dot" value={kg(activePoint.kg)} label="weigh-in" />
-        </ChartTooltip>
-      ) : null}
+          </ChartTooltip>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -284,7 +369,7 @@ function LogBodyweightForm({
   );
 }
 
-function WeighIns({ entries }: { readonly entries: ReadonlyArray<BodyweightEntry> }) {
+function WeighIns({ entries }: { readonly entries: ReadonlyArray<Bodyweight> }) {
   const deleteBodyweight = useAtomSet(deleteBodyweightAtom, { mode: "promiseExit" });
   const [failed, setFailed] = useState(false);
 
@@ -317,6 +402,9 @@ function WeighIns({ entries }: { readonly entries: ReadonlyArray<BodyweightEntry
               <th scope="col" className="form-label px-3 py-1.5 text-right text-muted-foreground">
                 Change
               </th>
+              <th scope="col" className="form-label px-3 py-1.5 text-left text-muted-foreground">
+                Source
+              </th>
               <th scope="col" className="w-12">
                 <span className="sr-only">Delete</span>
               </th>
@@ -333,6 +421,15 @@ function WeighIns({ entries }: { readonly entries: ReadonlyArray<BodyweightEntry
                   ) : (
                     signedKg(row.change)
                   )}
+                </td>
+                <td
+                  className={
+                    row.source === "garmin"
+                      ? "form-label px-3 py-1.5 text-muted-foreground"
+                      : "form-label px-3 py-1.5"
+                  }
+                >
+                  {sourceLabel(row)}
                 </td>
                 <td className="px-2 py-0.5 text-right">
                   <Button
@@ -357,7 +454,7 @@ function WeighIns({ entries }: { readonly entries: ReadonlyArray<BodyweightEntry
  * Bodyweight over time: the latest reading and how it moved, a trend of every weigh-in, the
  * day's log and the list. One weigh-in per day.
  */
-export function BodyweightLog({ entries }: { readonly entries: ReadonlyArray<BodyweightEntry> }) {
+export function BodyweightLog({ entries }: { readonly entries: ReadonlyArray<Bodyweight> }) {
   const id = useId();
   // Fixed at mount, like the other log forms; a tab left open past midnight keeps yesterday.
   const [today] = useState(() => localIsoDate(new Date()));
@@ -380,7 +477,10 @@ export function BodyweightLog({ entries }: { readonly entries: ReadonlyArray<Bod
           <dl className="flex divide-x border-b bg-card">
             <FieldBox label="Latest">{kg(trend.latest.kg)}</FieldBox>
             <FieldBox label="On" wide>
-              {formatDay(trend.latest.performedOn)}
+              {formatDay(trend.latest.performedOn)}{" "}
+              <span className="text-xs font-medium text-muted-foreground">
+                {sourceLabel(trend.latest).toLowerCase()}
+              </span>
             </FieldBox>
             <FieldBox label={`${TREND_DAYS} days`}>
               {trend.change === undefined ? (

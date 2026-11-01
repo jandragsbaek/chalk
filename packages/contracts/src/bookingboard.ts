@@ -75,7 +75,7 @@ export class BookingboardNotConnectedError extends Schema.TaggedError<Bookingboa
   { httpApiStatus: 409 },
 ) {
   override get message(): string {
-    return "Bookingboard is not connected. Paste your token in Settings.";
+    return "Bookingboard is not connected. Paste your token in Settings, Connections.";
   }
 }
 
@@ -96,7 +96,7 @@ export class BookingboardTokenExpiredError extends Schema.TaggedError<Bookingboa
   { httpApiStatus: 401 },
 ) {
   override get message(): string {
-    return "The bookingboard token has expired. Log in to bookingboard again and paste the new jwt in Settings.";
+    return "The bookingboard token has expired. Log in to bookingboard again and paste the new jwt in Settings, Connections.";
   }
 }
 

@@ -139,12 +139,15 @@ one read (`profile.get`):
 | `heightCm`    | Standing height, 100 to 250, or null. One value, no history.                     |
 | `armLengthCm` | Optional: acromion (shoulder tip) to the knuckles of a closed fist, arm hanging. |
 | `legLengthCm` | Optional: inseam, floor to crotch, barefoot.                                     |
-| `bodyweights` | Every weigh-in `{ performedOn, kg }`, oldest first; one per local day.           |
+| `bodyweights` | Every weigh-in `{ performedOn, kg, source, measuredAt }`, oldest first; one/day. |
 
 - **Storage**: migration `013_AthleteProfile`. `athlete_profile` is one row (`id = 1`), absent
   until the first save, so the store reads `EMPTY_ATHLETE_PROFILE` (male, nulls) before then.
   `bodyweights` is keyed by `performed_on`; logging a day again replaces its reading
   (`bodyweights.log`), `bodyweights.delete` removes a day. Centimetres and kilograms.
+  `source` is `manual` (typed) or `garmin` (the scale, with its local `measuredAt` "HH:MM";
+  migration `018_Garmin`). A Garmin read only writes days that are not `manual`, so a typed
+  weigh-in always wins; typing over a scale day makes it `manual`.
 - **Bodyweight on a day**: `bodyweightOn(profile, date)` is the latest weigh-in on or before
   `date`, else the earliest weigh-in (a session before the first weigh-in uses it), else null.
   Estimates that need the athlete's mass at a session (work and power) read it through this.
@@ -154,7 +157,10 @@ one read (`profile.get`):
 - Limb lengths are optional because they can be estimated from height; whoever needs them
   estimates when they are null.
 - Web: `/settings` (sex, height, limbs with how to measure; bodyweight trend, the day's log, every
-  weigh-in with its change and delete).
+  weigh-in with its change, source and delete). The chart draws the 7-day trailing mean as its
+  line, scale readings as faint marks under it and typed weigh-ins as solid squares, with 90 days,
+  1 year and All once the history is longer than 90 days. `/settings/connections` holds the
+  bookingboard and Garmin logins.
 
 ### Workout, parts and items
 
@@ -431,7 +437,7 @@ The box (Box 7100) runs bookings on bookingboard.io, and its classes carry the d
 Chalk reads it so the plan and the importer start from what the box posted, not a paste.
 Read-only: GET requests only, never booking or check-in.
 
-- **Connection**: on `/settings`, the athlete pastes the site's `jwt` cookie (a 30-day JWT) and
+- **Connection**: on `/settings/connections`, the athlete pastes the site's `jwt` cookie (a 30-day JWT) and
   their participant id (the token does not carry it). `bookingboard.connect` checks the token
   has an `exp`, reads bookingboard once with it, then keeps it in `bookingboard_connection`
   (one row, migration `014_Bookingboard`). The browser only ever gets `BookingboardStatus`
@@ -463,6 +469,37 @@ Read-only: GET requests only, never booking or check-in.
   `workouts.coach` / `workouts.solo` (migration `016_SessionCoaching`), written from the
   document on save; `/log` takes it too. Shown on the session sheet and register, searchable
   ("rikke", "solo"), and in the AI coach's `list_workouts`.
+
+## Garmin Connect (built)
+
+The athlete's Garmin Index scale puts a weigh-in in Garmin Connect each morning; Chalk reads them
+into bodyweight so the trend and every work estimate use real numbers. Read-only.
+
+- **No personal API**: Garmin's developer program only takes companies, and since March 2026 its
+  SSO login sits behind Cloudflare TLS fingerprinting, so a Node `fetch` cannot log in. The data
+  API (`connectapi.garmin.com`) and the token renewal (`diauth.garmin.com`) still answer `fetch`
+  (checked 2026-11-01). Unofficial and against Garmin's terms; it can break when Garmin changes.
+- **Login, once, on the athlete's machine**: `pnpm garmin:login` runs `scripts/garmin-login.py`
+  with uv (python-garminconnect 0.3, curl_cffi for a browser's TLS handshake, the MFA prompt)
+  and prints its token file `{ di_token, di_refresh_token, di_client_id }`. The password never
+  reaches Chalk.
+- **Connection**: on `/settings/connections`, the athlete pastes the file and picks the first
+  day to read (defaulting to the first logged session: weigh-ins before CrossFit stay in
+  Garmin). `garmin.connect` renews the tokens once (a refused renewal keeps nothing), keeps them
+  in `garmin_connection` (one row, migration `018_Garmin`) and imports from that day. The
+  browser only gets `GarminStatus` (import day, scale weigh-in count, last read and its error).
+- **Renewal**: `POST diauth.../oauth/token` with `grant_type=refresh_token`, Basic auth on the
+  client id, the Android app's headers. Each renewal may turn the refresh token over, so the new
+  pair is saved at once and reads are serialised (one at a time). The access token is renewed
+  five minutes before its `exp`, and once on a 401.
+- **A read** (`garmin.sync`, every 6 hours while the server runs, a minute after start, and
+  "Sync now"): `GET /weight-service/weight/range/{from}/{to}?includeAll=true` in 120-day
+  windows, from three days before the last read (the import day the first time) to tomorrow.
+  `weighIns.ts` keeps each calendar day's first reading (`date`, local clock as epoch ms),
+  grams to kg, skips readings without a weight or outside 25 to 300 kg. A failed read keeps
+  what was imported and stores its message (`last_error`): the strip turns its lamp red.
+- A scale day the athlete deletes comes back only if a later read still covers it (the three
+  overlap days, or connecting again).
 
 ## Rest days (built)
 

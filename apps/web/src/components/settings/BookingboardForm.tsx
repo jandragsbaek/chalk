@@ -14,7 +14,9 @@ import {
   connectBookingboardAtom,
   disconnectBookingboardAtom,
 } from "../../state/bookingboard.ts";
+import { FieldBox } from "../FieldBox.tsx";
 import { SectionHead } from "../today/SectionHead.tsx";
+import { ConnectionVerdict } from "./ConnectionStatus.tsx";
 
 const DAY_MS = 86_400_000;
 /** Under this many days left, the token's expiry is shown as a warning. */
@@ -53,6 +55,11 @@ function ConnectionForm({ status }: { readonly status: BookingboardStatus }) {
   );
   const [save, setSave] = useState<Status>({ type: "idle" });
   const [now] = useState(() => Date.now());
+  // An expired token opens the form straight away; a working one keeps it folded.
+  const [replacing, setReplacing] = useState(
+    () =>
+      status._tag === "connected" && Math.floor((Date.parse(status.expiresAt) - now) / DAY_MS) < 0,
+  );
 
   const participantId = Number(participant.trim());
   const participantValid = /^\d+$/.test(participant.trim()) && participantId > 0;
@@ -72,6 +79,7 @@ function ConnectionForm({ status }: { readonly status: BookingboardStatus }) {
     });
     if (Exit.isSuccess(exit)) {
       setToken("");
+      setReplacing(false);
       setSave({ type: "saved" });
       return;
     }
@@ -95,29 +103,50 @@ function ConnectionForm({ status }: { readonly status: BookingboardStatus }) {
     );
   }
 
+  const expired = daysLeft !== undefined && daysLeft < 0;
+  const showForm = status._tag === "disconnected" || replacing;
+
   return (
     <section aria-labelledby={`${id}-title`} className="grid content-start">
-      <SectionHead
-        id={`${id}-title`}
-        title="Bookingboard"
-        meta={status._tag === "connected" ? "Connected" : "Not connected"}
-      />
-      <form onSubmit={handleSubmit} className="grid divide-y border-b bg-card">
+      <SectionHead id={`${id}-title`} title="Bookingboard" meta="box7100.bookingboard.io" />
+      <dl className="flex divide-x border-b bg-card whitespace-nowrap">
         {status._tag === "connected" && daysLeft !== undefined ? (
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <p className="text-sm">
-              Participant {status.participantId}.{" "}
-              {daysLeft < 0 ? (
-                <span className="text-destructive">The token has expired. Paste a new one.</span>
-              ) : (
-                <span className={daysLeft < WARN_DAYS ? "text-destructive" : undefined}>
-                  Token works until {expiryDate.format(new Date(status.expiresAt))} (
-                  {daysLeft === 1 ? "1 day" : `${daysLeft} days`}).
-                </span>
-              )}
-            </p>
+          <>
+            <ConnectionVerdict
+              state={expired ? "fail" : "good"}
+              verdict={expired ? "Token expired" : "Connected"}
+            >
+              {expired ? "Paste a new token below." : "Plan and import read the box's program."}
+            </ConnectionVerdict>
+            <FieldBox label="Participant">{status.participantId}</FieldBox>
+            <FieldBox label="Token until" wide>
+              <span className={daysLeft < WARN_DAYS ? "text-destructive" : undefined}>
+                {expiryDate.format(new Date(status.expiresAt))}
+              </span>{" "}
+              <span className="text-xs font-medium text-muted-foreground">
+                {expired ? "expired" : daysLeft === 1 ? "1 day" : `${daysLeft} days`}
+              </span>
+            </FieldBox>
+          </>
+        ) : (
+          <ConnectionVerdict state="off" verdict="Not connected">
+            The plan and import start from a blank page.
+          </ConnectionVerdict>
+        )}
+      </dl>
+      {status._tag === "connected" ? (
+        <div className="flex items-center justify-between gap-3 border-b bg-card px-4 py-2.5">
+          <p className="text-xs text-muted-foreground">
+            The token is the site's <code>jwt</code> cookie and lasts 30 days. Chalk only reads with
+            it.
+          </p>
+          <div className="flex shrink-0 gap-1.5">
+            {replacing ? null : (
+              <Button variant="outline" size="sm" onClick={() => setReplacing(true)}>
+                Replace token
+              </Button>
+            )}
             <Button
-              type="button"
               variant="ghost-destructive"
               size="sm"
               disabled={save.type === "saving"}
@@ -126,67 +155,87 @@ function ConnectionForm({ status }: { readonly status: BookingboardStatus }) {
               Disconnect
             </Button>
           </div>
-        ) : null}
-        <div className="grid content-start gap-1.5 px-4 pb-3 pt-2">
-          <label htmlFor={`${id}-token`} className="form-label text-muted-foreground">
-            {status._tag === "connected" ? "New token" : "Token"}
-          </label>
-          <Input
-            id={`${id}-token`}
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="eyJhbGciOi..."
-            value={token}
-            onChange={(event) => {
-              setToken(event.target.value);
-              if (save.type !== "saving") setSave({ type: "idle" });
-            }}
-          />
-          <p className="text-xs text-muted-foreground">
-            Log in at box7100.bookingboard.io, open the developer tools, find the site's cookies
-            (Application, then Cookies) and copy the value of <code>jwt</code>. It lasts 30 days.
-          </p>
         </div>
-        <div className="grid content-start gap-1.5 px-4 pb-3 pt-2">
-          <label htmlFor={`${id}-participant`} className="form-label text-muted-foreground">
-            Participant id
-          </label>
-          <Input
-            id={`${id}-participant`}
-            inputMode="numeric"
-            autoComplete="off"
-            className="max-w-40"
-            value={participant}
-            aria-invalid={participant.trim() !== "" && !participantValid}
-            onChange={(event) => setParticipant(event.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            Your number in the box's bookingboard; Chalk picks your bookings out by it.
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <p
-            role="status"
-            className={
-              save.type === "error" ? "text-sm text-destructive" : "text-sm text-muted-foreground"
-            }
-          >
-            {save.type === "error"
-              ? save.message
-              : save.type === "saved"
-                ? "Connected. The plan and import pages can pull the box's program now."
-                : null}
-          </p>
-          <Button type="submit" disabled={!ready}>
-            {save.type === "saving"
-              ? "Checking..."
-              : status._tag === "connected"
-                ? "Replace token"
-                : "Connect"}
-          </Button>
-        </div>
-      </form>
+      ) : null}
+      {showForm ? (
+        <form onSubmit={handleSubmit} className="grid divide-y border-b bg-card">
+          <div className="grid content-start gap-1.5 px-4 pb-3 pt-2">
+            <label htmlFor={`${id}-token`} className="form-label text-muted-foreground">
+              {status._tag === "connected" ? "New token" : "Token"}
+            </label>
+            <Input
+              id={`${id}-token`}
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="eyJhbGciOi..."
+              value={token}
+              onChange={(event) => {
+                setToken(event.target.value);
+                if (save.type !== "saving") setSave({ type: "idle" });
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Log in at box7100.bookingboard.io, open the developer tools, find the site's cookies
+              (Application, then Cookies) and copy the value of <code>jwt</code>. It lasts 30 days.
+            </p>
+          </div>
+          <div className="grid content-start gap-1.5 px-4 pb-3 pt-2">
+            <label htmlFor={`${id}-participant`} className="form-label text-muted-foreground">
+              Participant id
+            </label>
+            <Input
+              id={`${id}-participant`}
+              inputMode="numeric"
+              autoComplete="off"
+              className="max-w-40"
+              value={participant}
+              aria-invalid={participant.trim() !== "" && !participantValid}
+              onChange={(event) => setParticipant(event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Your number in the box's bookingboard; Chalk picks your bookings out by it.
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <p
+              role="status"
+              className={
+                save.type === "error" ? "text-sm text-destructive" : "text-sm text-muted-foreground"
+              }
+            >
+              {save.type === "error" ? save.message : null}
+            </p>
+            <div className="flex shrink-0 gap-1.5">
+              {replacing ? (
+                <Button variant="ghost" onClick={() => setReplacing(false)}>
+                  Cancel
+                </Button>
+              ) : null}
+              <Button type="submit" disabled={!ready}>
+                {save.type === "saving"
+                  ? "Checking..."
+                  : status._tag === "connected"
+                    ? "Replace token"
+                    : "Connect"}
+              </Button>
+            </div>
+          </div>
+        </form>
+      ) : save.type === "saved" || save.type === "error" ? (
+        <p
+          role="status"
+          className={
+            save.type === "error"
+              ? "border-b bg-card px-4 py-2.5 text-sm text-destructive"
+              : "border-b bg-card px-4 py-2.5 text-sm text-muted-foreground"
+          }
+        >
+          {save.type === "error"
+            ? save.message
+            : "Connected. The plan and import pages can pull the box's program now."}
+        </p>
+      ) : null}
     </section>
   );
 }

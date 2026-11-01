@@ -22,6 +22,8 @@ import { Route as StrengthRouteImport } from './routes/strength'
 import { Route as WorkoutsRouteImport } from './routes/workouts'
 import { Route as BenchmarksIndexRouteImport } from './routes/benchmarks.index'
 import { Route as BenchmarksBenchmarkIdRouteImport } from './routes/benchmarks.$benchmarkId'
+import { Route as SettingsIndexRouteImport } from './routes/settings.index'
+import { Route as SettingsConnectionsRouteImport } from './routes/settings.connections'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -88,6 +90,16 @@ const BenchmarksBenchmarkIdRoute = BenchmarksBenchmarkIdRouteImport.update({
   path: '/benchmarks/$benchmarkId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsConnectionsRoute = SettingsConnectionsRouteImport.update({
+  id: '/connections',
+  path: '/connections',
+  getParentRoute: () => SettingsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -98,11 +110,13 @@ export interface FileRoutesByFullPath {
   '/log': typeof LogRoute
   '/plan': typeof PlanRoute
   '/power': typeof PowerRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/strength': typeof StrengthRoute
   '/workouts': typeof WorkoutsRoute
   '/benchmarks/$benchmarkId': typeof BenchmarksBenchmarkIdRoute
+  '/settings/connections': typeof SettingsConnectionsRoute
   '/benchmarks/': typeof BenchmarksIndexRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -113,11 +127,12 @@ export interface FileRoutesByTo {
   '/log': typeof LogRoute
   '/plan': typeof PlanRoute
   '/power': typeof PowerRoute
-  '/settings': typeof SettingsRoute
   '/strength': typeof StrengthRoute
   '/workouts': typeof WorkoutsRoute
   '/benchmarks/$benchmarkId': typeof BenchmarksBenchmarkIdRoute
+  '/settings/connections': typeof SettingsConnectionsRoute
   '/benchmarks': typeof BenchmarksIndexRoute
+  '/settings': typeof SettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -129,11 +144,13 @@ export interface FileRoutesById {
   '/log': typeof LogRoute
   '/plan': typeof PlanRoute
   '/power': typeof PowerRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/strength': typeof StrengthRoute
   '/workouts': typeof WorkoutsRoute
   '/benchmarks/$benchmarkId': typeof BenchmarksBenchmarkIdRoute
+  '/settings/connections': typeof SettingsConnectionsRoute
   '/benchmarks/': typeof BenchmarksIndexRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -150,7 +167,9 @@ export interface FileRouteTypes {
     | '/strength'
     | '/workouts'
     | '/benchmarks/$benchmarkId'
+    | '/settings/connections'
     | '/benchmarks/'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -161,11 +180,12 @@ export interface FileRouteTypes {
     | '/log'
     | '/plan'
     | '/power'
-    | '/settings'
     | '/strength'
     | '/workouts'
     | '/benchmarks/$benchmarkId'
+    | '/settings/connections'
     | '/benchmarks'
+    | '/settings'
   id:
     | '__root__'
     | '/'
@@ -180,7 +200,9 @@ export interface FileRouteTypes {
     | '/strength'
     | '/workouts'
     | '/benchmarks/$benchmarkId'
+    | '/settings/connections'
     | '/benchmarks/'
+    | '/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -192,7 +214,7 @@ export interface RootRouteChildren {
   LogRoute: typeof LogRoute
   PlanRoute: typeof PlanRoute
   PowerRoute: typeof PowerRoute
-  SettingsRoute: typeof SettingsRoute
+  SettingsRoute: typeof SettingsRouteWithChildren
   StrengthRoute: typeof StrengthRoute
   WorkoutsRoute: typeof WorkoutsRoute
   BenchmarksBenchmarkIdRoute: typeof BenchmarksBenchmarkIdRoute
@@ -292,8 +314,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BenchmarksBenchmarkIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/': {
+      id: '/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/connections': {
+      id: '/settings/connections'
+      path: '/connections'
+      fullPath: '/settings/connections'
+      preLoaderRoute: typeof SettingsConnectionsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
   }
 }
+
+interface SettingsRouteChildren {
+  SettingsConnectionsRoute: typeof SettingsConnectionsRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsConnectionsRoute: SettingsConnectionsRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -304,7 +354,7 @@ const rootRouteChildren: RootRouteChildren = {
   LogRoute: LogRoute,
   PlanRoute: PlanRoute,
   PowerRoute: PowerRoute,
-  SettingsRoute: SettingsRoute,
+  SettingsRoute: SettingsRouteWithChildren,
   StrengthRoute: StrengthRoute,
   WorkoutsRoute: WorkoutsRoute,
   BenchmarksBenchmarkIdRoute: BenchmarksBenchmarkIdRoute,

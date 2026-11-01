@@ -59,8 +59,10 @@ the `web` container with `options: env-file`, so Docker reads it on the VM.
   then `kamal app boot` or redeploy.
 - The value shows in `docker inspect` on the VM, like any container env.
 
-The bookingboard token is not a deploy secret: the athlete pastes it in Settings and it lives in
-the database (see [domain](domain.md#bookingboard-built)), so a copy of the volume holds it.
+The bookingboard token and the Garmin tokens are not deploy secrets: the athlete pastes them in
+Settings, Connections and they live in the database (see [domain](domain.md#bookingboard-built)
+and [Garmin](domain.md#garmin-connect-built)), so a copy of the volume holds them. The Garmin
+refresh token is a standing login to the athlete's Garmin account.
 
 ## The VM
 

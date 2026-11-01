@@ -18,6 +18,7 @@ import * as CatalogStore from "./catalog/CatalogStore.ts";
 import * as CoachService from "./coach/CoachService.ts";
 import * as CoachStore from "./coach/CoachStore.ts";
 import * as ServerConfig from "./config.ts";
+import * as Garmin from "./garmin/Garmin.ts";
 import * as Sqlite from "./persistence/Sqlite.ts";
 import * as ImportStore from "./import/ImportStore.ts";
 import * as LevelStore from "./levels/LevelStore.ts";
@@ -38,6 +39,7 @@ const layerStores = Layer.mergeAll(
   CoachStore.layer,
   PlanStore.layer,
   ProfileStore.layer,
+  Garmin.layer.pipe(Layer.provide(Layer.mergeAll(ProfileStore.layer, FetchHttpClient.layer))),
   PowerStore.layer,
   Bookingboard.layer.pipe(Layer.provide(FetchHttpClient.layer)),
   RestDayStore.layer,
@@ -45,11 +47,11 @@ const layerStores = Layer.mergeAll(
   LevelStore.layer.pipe(Layer.provide(CatalogStore.layer)),
 ).pipe(Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)));
 
-/** The stores, plus the coach that reads them through its tools. */
-const layerServices = CoachService.layer.pipe(
-  Layer.provide(CoachService.layerModel),
-  Layer.provideMerge(layerStores),
-);
+/** The stores, plus the coach that reads them through its tools, and the timed Garmin read. */
+const layerServices = Layer.mergeAll(
+  CoachService.layer.pipe(Layer.provide(CoachService.layerModel)),
+  Garmin.layerTimedSync,
+).pipe(Layer.provideMerge(layerStores));
 
 /**
  * The app's RPC endpoint. Newline-delimited JSON, so a streamed reply (the coach's reads)

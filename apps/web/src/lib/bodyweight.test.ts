@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { bodyweightRows, bodyweightTrend, parseMeasure, shiftDay } from "./bodyweight.ts";
+import {
+  bodyweightRows,
+  bodyweightTrend,
+  parseMeasure,
+  shiftDay,
+  trailingAverage,
+} from "./bodyweight.ts";
 
 const entries = [
   { performedOn: "2026-10-28", kg: 84.6 },
@@ -43,5 +49,22 @@ describe("bodyweightTrend", () => {
 
   it("is undefined without weigh-ins", () => {
     expect(bodyweightTrend([], 30)).toBeUndefined();
+  });
+});
+
+describe("trailingAverage", () => {
+  it("means each weigh-in with the ones in the days before it, a lone one on its own", () => {
+    const daily = [
+      { performedOn: "2026-10-03", kg: 85 },
+      { performedOn: "2026-10-01", kg: 84 },
+      { performedOn: "2026-10-02", kg: 86 },
+      { performedOn: "2026-10-20", kg: 83 },
+    ];
+    expect(trailingAverage(daily, 2).map((entry) => [entry.performedOn, entry.average])).toEqual([
+      ["2026-10-01", 84],
+      ["2026-10-02", 85],
+      ["2026-10-03", 85.5],
+      ["2026-10-20", 83],
+    ]);
   });
 });

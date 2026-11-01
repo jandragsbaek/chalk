@@ -12,6 +12,7 @@ export * from "./levelOverview.ts";
 export * from "./sessionImport.ts";
 export * from "./plan.ts";
 export * from "./bookingboard.ts";
+export * from "./garmin.ts";
 export * from "./profile.ts";
 export * from "./restDay.ts";
 export * from "./training.ts";

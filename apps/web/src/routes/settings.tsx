@@ -1,45 +1,35 @@
-import { useAtomValue } from "@effect/atom-react";
-import { createFileRoute } from "@tanstack/react-router";
-import * as AsyncResult from "effect/reactivity/AsyncResult";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 
-import { AthleteForm } from "../components/settings/AthleteForm.tsx";
-import { BodyweightLog } from "../components/settings/BodyweightLog.tsx";
-import { BookingboardForm } from "../components/settings/BookingboardForm.tsx";
-import { profileAtom } from "../state/profile.ts";
+export const Route = createFileRoute("/settings")({ component: SettingsLayout });
 
-export const Route = createFileRoute("/settings")({ component: SettingsPage });
+const TABS = [
+  { to: "/settings", label: "Profile", exact: true },
+  { to: "/settings/connections", label: "Connections", exact: false },
+] as const;
 
-/**
- * The athlete's profile: who is training (sex, height, limbs) and bodyweight over time, and the
- * box's bookingboard login.
- */
-function SettingsPage() {
+/** Settings: the athlete's profile, and the outside services Chalk reads from. */
+function SettingsLayout() {
   return (
     <main className="mx-auto grid w-full max-w-6xl content-start gap-8 px-6 pt-8 pb-16">
-      <h1 className="protocol-title justify-self-start border-b-2 border-foreground pb-1.5 text-4xl">
-        Settings
-      </h1>
-      <ProfileSections />
+      <div className="grid gap-4">
+        <h1 className="protocol-title justify-self-start border-b-2 border-foreground pb-1.5 text-4xl">
+          Settings
+        </h1>
+        <nav aria-label="Settings" className="flex border-b">
+          {TABS.map((tab) => (
+            <Link
+              key={tab.to}
+              to={tab.to}
+              activeOptions={{ exact: tab.exact }}
+              data-sub-tab
+              className="flex items-center"
+            >
+              {tab.label}
+            </Link>
+          ))}
+        </nav>
+      </div>
+      <Outlet />
     </main>
   );
-}
-
-function ProfileSections() {
-  return AsyncResult.match(useAtomValue(profileAtom), {
-    onInitial: () => <p className="text-sm text-muted-foreground">Loading your profile...</p>,
-    onFailure: () => (
-      <p className="text-sm text-destructive">
-        Could not load your profile. Is the server running?
-      </p>
-    ),
-    onSuccess: ({ value }) => (
-      <div className="grid grid-cols-[minmax(0,24rem)_minmax(0,1fr)] items-start gap-10">
-        <div className="grid content-start gap-10">
-          <AthleteForm profile={value} />
-          <BookingboardForm />
-        </div>
-        <BodyweightLog entries={value.bodyweights} />
-      </div>
-    ),
-  });
 }

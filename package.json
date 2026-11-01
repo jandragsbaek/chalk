@@ -13,6 +13,7 @@
     "fmt": "vp fmt",
     "fmt:check": "vp fmt --check",
     "openapi": "vp run --filter @chalk/contracts openapi",
+    "garmin:login": "uv run --script scripts/garmin-login.py",
     "check": "vp fmt --check && vp lint --report-unused-disable-directives && vp run -r --cache typecheck && vp run -r test"
   },
   "devDependencies": {
