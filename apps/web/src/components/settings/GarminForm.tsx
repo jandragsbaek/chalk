@@ -1,7 +1,7 @@
 import type { GarminStatus, IsoDate } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, Textarea } from "@chalk/ui/components/field.tsx";
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useAtomRefresh, useAtomSet, useAtomValue } from "@effect/atom-react";
 import * as Cause from "effect/Cause";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
@@ -18,7 +18,7 @@ import {
   garminStatusAtom,
   syncGarminAtom,
 } from "../../state/garmin.ts";
-import { PROFILE_REACTIVITY_KEY } from "../../state/profile.ts";
+import { PROFILE_REACTIVITY_KEY, profileAtom } from "../../state/profile.ts";
 import { FieldBox } from "../FieldBox.tsx";
 import { SectionHead } from "../today/SectionHead.tsx";
 import { ConnectionVerdict } from "./ConnectionStatus.tsx";
@@ -75,6 +75,14 @@ function GarminConnection({ status }: { readonly status: GarminStatus }) {
   const connect = useAtomSet(connectGarminAtom, { mode: "promiseExit" });
   const sync = useAtomSet(syncGarminAtom, { mode: "promiseExit" });
   const disconnect = useAtomSet(disconnectGarminAtom, { mode: "promiseExit" });
+  // A failed connect or read still saves the connection, its error and any weigh-ins it got,
+  // but a mutation only refetches its keys on success: read them again by hand then.
+  const refreshStatus = useAtomRefresh(garminStatusAtom);
+  const refreshProfile = useAtomRefresh(profileAtom);
+  const refreshAfterFailure = () => {
+    refreshStatus();
+    refreshProfile();
+  };
   const [today] = useState(() => localIsoDate(new Date()));
   const [tokens, setTokens] = useState("");
   const [importFrom, setImportFrom] = useState<string>(() =>
@@ -101,6 +109,7 @@ function GarminConnection({ status }: { readonly status: GarminStatus }) {
       reactivityKeys: REACTIVITY_KEYS,
     });
     if (Exit.isFailure(exit)) {
+      refreshAfterFailure();
       setWork({ type: "error", message: failureMessage(exit, "Could not connect. Try again.") });
       return;
     }
@@ -123,6 +132,7 @@ function GarminConnection({ status }: { readonly status: GarminStatus }) {
       setWork({ type: "done", message: "Read the scale's latest weigh-ins." });
       return;
     }
+    refreshAfterFailure();
     // A refused or unanswered read is kept on the connection, and the strip above says it.
     const failure = Cause.findErrorOption(exit.cause);
     const shown =
