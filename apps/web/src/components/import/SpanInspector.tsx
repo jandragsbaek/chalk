@@ -38,7 +38,7 @@ import { CoreMovementField } from "./CoreMovementField.tsx";
 import { MovementLevelsField } from "./MovementLevelsField.tsx";
 import { MovementPicker } from "./MovementPicker.tsx";
 import { PerformanceEditor } from "./PerformanceEditor.tsx";
-import { ResultEditor } from "./ResultEditor.tsx";
+import { ResultEditor, type ComplexAction } from "./ResultEditor.tsx";
 
 const TAG_TITLES: Record<Span["_tag"], string> = {
   movement: "Movement",
@@ -292,6 +292,7 @@ export function SpanInspector({
         readonly item: DerivedItem;
         readonly defaults: ResultDefaults;
         readonly grade: ItemGrade | undefined;
+        readonly complex: ComplexAction | undefined;
       }
     | undefined;
   readonly onUpdate: (span: Span) => void;
@@ -685,6 +686,7 @@ function MovementMark({
         readonly item: DerivedItem;
         readonly defaults: ResultDefaults;
         readonly grade: ItemGrade | undefined;
+        readonly complex: ComplexAction | undefined;
       }
     | undefined;
   readonly mode: "log" | "plan";
@@ -753,6 +755,7 @@ function MovementMark({
           result={span.result}
           item={programmed.item}
           defaults={programmed.defaults}
+          complex={programmed.complex}
           onChange={(result: LiftResult | undefined) => {
             const { result: _old, ...rest } = span;
             onUpdate(result === undefined ? rest : { ...rest, result });

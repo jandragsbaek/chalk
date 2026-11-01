@@ -44,6 +44,12 @@ function Field({
   );
 }
 
+/** The other movements on the line, lifted on the same bar: one result fills them all. */
+export interface ComplexAction {
+  readonly names: ReadonlyArray<string>;
+  readonly onApply: (result: LiftResult) => void;
+}
+
 /**
  * What was lifted for a programmed movement: every set at one load, a ramp by a fixed step, or
  * set by set. A complete form is the movement's result; the protocol and the total follow it.
@@ -53,12 +59,14 @@ export function ResultEditor({
   item,
   defaults,
   onChange,
+  complex,
 }: {
   readonly result: LiftResult | undefined;
   /** The derived item, for what will be saved (empty when the result has a problem). */
   readonly item: DerivedItem;
   readonly defaults: ResultDefaults;
   readonly onChange: (result: LiftResult | undefined) => void;
+  readonly complex?: ComplexAction | undefined;
 }) {
   const [draft, setDraft] = useState(() => draftFromResult(result, defaults));
 
@@ -74,7 +82,8 @@ export function ResultEditor({
       rows: draft.rows.map((row, at) => (at === index ? { ...row, [key]: value } : row)),
     });
 
-  const complete = draft.mode !== undefined && resultFromDraft(draft) !== undefined;
+  const current = draft.mode === undefined ? undefined : resultFromDraft(draft);
+  const complete = current !== undefined;
 
   return (
     <div className="grid gap-3 border-t pt-3">
@@ -211,6 +220,22 @@ export function ResultEditor({
             : "Fill in every field to count it."}
         </p>
       )}
+
+      {complex !== undefined && current !== undefined ? (
+        <div className="grid gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-fit"
+            onClick={() => complex.onApply(current)}
+          >
+            Same for {complex.names.join(" and ")}
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            The sets and loads of this complex; each movement keeps its own reps.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
