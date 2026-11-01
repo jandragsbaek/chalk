@@ -1,4 +1,5 @@
 import type { Amount, BlockFormat, BlockParams, Measure, Quantity } from "../sessionImport.ts";
+import { parseTierPairs, withTiers } from "./tiers.ts";
 
 /** Low-level text recognizers shared by the suggester and the editor's "tag selection" actions. */
 
@@ -69,6 +70,9 @@ interface Recognizer {
   readonly read: (match: RegExpExecArray, text: string) => ReadonlyArray<QuantityMatch> | undefined;
 }
 
+/** Counts a board may write per level ("18-15/15-12 cal"); loads and intensities never are. */
+const TIERED: ReadonlySet<Measure> = new Set(["reps", "calories", "distance_m"]);
+
 const quantityOf = (
   measure: Measure,
   raw: string,
@@ -78,12 +82,26 @@ const quantityOf = (
 ): Quantity => {
   const { amount, scheme } = parseRange(raw);
   const female = femaleRaw === undefined ? undefined : parseRange(femaleRaw).amount;
-  return {
+  const tiers =
+    femaleRaw === undefined || !TIERED.has(measure)
+      ? undefined
+      : parseTierPairs([raw, femaleRaw].map((side) => side.split(/\s*-\s*/).map(toNumber)));
+  const quantity: Quantity = {
     measure,
     amount: scale(amount, factor, round),
     ...(female === undefined ? {} : { female: scale(female, factor, round) }),
     ...(scheme === undefined ? {} : { scheme }),
   };
+  return tiers === undefined
+    ? quantity
+    : withTiers(
+        quantity,
+        tiers.map((tier) => ({
+          ...tier,
+          amount: scale(tier.amount, factor, round),
+          ...(tier.female === undefined ? {} : { female: scale(tier.female, factor, round) }),
+        })),
+      );
 };
 
 const whole = (match: RegExpExecArray, quantity: Quantity): ReadonlyArray<QuantityMatch> => [
@@ -198,8 +216,8 @@ const RECOGNIZERS: ReadonlyArray<Recognizer> = [
     read: (match) => whole(match, quantityOf("reps", match[1]!)),
   },
   {
-    pattern: new RegExp(String.raw`(${R})\s*reps?(?!\p{L})`, "giu"),
-    read: (match) => whole(match, quantityOf("reps", match[1]!)),
+    pattern: new RegExp(String.raw`(${R})(?:\s*\/\s*(${R}))?\s*reps?(?!\p{L})`, "giu"),
+    read: (match) => whole(match, quantityOf("reps", match[1]!, match[2])),
   },
   {
     // "150 kg x 3": reps after a load.

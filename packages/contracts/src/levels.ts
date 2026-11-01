@@ -171,15 +171,16 @@ export const VariantReps = Schema.Struct({ movementId: MovementId, reps: Count }
 export type VariantReps = typeof VariantReps.Type;
 
 /**
- * How a programmed movement was actually done, entered after the fact. Present but empty means
- * "as prescribed". `loadKg` is per implement; `variants` splits the reps by variation ("6
- * kipping, 44 jumping"); `unbroken` is the biggest unbroken set of the hardest variation done.
+ * How a programmed movement was done; empty means "as prescribed". `loadKg` is per implement,
+ * `variants` splits the reps ("6 kipping, 44 jumping"), `unbroken` is the biggest unbroken set of
+ * the hardest variation, `perRound` the count reached each round, worst to best ("7-8" cal).
  */
 export const Performance = Schema.Struct({
   loadKg: Schema.optionalKey(NonNegative),
   implements: Schema.optionalKey(Schema.Literals([1, 2])),
   variants: Schema.optionalKey(Schema.Array(VariantReps)),
   unbroken: Schema.optionalKey(Count),
+  perRound: Schema.optionalKey(Schema.Struct({ min: NonNegative, max: NonNegative })),
 }).annotate({ identifier: "Performance" });
 export type Performance = typeof Performance.Type;
 

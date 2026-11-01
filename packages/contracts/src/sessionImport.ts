@@ -10,7 +10,7 @@ import {
   WorkoutId,
 } from "./baseSchemas.ts";
 import { Debrief } from "./debrief.ts";
-import { Complement, LevelFamilyId, Performance } from "./levels.ts";
+import { Complement, Level, LevelFamilyId, Performance } from "./levels.ts";
 import { MovementCategory } from "./strength.ts";
 
 /**
@@ -43,6 +43,14 @@ const NonNegative = Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0));
 export const Amount = Schema.Struct({ min: NonNegative, max: NonNegative });
 export type Amount = typeof Amount.Type;
 
+/** One level's target where the board writes several: "18-15" of "18-15/15-12 cal" is Elite's. */
+export const QuantityTier = Schema.Struct({
+  level: Level,
+  amount: Amount,
+  female: Schema.optionalKey(Amount),
+}).annotate({ identifier: "QuantityTier" });
+export type QuantityTier = typeof QuantityTier.Type;
+
 export const Quantity = Schema.Struct({
   measure: Measure,
   amount: Amount,
@@ -50,6 +58,12 @@ export const Quantity = Schema.Struct({
   female: Schema.optionalKey(Amount),
   /** Reps per round, e.g. 21-15-9; `amount` is then the total. */
   scheme: Schema.optionalKey(Schema.Array(NonNegative)),
+  /**
+   * Targets by level, hardest first: "18-15/15-12 cal" is 18/15 at Elite and 15/12 at RX.
+   * `amount` and `female` then span the tiers (15-18, 12-15), so anything reading one number
+   * still reads the board's range.
+   */
+  tiers: Schema.optionalKey(Schema.Array(QuantityTier)),
 }).annotate({ identifier: "Quantity" });
 export type Quantity = typeof Quantity.Type;
 

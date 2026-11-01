@@ -99,7 +99,9 @@ muscle-up). The sheet is data in `packages/contracts/src/levels.ts` (`LEVEL_FAMI
 - **Performance** (on the movement span, stored as `workout_items.performance`): how it was
   done. Empty means as prescribed; `loadKg` per implement and `implements` (1 or 2); `variants`
   splits the reps ("6 pull-ups, 44 jumping"); `unbroken` is the biggest unbroken set of the
-  hardest variation. A lift result's heaviest set counts as the load. A swap to another family
+  hardest variation; `perRound` is the count reached each round, worst to best ("7-8" cal),
+  offered for counted items (not sets × reps) and placed on the item's tiers ("under RX (15)").
+  A lift result's heaviest set counts as the load. A swap to another family
   (dumbbell for barbell thrusters) is graded on the family it belongs to.
 - **Performed level** of a variant family: the highest rung more than half the reps reached.
   **Capability**: the hardest variation done at all (with its unbroken set), or for loads the
@@ -247,6 +249,12 @@ re-derivable.
   scheme, `attachedTo` a movement), `score` (attached to a block), `notes`, `intent` (the coach's
   instruction for the block it sits in). Spans never overlap.
 - Measures include `rpe` ("@RPE 8", "RPE 7-8", "@8 RPE"), written after its movement like loads.
+- **Targets by level.** A count can carry `tiers`, hardest first, each a level with its male and
+  female number: "18-15/15-12 cal row" is 18/15 at Elite and 15/12 at RX. The parser reads a
+  count as tiers when both dash pairs fall ("8-10/6-8" stays a male and a female range); the
+  inspector turns a range into levels ("Ends are levels") and back, and edits each level.
+  `amount` and `female` still span the tiers (15-18, 12-15), so everything reading one number
+  is unchanged.
 - **Intent** marks whole lines ("Build to a heavy single", "70-80% of the above", "RPE 7-8"). It
   belongs to the block it sits in and is stored on `workout_blocks.intent` as JSON
   `[{ text, quantities }]`, with any RPE, % or load in its text read into `quantities`.
