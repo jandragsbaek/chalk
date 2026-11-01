@@ -9,6 +9,7 @@ import {
   TrimmedNonEmptyString,
   WorkoutId,
 } from "./baseSchemas.ts";
+import { Coaching } from "./coaching.ts";
 import { Debrief } from "./debrief.ts";
 import { Complement, Level, LevelFamilyId, Performance } from "./levels.ts";
 import { MovementCategory } from "./strength.ts";
@@ -163,6 +164,11 @@ export const ImportDocument = Schema.Struct({
   performedOn: Schema.optionalKey(IsoDate),
   /** The athlete's debrief, entered in the editor rather than read from the text. */
   debrief: Schema.optionalKey(Debrief),
+  /**
+   * Who coached the session, or that it was done alone: filled from the bookingboard class it
+   * was pulled from, or entered in the editor. A plan keeps it for the session logged from it.
+   */
+  coaching: Schema.optionalKey(Coaching),
 }).annotate({ identifier: "ImportDocument" });
 export type ImportDocument = typeof ImportDocument.Type;
 

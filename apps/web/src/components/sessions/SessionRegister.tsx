@@ -1,4 +1,4 @@
-import type { MovementId, PartRef, SessionEntry } from "@chalk/contracts";
+import { coachingPhrase, type MovementId, type PartRef, type SessionEntry } from "@chalk/contracts";
 import { Badge } from "@chalk/ui/components/badge.tsx";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, NativeSelect } from "@chalk/ui/components/field.tsx";
@@ -87,6 +87,9 @@ function Row({
           </span>
           <span className="truncate text-xs text-muted-foreground">
             {entry._tag === "workout" ? WORKOUT_KIND_LABELS[entry.workout.kind] : "Lift sets"}
+            {entry._tag === "workout" && entry.workout.coaching
+              ? ` · ${coachingPhrase(entry.workout.coaching)}`
+              : ""}
             {movements === "" ? "" : ` · ${movements}`}
           </span>
         </span>

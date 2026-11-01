@@ -1,6 +1,7 @@
 import * as Schema from "effect/Schema";
 
 import { IsoDate, IsoDateTime, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import type { Coaching } from "./coaching.ts";
 
 /**
  * The box's booking system (bookingboard.io): Chalk reads the program of the classes the athlete
@@ -36,6 +37,7 @@ export const BookingboardClass = Schema.Struct({
   title: Schema.String,
   /** Start, box-local "HH:MM". */
   startsAt: Schema.String,
+  /** The class's instructors as bookingboard names them ("Rikke L."); `null` when none is set. */
   coach: Schema.NullOr(Schema.String),
   /** Bookingboard's attendance: "OnTime" / "TooLate" attended; anything else booked only. */
   status: Schema.String,
@@ -48,8 +50,24 @@ export type BookingboardClass = typeof BookingboardClass.Type;
 export const BookingboardDay = Schema.Struct({
   date: IsoDate,
   classes: Schema.Array(BookingboardClass),
+  /** Booked on a class without a program that day: open gym, trained without a coach. */
+  openGym: Schema.Boolean,
 }).annotate({ identifier: "BookingboardDay" });
 export type BookingboardDay = typeof BookingboardDay.Type;
+
+/** A pulled class's coach; none when bookingboard names nobody for it. */
+export const classCoaching = (entry: BookingboardClass): Coaching | undefined =>
+  entry.coach === null ? undefined : { _tag: "coached", coach: entry.coach };
+
+/**
+ * Who coached the athlete on a day, by its bookings: its one class's coach, or solo when no class
+ * with a program was booked (open gym, or nothing). Several classes leave it to the athlete.
+ */
+export const dayCoaching = (day: BookingboardDay): Coaching | undefined => {
+  const [only, ...rest] = day.classes;
+  if (only === undefined) return { _tag: "solo" };
+  return rest.length === 0 ? classCoaching(only) : undefined;
+};
 
 export class BookingboardNotConnectedError extends Schema.TaggedError<BookingboardNotConnectedError>()(
   "BookingboardNotConnectedError",

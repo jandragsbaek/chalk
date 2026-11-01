@@ -1,6 +1,7 @@
 import {
   benchmarkById,
   deriveSession,
+  describeCoaching,
   describeDebrief,
   estimateBenchmarkWork,
   estimateSessionWork,
@@ -389,6 +390,15 @@ export function SessionSheet({
             </FieldBox>
           ) : null}
           <FieldBox label="Date">{formatDay(day)}</FieldBox>
+          {entry._tag === "workout" ? (
+            <FieldBox label="Coached by">
+              {entry.workout.coaching ? (
+                describeCoaching(entry.workout.coaching)
+              ) : (
+                <span data-empty aria-label="Not recorded" />
+              )}
+            </FieldBox>
+          ) : null}
           {entry._tag === "workout" ? (
             <FieldBox label="Kind">{WORKOUT_KIND_LABELS[entry.workout.kind]}</FieldBox>
           ) : null}

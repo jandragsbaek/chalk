@@ -110,7 +110,7 @@ describe("Bookingboard", () => {
       const day = yield* board.day("2026-10-30");
 
       // Class 1 once despite two bookings; 2 opted out; 3 is open gym (no program) at the box's
-      // midnight; 4 the day before; 5 someone else's.
+      // midnight, so only `openGym`; 4 the day before; 5 someone else's.
       expect(day).toEqual({
         date: "2026-10-30",
         classes: [
@@ -131,6 +131,7 @@ describe("Bookingboard", () => {
             text: "*** Workout\n**** Workout #1\n- EMOM 16\n- 12 Burpee over rower",
           },
         ],
+        openGym: true,
       });
       expect(calls.every((call) => call.method === "GET")).toBe(true);
       expect(calls.every((call) => call.authorization === `Bearer ${TOKEN}`)).toBe(true);

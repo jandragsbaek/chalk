@@ -1,7 +1,9 @@
 import {
+  classCoaching,
   PlanId,
   WorkoutId,
   type CatalogMovement,
+  type Coaching,
   type ImportDocument,
   type ImportSummary,
 } from "@chalk/contracts";
@@ -97,8 +99,10 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
   const [saved, setSaved] = useState<ImportSummary | undefined>();
   const [today] = useState(() => localIsoDate(new Date()));
   const [boardDay, setBoardDay] = useState(yesterday);
-  // The day of the pulled program: board text has no date line, so the draft carries it.
-  const [pulledOn, setPulledOn] = useState<string | undefined>();
+  // The pulled class's day and coach: board text has neither, so the draft carries them.
+  const [pulled, setPulled] = useState<
+    { readonly on: string; readonly coaching: Coaching | undefined } | undefined
+  >();
   const imported = AsyncResult.getOrElse(useAtomValue(importsAtom), () => []);
   const importedOnDay = imported.find((entry) => entry.performedOn === boardDay);
 
@@ -109,7 +113,14 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
     const document = suggestDocument(text.replace(/\r\n/g, "\n").trimEnd(), catalog);
     setDraft({
       key: Date.now(),
-      document: pulledOn === undefined ? document : { ...document, performedOn: pulledOn },
+      document:
+        pulled === undefined
+          ? document
+          : {
+              ...document,
+              performedOn: pulled.on,
+              ...(pulled.coaching === undefined ? {} : { coaching: pulled.coaching }),
+            },
     });
   }
 
@@ -124,7 +135,7 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
           setSaved(summary);
           setDraft(undefined);
           setText("");
-          setPulledOn(undefined);
+          setPulled(undefined);
         }}
         onDiscard={() => setDraft(undefined)}
       />
@@ -172,7 +183,7 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
               disabled={boardDay === ""}
               onPulled={(entry) => {
                 setText(entry.text);
-                setPulledOn(boardDay);
+                setPulled({ on: boardDay, coaching: classCoaching(entry) });
               }}
             />
           </div>
@@ -191,7 +202,7 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
               value={text}
               onChange={(event) => {
                 setText(event.target.value);
-                if (event.target.value.trim() === "") setPulledOn(undefined);
+                if (event.target.value.trim() === "") setPulled(undefined);
               }}
               placeholder="Paste a session, from its ** Session heading down to its notes, or pull a class from bookingboard and add your results"
               className="min-h-96"

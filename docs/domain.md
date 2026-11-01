@@ -437,13 +437,26 @@ Read-only: GET requests only, never booking or check-in.
   The server keeps only the athlete's, not opted out, whose start is on the day in
   Europe/Copenhagen (bookingboard mixes `+00:00` and local offsets), and discards the rest
   without storing or logging it. Each class's `GET /classes/{id}` gives `program.workouts`
-  (HTML `text`, else `description`); classes without one (open gym) are left out.
+  (HTML `text`, else `description`); classes without one (open gym) are left out, and only
+  set `openGym` on the day.
 - **Program text** (`program.ts`): the workouts as the athlete's org notes write them
   (`*** Workout`, `**** <title>`, `- <line>`), so `suggestSpans` marks them like a pasted
   session. Lines keep their leading `*` (a coach comment, read as intent).
 - Web: "Pull from bookingboard" on `/plan` (today) and on `/import` (a picked day, yesterday by
   default). It fills the text box; several classes on a day ask which one. On `/import` the
   draft takes the picked day as its date, since board text has no date line.
+- **Coached by** (`Coaching`: `coached { coach }` or `solo`; absent = not recorded): who ran a
+  session, or that the athlete trained alone. The coach is the class's `instructors[].name`
+  ("Rikke L."), joined if several; checked against the live API (Sep to Oct 2026), every class
+  with a program names exactly one and the program text never does, so the text is not read
+  for it. Open gym classes have no instructor and no program. A pulled class puts its coach on
+  the draft (`ImportDocument.coaching`), a plan keeps it for the session logged from it, and the
+  workbench header edits it ("Solo" typed or picked is alone; earlier sessions' coaches are
+  offered). Its look-up reads the day (`dayCoaching`): one class with a program, its coach;
+  none (only open gym, or nothing booked), solo; several, the athlete picks. Stored on
+  `workouts.coach` / `workouts.solo` (migration `016_SessionCoaching`), written from the
+  document on save; `/log` takes it too. Shown on the session sheet and register, searchable
+  ("rikke", "solo"), and in the AI coach's `list_workouts`.
 
 ## Rest days (built)
 

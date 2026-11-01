@@ -55,7 +55,9 @@ export function BoardPull({
         setPull({
           type: "message",
           tone: "muted",
-          text: `No class with a program on ${formatDay(date)}.`,
+          text: exit.value.openGym
+            ? `Only open gym on ${formatDay(date)}: no program to pull.`
+            : `No class with a program on ${formatDay(date)}.`,
         });
       else if (rest.length === 0) pick(first);
       else setPull({ type: "choose", classes: exit.value.classes });

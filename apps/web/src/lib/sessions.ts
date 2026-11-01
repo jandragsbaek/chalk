@@ -1,4 +1,9 @@
-import type { CatalogMovement, MovementId, SessionEntry } from "@chalk/contracts";
+import {
+  describeCoaching,
+  type CatalogMovement,
+  type MovementId,
+  type SessionEntry,
+} from "@chalk/contracts";
 
 /** The day a register entry was trained. */
 export const entryDay = (entry: SessionEntry): string =>
@@ -12,7 +17,10 @@ export const entryKey = (entry: SessionEntry): string =>
 export const monthOf = (iso: string): string => iso.slice(0, 7);
 
 export interface SessionFilter {
-  /** Matches name, score, notes (the session's and its lift sets') and movement names, ignoring case. */
+  /**
+   * Matches name, score, notes (the session's and its lift sets'), who coached it ("Solo" too)
+   * and movement names, ignoring case.
+   */
   readonly query: string;
   /** A movement, or a core movement with its variations. */
   readonly movement: MovementId | undefined;
@@ -46,7 +54,12 @@ export function filterSessions(
     if (needle === "") return true;
     const texts = [
       ...(entry._tag === "workout"
-        ? [entry.workout.name, entry.workout.score, entry.workout.notes]
+        ? [
+            entry.workout.name,
+            entry.workout.score,
+            entry.workout.notes,
+            entry.workout.coaching === undefined ? "" : describeCoaching(entry.workout.coaching),
+          ]
         : []),
       ...entry.movementIds.map((id) => names.get(id) ?? id),
       ...entry.daySets.map((set) => set.notes),
@@ -117,3 +130,12 @@ export function movementOptions(
 /** Years with any session, newest first. */
 export const sessionYears = (entries: ReadonlyArray<SessionEntry>): ReadonlyArray<string> =>
   [...new Set(entries.map((entry) => entryDay(entry).slice(0, 4)))].sort().reverse();
+
+/** Coaches named on sessions, most recently coached first; what the coach field offers. */
+export function knownCoaches(entries: ReadonlyArray<SessionEntry>): ReadonlyArray<string> {
+  const coaches = new Set<string>();
+  for (const entry of entries)
+    if (entry._tag === "workout" && entry.workout.coaching?._tag === "coached")
+      coaches.add(entry.workout.coaching.coach);
+  return [...coaches];
+}

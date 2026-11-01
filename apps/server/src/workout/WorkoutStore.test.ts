@@ -56,6 +56,48 @@ describe("WorkoutStore", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect("records who coached a session, or that it was done alone, and finds it by coach", () =>
+    Effect.gen(function* () {
+      const store = yield* WorkoutStore.WorkoutStore;
+      const imports = yield* ImportStore.ImportStore;
+      const catalog = yield* (yield* CatalogStore.CatalogStore).list();
+      const text = "** Session 171 <2026-10-30 fr>\n**** Workout #1\n- Back squat 5x5 @100kg";
+      let next = 0;
+      const document = {
+        text,
+        spans: suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`),
+      };
+      const coached = yield* imports.save({
+        document: { ...document, coaching: { _tag: "coached", coach: "Rikke L." } },
+      });
+      yield* store.log({ ...fran, coaching: { _tag: "solo" } });
+      yield* store.log({ ...fran, performedOn: "2026-10-29", name: "Cindy" });
+
+      const sessions = yield* store.sessions();
+      expect(
+        sessions.map((entry) =>
+          entry._tag === "workout" ? [entry.workout.name, entry.workout.coaching] : [],
+        ),
+      ).toEqual([
+        ["Session 171", { _tag: "coached", coach: "Rikke L." }],
+        ["Cindy", undefined],
+        ["Fran", { _tag: "solo" }],
+      ]);
+      expect((yield* store.search("rikke")).map((workout) => workout.id)).toEqual([
+        coached.workoutId,
+      ]);
+      expect((yield* store.search("solo")).map((workout) => workout.name)).toEqual(["Fran"]);
+
+      // The document is the source: saved again without it, the session has no coach.
+      yield* imports.save({ document, replace: coached.workoutId });
+      expect((yield* store.list()).map((workout) => workout.coaching)).toEqual([
+        undefined,
+        undefined,
+        { _tag: "solo" },
+      ]);
+    }).pipe(Effect.provide(layer)),
+  );
+
   it.effect("removes a workout, and reports one that does not exist", () =>
     Effect.gen(function* () {
       const store = yield* WorkoutStore.WorkoutStore;
