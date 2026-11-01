@@ -36,6 +36,18 @@ export const BodyweightEntry = Schema.Struct({
 }).annotate({ identifier: "BodyweightEntry" });
 export type BodyweightEntry = typeof BodyweightEntry.Type;
 
+/** Where a day's bodyweight came from: typed by the athlete, or read from the Garmin scale. */
+export const BodyweightSource = Schema.Literals(["manual", "garmin"]);
+export type BodyweightSource = typeof BodyweightSource.Type;
+
+/** A stored weigh-in: the entry, where it came from and, from the scale, its local "HH:MM". */
+export const Bodyweight = Schema.Struct({
+  ...BodyweightEntry.fields,
+  source: BodyweightSource,
+  measuredAt: Schema.NullOr(Schema.String),
+}).annotate({ identifier: "Bodyweight" });
+export type Bodyweight = typeof Bodyweight.Type;
+
 /** What the settings page edits; bodyweight is logged and deleted per day instead. */
 export const AthleteBody = Schema.Struct({
   sex: Sex,
@@ -53,7 +65,7 @@ export type AthleteBody = typeof AthleteBody.Type;
  */
 export const AthleteProfile = Schema.Struct({
   ...AthleteBody.fields,
-  bodyweights: Schema.Array(BodyweightEntry),
+  bodyweights: Schema.Array(Bodyweight),
 }).annotate({ identifier: "AthleteProfile" });
 export type AthleteProfile = typeof AthleteProfile.Type;
 
@@ -70,7 +82,7 @@ export const EMPTY_ATHLETE_PROFILE: AthleteProfile = {
  * (a session before the first weigh-in uses the first one). `null` without any weigh-in.
  */
 export const bodyweightOn = (
-  profile: Pick<AthleteProfile, "bodyweights">,
+  profile: { readonly bodyweights: ReadonlyArray<BodyweightEntry> },
   date: IsoDate,
 ): number | null => {
   let before: BodyweightEntry | undefined;

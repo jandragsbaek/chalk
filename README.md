@@ -17,7 +17,10 @@ their Rx grades on the level sheet, and your attempts; logging one, or importing
 names one, links it. `/plan` takes the workout the box posts in the morning: mark it up
 like an import, plan each movement's scaling (load, or reps by variation, graded on the level
 sheet), and log it from Today after the session. A rest day is something you mark, never a gap
-Chalk guesses at: on Today (rest, sick, injured or travel), or by the coach when you agree. Where it is going:
+Chalk guesses at: on Today (rest, sick, injured or travel), or by the coach when you agree.
+Bodyweight is typed on `/settings` or read from a Garmin Index scale: `pnpm garmin:login` logs
+in to Garmin Connect once on your machine (needs [uv](https://docs.astral.sh/uv/)) and prints
+tokens to paste on `/settings/connections`, beside the box's bookingboard login. Where it is going:
 
 - [docs/domain.md](docs/domain.md): movements, scaling, workouts composed of movements, rep
   maxes, the weekly volume grid.
@@ -59,7 +62,7 @@ pnpm start        # http://127.0.0.1:4300
 
 Deploying: [docs/deploy.md](docs/deploy.md) (Docker image, Kamal, a tailnet-only lab VM).
 
-Other commands: `pnpm openapi` (regenerate `packages/contracts/openapi/admin.json`; a test fails when it is stale), `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm fmt`, and `pnpm check` (everything CI runs; [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on the lab's self-hosted runners, fork PRs on GitHub-hosted). The toolchain is [Vite+](https://viteplus.dev) (`vp`): one root `vite.config.ts` configures tests, Oxlint (with the local `oxlint-plugin-chalk/` rules and `@shadcn/lint`), Oxfmt, and the pre-commit hook, which formats and lints staged files with `vp staged`. `@effect/vitest` is patched (`patches/`) to import `vite-plus/test` instead of `vitest`. The lint setup and the rules in `oxlint-plugin-chalk/` are adapted from [T3 Code](https://github.com/pingdotgg/t3code) under its MIT license (`oxlint-plugin-chalk/LICENSE`).
+Other commands: `pnpm garmin:login` (see above), `pnpm openapi` (regenerate `packages/contracts/openapi/admin.json`; a test fails when it is stale), `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm fmt`, and `pnpm check` (everything CI runs; [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on the lab's self-hosted runners, fork PRs on GitHub-hosted). The toolchain is [Vite+](https://viteplus.dev) (`vp`): one root `vite.config.ts` configures tests, Oxlint (with the local `oxlint-plugin-chalk/` rules and `@shadcn/lint`), Oxfmt, and the pre-commit hook, which formats and lints staged files with `vp staged`. `@effect/vitest` is patched (`patches/`) to import `vite-plus/test` instead of `vitest`. The lint setup and the rules in `oxlint-plugin-chalk/` are adapted from [T3 Code](https://github.com/pingdotgg/t3code) under its MIT license (`oxlint-plugin-chalk/LICENSE`).
 
 ## How it fits together
 

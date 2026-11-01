@@ -1,6 +1,7 @@
 import {
   BookingboardStorageError,
   ChalkRpcGroup,
+  GarminStorageError,
   LevelStorageError,
   ProfileStorageError,
   PowerStorageError,
@@ -14,6 +15,7 @@ import * as Effect from "effect/Effect";
 
 import * as Bookingboard from "./bookingboard/Bookingboard.ts";
 import * as CoachService from "./coach/CoachService.ts";
+import * as Garmin from "./garmin/Garmin.ts";
 import * as LevelStore from "./levels/LevelStore.ts";
 import * as ProfileStore from "./profile/ProfileStore.ts";
 import * as PowerStore from "./power/PowerStore.ts";
@@ -53,6 +55,11 @@ const reportBookingboardStorageError = (error: Bookingboard.BookingboardPersiste
     Effect.andThen(Effect.fail(new BookingboardStorageError({ operation: error.operation }))),
   );
 
+const reportGarminStorageError = (error: Garmin.GarminPersistenceError) =>
+  Effect.logError(error.message, error.cause).pipe(
+    Effect.andThen(Effect.fail(new GarminStorageError({ operation: error.operation }))),
+  );
+
 const reportRestDayStorageError = (error: RestDayStore.RestDayPersistenceError) =>
   Effect.logError(error.message, error.cause).pipe(
     Effect.andThen(Effect.fail(new RestDayStorageError({ operation: error.operation }))),
@@ -73,6 +80,8 @@ export const layer = ChalkRpcGroup.toLayer(
     const coach = yield* CoachService.CoachService;
     const profile = yield* ProfileStore.ProfileStore;
     const bookingboard = yield* Bookingboard.Bookingboard;
+    const garmin = yield* Garmin.Garmin;
+    const onGarminError = { GarminPersistenceError: reportGarminStorageError };
     const onStrengthError = { StrengthPersistenceError: reportStrengthStorageError };
     const onProfileError = { ProfilePersistenceError: reportProfileStorageError };
     const onBookingboardError = { BookingboardPersistenceError: reportBookingboardStorageError };
@@ -122,6 +131,12 @@ export const layer = ChalkRpcGroup.toLayer(
         bookingboard.disconnect().pipe(Effect.catchTags(onBookingboardError)),
       [RPC_METHODS.bookingboardDay]: ({ date }) =>
         bookingboard.day(date).pipe(Effect.catchTags(onBookingboardError)),
+      [RPC_METHODS.garminStatus]: () => garmin.status().pipe(Effect.catchTags(onGarminError)),
+      [RPC_METHODS.garminConnect]: (input) =>
+        garmin.connect(input).pipe(Effect.catchTags(onGarminError)),
+      [RPC_METHODS.garminSync]: () => garmin.sync().pipe(Effect.catchTags(onGarminError)),
+      [RPC_METHODS.garminDisconnect]: () =>
+        garmin.disconnect().pipe(Effect.catchTags(onGarminError)),
       [RPC_METHODS.restDaysList]: () => restDays.list().pipe(Effect.catchTags(onRestDayError)),
       [RPC_METHODS.restDaysMark]: (input) =>
         restDays.mark(input, "athlete").pipe(Effect.catchTags(onRestDayError)),

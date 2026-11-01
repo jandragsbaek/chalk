@@ -355,7 +355,7 @@ Printed and decisive: square, semi-bold, no gradient.
 
 ### Navigation
 
-- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Calendar, Plan, Log, Strength, Benchmarks, Levels, Workouts, Import, Coach, Settings); Today is the front page, Calendar the programmed weeks, Log the manual entry page, Workouts the session register and Settings the athlete's profile. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
+- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Calendar, Plan, Log, Strength, Benchmarks, Levels, Workouts, Import, Coach, Settings); Today is the front page, Calendar the programmed weeks, Log the manual entry page, Workouts the session register and Settings the athlete's profile. Settings carries its own tab strip under its title (Profile, Connections): condensed caps tabs on a 1px rule, the active one in ink with a 2px ink inset underline, like the level groups' tabs. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
 
 ### Protocol Field Box
 
@@ -514,6 +514,26 @@ season above it as a ruler, drafts on a shelf below. No month grid of coloured e
 - **On Today:** the week column lists a programmed session as its title, underlined in box edge
   and linking to it on the calendar, over its state word in condensed caps (Programmed, Partly
   done, Done, Missed).
+
+### Connections
+
+`/settings/connections` lists each outside service Chalk reads as a protocol section in one
+48rem column: its name in title caps on a 2px ink rule, the host or what it feeds as meta. Under
+it a strip of field boxes on fresh sheet opens on the **connection verdict**: one 14px referee
+lamp in its ink housing, then the verdict in condensed bold caps over a one-line reason in
+pencil grey. White is working (Connected, Synced), lamp-off is not set up, referee red is a
+no-lift (Token expired, Read failed; the verdict takes official red too). The verdict box takes
+the width the boxes beside it leave (participant, token expiry; weigh-ins, since, last read),
+which never wrap. Below, a ruled row of the rule in words and small actions (outline Sync now
+or Replace token, ghost New tokens, ghost-destructive Disconnect). Setup opens as ruled steps on
+a 9.5rem printed label column ("1 · Log in", "2 · Paste tokens", "3 · Import"; the sequence is
+real): a command in Courier on a paper box with a ghost Copy, the pasted token file in a Courier
+textarea, the import day and the primary button. A failing connection reopens its setup under
+the strip.
+
+The bodyweight chart on Profile draws the 7-day trailing mean as its 2px ink line; scale readings
+are 3px quiet squares under it, typed weigh-ins 6px ink squares, with a legend once scale data
+is there and the range switch (90 days, 1 year, All) once the history is longer than 90 days.
 
 ### Source Line Gutter
 

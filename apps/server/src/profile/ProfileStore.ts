@@ -1,5 +1,6 @@
 import {
   AthleteBody,
+  Bodyweight,
   BodyweightEntry,
   BodyweightNotFoundError,
   EMPTY_ATHLETE_PROFILE,
@@ -22,6 +23,7 @@ export class ProfilePersistenceError extends Schema.TaggedError<ProfilePersisten
       "save the profile",
       "log bodyweight",
       "delete bodyweight",
+      "import scale weigh-ins",
     ]),
     cause: Schema.Defect(),
   },
@@ -29,6 +31,11 @@ export class ProfilePersistenceError extends Schema.TaggedError<ProfilePersisten
   override get message(): string {
     return `Failed to ${this.operation}.`;
   }
+}
+
+/** One day's scale reading: the day, kilograms and the local "HH:MM" it was taken. */
+export interface ScaleReading extends BodyweightEntry {
+  readonly measuredAt: string | null;
 }
 
 export class ProfileStore extends Context.Service<
@@ -44,6 +51,15 @@ export class ProfileStore extends Context.Service<
     readonly removeBodyweight: (
       performedOn: IsoDate,
     ) => Effect.Effect<void, BodyweightNotFoundError | ProfilePersistenceError>;
+    /**
+     * The scale's first reading of each day, from Garmin. A day the athlete typed keeps its
+     * weigh-in; a day already read from the scale takes the new reading.
+     */
+    readonly importScaleReadings: (
+      readings: ReadonlyArray<ScaleReading>,
+    ) => Effect.Effect<void, ProfilePersistenceError>;
+    /** How many days' bodyweight came from the scale. */
+    readonly scaleWeighIns: () => Effect.Effect<number, ProfilePersistenceError>;
   }
 >()("chalk/profile/ProfileStore") {}
 
@@ -63,9 +79,12 @@ const make = Effect.gen(function* () {
 
   const selectBodyweights = SqlSchema.findAll({
     Request: Schema.Void,
-    Result: BodyweightEntry,
-    execute: () =>
-      sql`SELECT performed_on AS "performedOn", kg FROM bodyweights ORDER BY performed_on`,
+    Result: Bodyweight,
+    execute: () => sql`
+      SELECT performed_on AS "performedOn", kg, source, measured_at AS "measuredAt"
+      FROM bodyweights
+      ORDER BY performed_on
+    `,
   });
 
   const read = Effect.fn("ProfileStore.read")(function* () {
@@ -107,9 +126,13 @@ const make = Effect.gen(function* () {
     function* (entry: BodyweightEntry) {
       const now = DateTime.formatIso(yield* DateTime.now);
       yield* sql`
-        INSERT INTO bodyweights (performed_on, kg, created_at)
-        VALUES (${entry.performedOn}, ${entry.kg}, ${now})
-        ON CONFLICT (performed_on) DO UPDATE SET kg = excluded.kg, created_at = excluded.created_at
+        INSERT INTO bodyweights (performed_on, kg, source, measured_at, created_at)
+        VALUES (${entry.performedOn}, ${entry.kg}, 'manual', NULL, ${now})
+        ON CONFLICT (performed_on) DO UPDATE SET
+          kg = excluded.kg,
+          source = 'manual',
+          measured_at = NULL,
+          created_at = excluded.created_at
       `;
       return entry;
     },
@@ -129,7 +152,51 @@ const make = Effect.gen(function* () {
     if (deleted.length === 0) return yield* new BodyweightNotFoundError({ performedOn });
   });
 
-  return ProfileStore.of({ get, update, logBodyweight, removeBodyweight });
+  const importScaleReadings = Effect.fn("ProfileStore.importScaleReadings")(
+    function* (readings: ReadonlyArray<ScaleReading>) {
+      if (readings.length === 0) return;
+      const now = DateTime.formatIso(yield* DateTime.now);
+      yield* sql.withTransaction(
+        Effect.forEach(
+          readings,
+          (reading) => sql`
+            INSERT INTO bodyweights (performed_on, kg, source, measured_at, created_at)
+            VALUES (${reading.performedOn}, ${reading.kg}, 'garmin', ${reading.measuredAt}, ${now})
+            ON CONFLICT (performed_on) DO UPDATE SET
+              kg = excluded.kg,
+              measured_at = excluded.measured_at,
+              created_at = excluded.created_at
+            WHERE bodyweights.source = 'garmin'
+          `,
+          { discard: true },
+        ),
+      );
+    },
+    Effect.mapError(
+      (cause) => new ProfilePersistenceError({ operation: "import scale weigh-ins", cause }),
+    ),
+  );
+
+  const scaleWeighIns = Effect.fn("ProfileStore.scaleWeighIns")(
+    function* () {
+      const [row] = yield* sql<{
+        readonly count: number;
+      }>`SELECT COUNT(*) AS count FROM bodyweights WHERE source = 'garmin'`;
+      return row?.count ?? 0;
+    },
+    Effect.mapError(
+      (cause) => new ProfilePersistenceError({ operation: "load the profile", cause }),
+    ),
+  );
+
+  return ProfileStore.of({
+    get,
+    update,
+    logBodyweight,
+    removeBodyweight,
+    importScaleReadings,
+    scaleWeighIns,
+  });
 });
 
 export const layer = Layer.effect(ProfileStore, make);

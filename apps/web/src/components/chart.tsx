@@ -81,7 +81,7 @@ export function stepIndexOnKey(
   return undefined;
 }
 
-type LegendMark = "line" | "dot" | "hollow" | "diamond" | "band" | "range";
+type LegendMark = "line" | "dot" | "hollow" | "diamond" | "band" | "range" | "square";
 
 export function LegendItem({
   mark,
@@ -109,6 +109,7 @@ export function LegendItem({
           <rect x="0" y="1" width="16" height="10" rx="2" fill={color} opacity="0.16" />
         ) : null}
         {mark === "range" ? <rect x="6" y="0" width="4" height="12" rx="2" fill={color} /> : null}
+        {mark === "square" ? <rect x="4.5" y="2.5" width="7" height="7" fill={color} /> : null}
       </svg>
       <span>{label}</span>
     </li>

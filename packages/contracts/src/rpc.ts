@@ -25,6 +25,15 @@ import {
   CoachThreadNotFoundError,
   CoachUnavailableError,
 } from "./coach.ts";
+import {
+  ConnectGarminInput,
+  GarminNotConnectedError,
+  GarminStatus,
+  GarminStorageError,
+  GarminTokensInvalidError,
+  GarminTokensRefusedError,
+  GarminUnavailableError,
+} from "./garmin.ts";
 import { LevelOverview, LevelStorageError } from "./levelOverview.ts";
 import { PowerSession, PowerStorageError } from "./power/history.ts";
 import {
@@ -86,6 +95,10 @@ export const RPC_METHODS = {
   bookingboardConnect: "bookingboard.connect",
   bookingboardDisconnect: "bookingboard.disconnect",
   bookingboardDay: "bookingboard.day",
+  garminStatus: "garmin.status",
+  garminConnect: "garmin.connect",
+  garminSync: "garmin.sync",
+  garminDisconnect: "garmin.disconnect",
   restDaysList: "restDays.list",
   restDaysMark: "restDays.mark",
   restDaysClear: "restDays.clear",
@@ -245,6 +258,39 @@ const BookingboardDayRpc = Rpc.make(RPC_METHODS.bookingboardDay, {
   ]),
 });
 
+const GarminStatusRpc = Rpc.make(RPC_METHODS.garminStatus, {
+  success: GarminStatus,
+  error: GarminStorageError,
+});
+
+/** Renews the pasted tokens once, keeps them, then imports every weigh-in since `importFrom`. */
+const GarminConnectRpc = Rpc.make(RPC_METHODS.garminConnect, {
+  payload: ConnectGarminInput,
+  success: GarminStatus,
+  error: Schema.Union([
+    GarminTokensInvalidError,
+    GarminTokensRefusedError,
+    GarminUnavailableError,
+    GarminStorageError,
+  ]),
+});
+
+/** Reads the scale's weigh-ins since the last read now, instead of waiting for the next one. */
+const GarminSyncRpc = Rpc.make(RPC_METHODS.garminSync, {
+  success: GarminStatus,
+  error: Schema.Union([
+    GarminNotConnectedError,
+    GarminTokensRefusedError,
+    GarminUnavailableError,
+    GarminStorageError,
+  ]),
+});
+
+/** Forgets the tokens; imported weigh-ins stay. */
+const GarminDisconnectRpc = Rpc.make(RPC_METHODS.garminDisconnect, {
+  error: GarminStorageError,
+});
+
 /** Every day marked as rest, oldest first. */
 const RestDaysListRpc = Rpc.make(RPC_METHODS.restDaysList, {
   success: Schema.Array(RestDay),
@@ -336,6 +382,10 @@ export const ChalkRpcGroup = RpcGroup.make(
   BookingboardConnectRpc,
   BookingboardDisconnectRpc,
   BookingboardDayRpc,
+  GarminStatusRpc,
+  GarminConnectRpc,
+  GarminSyncRpc,
+  GarminDisconnectRpc,
   RestDaysListRpc,
   RestDaysMarkRpc,
   RestDaysClearRpc,

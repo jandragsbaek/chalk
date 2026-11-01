@@ -465,7 +465,8 @@ kbd[data-key] {
  * Levels page: a protocol sheet of rulers. Rows are ruled, tabs print like the header band's
  * tabs, and complements are copy-grey tags edged in their ink.
  */
-[data-level-tab] {
+[data-level-tab],
+[data-sub-tab] {
   height: 2.5rem;
   padding: 0 0.875rem;
   font-size: 0.8125rem;
@@ -477,14 +478,17 @@ kbd[data-key] {
   cursor: pointer;
   transition: color 150ms ease-out;
 }
-[data-level-tab]:hover {
+[data-level-tab]:hover,
+[data-sub-tab]:hover {
   color: var(--foreground);
 }
-[data-level-tab][aria-selected="true"] {
+[data-level-tab][aria-selected="true"],
+[data-sub-tab][data-status="active"] {
   color: var(--foreground);
   box-shadow: inset 0 -2px 0 var(--foreground);
 }
-[data-level-tab]:focus-visible {
+[data-level-tab]:focus-visible,
+[data-sub-tab]:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
 }
