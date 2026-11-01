@@ -41,6 +41,7 @@ export type TagChoice =
         | "part"
         | "notes"
         | "intent"
+        | "comment"
         | "date"
         | "session"
         | "score"
@@ -194,6 +195,7 @@ const makeSpan = (
     case "part":
     case "notes":
     case "intent":
+    case "comment":
       return { _tag: choice.tag, id, start, end };
   }
 };
@@ -208,7 +210,7 @@ export const trimRange = (text: string, start: number, end: number) => {
 };
 
 /**
- * Intent is a whole-line tag: the lines the selection touches, without the leading bullet or
+ * Intent and comment are whole-line tags: the lines the selection touches, without the leading bullet or
  * comment star and any closing star.
  */
 export const lineRange = (text: string, start: number, end: number) => {
@@ -246,7 +248,8 @@ const canTarget = (picked: Span, target: Span, mode: PickMode) => {
 export const editorReducer = (state: EditorState, action: EditorAction): EditorState => {
   switch (action.type) {
     case "tag": {
-      const { start, end } = (action.choice.tag === "intent" ? lineRange : trimRange)(
+      const lineTag = action.choice.tag === "intent" || action.choice.tag === "comment";
+      const { start, end } = (lineTag ? lineRange : trimRange)(
         state.text,
         action.start,
         action.end,

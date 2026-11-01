@@ -213,7 +213,7 @@ Carbonless copies. Each tint is a pair: a pale fill and the ink that edges it.
 - **Copy Canary** (fill oklch(0.94 0.1 100), ink oklch(0.58 0.12 85)): load, % of 1RM and RPE; also the flash fill that briefly lights a row an edit changed.
 - **Copy Pink** (fill oklch(0.9 0.06 350), ink oklch(0.53 0.15 350)): time, distance, calories.
 - **Copy Goldenrod** (fill oklch(0.89 0.08 70), ink oklch(0.56 0.12 60)): scores and results; the goldenrod underline on result boxes.
-- **Copy Grey** (fill oklch(0.92 0.01 262), ink oklch(0.5 0.02 262)): untyped or default tags (date, session, notes) and the coach's intent lines, as marks and as protocol rows.
+- **Copy Grey** (fill oklch(0.92 0.01 262), ink oklch(0.5 0.02 262)): untyped or default tags (date, session, notes) and the coach's intent and comment lines, as marks and as protocol rows. A comment mark has no fill, only a thin dashed rule.
 
 ### Neutral
 

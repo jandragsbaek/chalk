@@ -47,11 +47,18 @@ const TAG_TITLES: Record<Span["_tag"], string> = {
   part: "Part",
   notes: "Notes start",
   intent: "Intent",
+  comment: "Comment",
   date: "Date",
   session: "Session number",
   score: "Score",
   benchmark: "Benchmark",
 };
+
+/** A whole line from the coach: an instruction for the block, or just a comment on it. */
+const LINE_KINDS = [
+  { tag: "intent", label: "Intent" },
+  { tag: "comment", label: "Comment" },
+] as const;
 
 const BENCHMARK_GROUPS = (["girl", "hero", "notable"] as const).map((category) => ({
   category,
@@ -529,24 +536,50 @@ export function SpanInspector({
         />
       ) : null}
 
-      {span._tag === "intent" ? (
+      {span._tag === "intent" || span._tag === "comment" ? (
         <div className="grid gap-2 text-sm">
-          <p className="text-muted-foreground">
-            The coach's instruction for the block it sits in: how heavy, how hard, what to focus on.
-            Saved with the block; intensity in it is read below.
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {parseQuantities(phrase, 0, { bareReps: false }).map((match) => (
-              <span
-                key={match.start}
-                data-chip
-                data-measure={match.quantity.measure}
-                className="px-1.5 text-sm font-medium leading-6 tabular-nums"
+          <div role="radiogroup" aria-label="What the line is" className="grid grid-cols-2 gap-1">
+            {LINE_KINDS.map(({ tag, label }) => (
+              <Button
+                key={tag}
+                role="radio"
+                aria-checked={span._tag === tag}
+                variant={span._tag === tag ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  if (span._tag !== tag)
+                    onUpdate({ _tag: tag, id: span.id, start: span.start, end: span.end });
+                }}
               >
-                {formatQuantity(match.quantity)}
-              </span>
+                {label}
+              </Button>
             ))}
           </div>
+          {span._tag === "intent" ? (
+            <>
+              <p className="text-muted-foreground">
+                The coach's instruction for the block it sits in: how heavy, how hard, what to focus
+                on. Saved with the block; intensity in it is read below.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {parseQuantities(phrase, 0, { bareReps: false }).map((match) => (
+                  <span
+                    key={match.start}
+                    data-chip
+                    data-measure={match.quantity.measure}
+                    className="px-1.5 text-sm font-medium leading-6 tabular-nums"
+                  >
+                    {formatQuantity(match.quantity)}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-muted-foreground">
+              An aside kept with the block it sits in: where the workout came from, a remark. Shown
+              on the sheet as written; nothing in it is read as programming or intensity.
+            </p>
+          )}
         </div>
       ) : null}
 

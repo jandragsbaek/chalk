@@ -116,7 +116,8 @@ const spanFields = {
 /**
  * One highlighted range of the pasted text; spans never overlap. `part`/`block` open a part
  * and a block, `movement` is an item with `quantity` spans hanging off it, `intent` instructs its
- * block, `benchmark` names the part's workout, and after `notes` movements become lift sets.
+ * block, `comment` is an aside kept with its block (a source, a remark; never read for numbers),
+ * `benchmark` names the part's workout, and after `notes` movements become lift sets.
  */
 export const Span = Schema.TaggedUnion({
   date: { ...spanFields, date: IsoDate },
@@ -124,6 +125,7 @@ export const Span = Schema.TaggedUnion({
   part: { ...spanFields },
   notes: { ...spanFields },
   intent: { ...spanFields },
+  comment: { ...spanFields },
   block: { ...spanFields, format: BlockFormat, params: BlockParams },
   movement: {
     ...spanFields,
