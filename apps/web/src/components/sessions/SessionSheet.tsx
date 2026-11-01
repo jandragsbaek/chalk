@@ -2,6 +2,7 @@ import {
   benchmarkById,
   deriveSession,
   describeCoaching,
+  describePlace,
   SESSION_TYPE_LABELS,
   sessionTypeOf,
   describeDebrief,
@@ -38,6 +39,7 @@ import { useState } from "react";
 
 import { formatKg } from "../../lib/blockLabels.ts";
 import { gradeSession } from "../../lib/levelGrades.ts";
+import { entryPlace } from "../../lib/places.ts";
 import { findComplexes } from "../../lib/complexes.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
 import type { PartEchoGroup } from "../../lib/similar.ts";
@@ -382,15 +384,8 @@ export function SessionSheet({
           ) : null}
         </div>
         <dl className="flex divide-x">
-          {entry._tag === "workout" ? (
-            <FieldBox label="Session">
-              {entry.sessionNumber === null ? (
-                <span data-empty aria-label="No session number" />
-              ) : (
-                `No. ${entry.sessionNumber}`
-              )}
-            </FieldBox>
-          ) : null}
+          <FieldBox label="Session">No. {entry.number}</FieldBox>
+          <FieldBox label="Place">{describePlace(entryPlace(entry))}</FieldBox>
           <FieldBox label="Date">{formatDay(day)}</FieldBox>
           {entry._tag === "workout" ? (
             <FieldBox label="Session type">

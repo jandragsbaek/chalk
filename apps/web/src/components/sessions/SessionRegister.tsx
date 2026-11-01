@@ -1,4 +1,5 @@
 import {
+  placePhrase,
   sessionPhrase,
   sessionTypeOf,
   type MovementId,
@@ -20,6 +21,7 @@ import {
   type MovementOption,
   type SessionFilter,
 } from "../../lib/sessions.ts";
+import { entryPlace, placeCode } from "../../lib/places.ts";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { monthSectionId } from "./SessionRail.tsx";
 
@@ -53,6 +55,7 @@ function Row({
   readonly repeats: PartRef | undefined;
 }) {
   const day = entryDay(entry);
+  const place = entryPlace(entry);
   const movements = entry.movementIds.map(nameOf).join(", ");
   const setCount =
     entry._tag === "workout" ? entry.liftSetCount + entry.daySets.length : entry.daySets.length;
@@ -76,12 +79,12 @@ function Row({
             {day.slice(8)}
           </span>
         </time>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {entry._tag === "workout" && entry.sessionNumber !== null ? (
-            entry.sessionNumber
-          ) : (
-            <span data-empty aria-label="No session number" />
-          )}
+        <span
+          className="grid leading-tight text-muted-foreground"
+          title={`Session ${entry.number} ${placePhrase(place)}`}
+        >
+          <span className="text-xs font-semibold tabular-nums text-foreground">{entry.number}</span>
+          <span className="form-label">{placeCode(place)}</span>
         </span>
         <span className="grid min-w-0">
           <span className="flex min-w-0 items-center gap-1.5">

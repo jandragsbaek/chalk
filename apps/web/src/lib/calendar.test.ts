@@ -1,4 +1,5 @@
 import {
+  THE_BOX,
   BlockId,
   LiftSetId,
   MovementId,
@@ -59,6 +60,7 @@ const set = (performedOn: string): LiftSet => ({
   reps: 6,
   loadKg: 105,
   notes: "",
+  place: THE_BOX,
   createdAt: `${performedOn}T07:00:00Z`,
 });
 

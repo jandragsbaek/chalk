@@ -1,4 +1,4 @@
-import { LiftSetId, MovementId, type LiftSet } from "@chalk/contracts";
+import { LiftSetId, MovementId, THE_BOX, type LiftSet } from "@chalk/contracts";
 import { describe, expect, it } from "@effect/vitest";
 
 import { computeRecords } from "./repMaxes.ts";
@@ -19,6 +19,7 @@ const set = (
   reps,
   loadKg,
   notes: "",
+  place: THE_BOX,
   createdAt: `${performedOn}T12:00:00.000Z`,
 });
 

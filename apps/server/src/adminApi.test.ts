@@ -142,7 +142,7 @@ describe("ChalkAdminApi imports", () => {
       expect(stored.document.spans).toEqual(document.spans);
       expect(yield* client.imports.list()).toEqual([saved]);
       const [workout] = yield* client.workouts.search({ query: {} });
-      expect(workout).toMatchObject({ name: "Session 12", kind: "amrap" });
+      expect(workout).toMatchObject({ name: "AMRAP · Sandbag lunge, Wall ball", kind: "amrap" });
     }).pipe(Effect.scoped, Effect.provide(importLayer)),
   );
 });

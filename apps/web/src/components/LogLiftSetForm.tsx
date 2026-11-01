@@ -1,8 +1,10 @@
 import {
   LogLiftSetInput,
   MovementId,
+  THE_BOX,
   type Movement,
   type MovementCategory,
+  type Place,
 } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, Label, NativeSelect } from "@chalk/ui/components/field.tsx";
@@ -16,6 +18,7 @@ import { useState } from "react";
 import { formatKg, MOVEMENT_CATEGORY_LABELS } from "../lib/strength.ts";
 import { localIsoDate } from "../lib/utils.ts";
 import { LIFTS_REACTIVITY_KEY, logLiftSetAtom, movementsAtom } from "../state/strength.ts";
+import { PlaceField } from "./PlaceField.tsx";
 
 const decodeLogLiftSetInput = Schema.decodeUnknownOption(LogLiftSetInput);
 
@@ -45,6 +48,7 @@ export function LogLiftSetForm() {
   const [reps, setReps] = useState("5");
   const [loadKg, setLoadKg] = useState("");
   const [notes, setNotes] = useState("");
+  const [place, setPlace] = useState<Place>(THE_BOX);
   const [status, setStatus] = useState<SubmitStatus>({ type: "idle" });
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -55,6 +59,7 @@ export function LogLiftSetForm() {
       reps: Number(reps),
       loadKg: Number(loadKg.replace(",", ".")),
       notes: notes.trim(),
+      ...(place._tag === "box" ? {} : { place }),
     });
     if (Option.isNone(input)) {
       setStatus({ type: "error", message: "Pick a movement, whole reps and a load above 0 kg." });
@@ -138,6 +143,11 @@ export function LogLiftSetForm() {
       </div>
 
       <div className="grid gap-1.5">
+        <Label htmlFor="lift-place">Place</Label>
+        <PlaceField id="lift-place" place={place} onChange={setPlace} />
+      </div>
+
+      <div className="grid gap-1.5 sm:col-span-2">
         <Label htmlFor="lift-notes">Notes</Label>
         <Input
           id="lift-notes"

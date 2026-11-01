@@ -52,7 +52,7 @@ import {
 import { formatKg } from "../../lib/blockLabels.ts";
 import { findComplexes } from "../../lib/complexes.ts";
 import { gradeSession } from "../../lib/levelGrades.ts";
-import { asPlanned, planTitle, withPlannedLoad } from "../../lib/plan.ts";
+import { asPlanned, withPlannedLoad } from "../../lib/plan.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
 import { resultDefaults } from "../../lib/resultDraft.ts";
 import { chooseOption, chosenOption, stationOptions } from "../../lib/station.ts";
@@ -60,6 +60,7 @@ import { isTyping, localIsoDate } from "../../lib/utils.ts";
 import { SAVE_REACTIVITY_KEYS, saveImportAtom } from "../../state/imports.ts";
 import { PLANS_REACTIVITY_KEY, savePlanAtom } from "../../state/plans.ts";
 import { AnnotatedText, type TextRange } from "./AnnotatedText.tsx";
+import { PlaceField } from "../PlaceField.tsx";
 import { CoachingField } from "./CoachingField.tsx";
 import { DebriefSheet } from "./DebriefSheet.tsx";
 import { FieldBox } from "../FieldBox.tsx";
@@ -198,7 +199,7 @@ export function ImportWorkbench({
   const document = toDocument(state);
   const session = deriveSession(document, nameOf);
   // A plan keeps its name while it is logged; a pasted session is named by its heading.
-  const title = outcomeFirst ? planTitle(session, nameOf) : session.name;
+  const title = session.name;
   const errors = session.issues.filter((issue) => issue.severity === "error");
   const selected = state.spans.find((span) => span.id === state.selectedId);
   const programmed = selected?._tag === "movement" ? findItem(session, selected.id) : undefined;
@@ -536,6 +537,12 @@ export function ImportWorkbench({
                   ...(classType === undefined ? {} : { classType }),
                 })
               }
+            />
+          </FieldBox>
+          <FieldBox label="Place" wide>
+            <PlaceField
+              place={state.place}
+              onChange={(place) => dispatch({ type: "setPlace", place })}
             />
           </FieldBox>
           {/* A plan's protocol shows the parts. */}

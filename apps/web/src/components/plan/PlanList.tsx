@@ -21,7 +21,7 @@ import * as Exit from "effect/Exit";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 
-import { plannedMovements, planTitle } from "../../lib/plan.ts";
+import { plannedMovements } from "../../lib/plan.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
 import { formatDay } from "../../lib/utils.ts";
 import { PLANS_REACTIVITY_KEY, plansAtom, removePlanAtom } from "../../state/plans.ts";
@@ -121,7 +121,7 @@ function PlanRow({
   const sex = useAthleteSex();
   const session = deriveSession(plan.document, nameOf);
   const movements = plannedMovements(session, nameOf, sex);
-  const title = planTitle(session, nameOf);
+  const title = session.name;
   const day = new Date(`${plan.plannedOn}T00:00:00`);
 
   async function remove() {

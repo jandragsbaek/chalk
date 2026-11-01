@@ -1,4 +1,5 @@
 import {
+  THE_BOX,
   CoachThreadId,
   LiftSetId,
   MovementId,
@@ -132,6 +133,7 @@ describe("starterPrompts", () => {
       reps: 5,
       loadKg: 100,
       notes: "",
+      place: THE_BOX,
       createdAt: `${performedOn}T18:00:00Z`,
     });
     const workout = (name: string, performedOn: string) => ({
@@ -142,6 +144,7 @@ describe("starterPrompts", () => {
       score: "6:48",
       rx: true,
       notes: "",
+      place: THE_BOX,
       createdAt: `${performedOn}T18:00:00Z`,
     });
     expect(

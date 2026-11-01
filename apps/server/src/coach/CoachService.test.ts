@@ -292,7 +292,7 @@ describe("CoachService", () => {
       const receipt = (events[2] as Extract<CoachEvent, { _tag: "ReadFinished" }>).receipt;
       expect(receipt).toMatchObject({
         tool: "find_similar_sessions",
-        request: [{ tag: "text", text: "Session 151, 1 Oct 2026" }],
+        request: [{ tag: "text", text: "AMRAP · Back squat, Thruster +1, 1 Oct 2026" }],
         summary: "1 repeat, 1 look-alike",
         columns: ["Date", "Part", "Result", "Match", "Other", "Its result"],
       });

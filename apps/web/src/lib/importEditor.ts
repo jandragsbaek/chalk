@@ -1,4 +1,5 @@
 import {
+  THE_BOX,
   findBenchmark,
   isEmptyDebrief,
   lineIndexAt,
@@ -17,6 +18,7 @@ import {
   type IsoDate,
   type Measure,
   type MovementId,
+  type Place,
   type SessionMarks,
   type SessionType,
   type Span,
@@ -35,6 +37,8 @@ export interface EditorState {
   readonly debrief: Debrief;
   /** Who coached it (or solo) and the class it was; each absent when not recorded. */
   readonly marks: SessionMarks;
+  /** Where it was trained; the box unless picked. */
+  readonly place: Place;
   readonly selectedId: SpanId | undefined;
   readonly picking: PickMode | undefined;
   readonly nextId: number;
@@ -77,6 +81,7 @@ export type EditorAction =
       readonly classType?: ClassType;
     }
   | { readonly type: "setSessionType"; readonly sessionType: SessionType | undefined }
+  | { readonly type: "setPlace"; readonly place: Place }
   | { readonly type: "tagPhrase"; readonly phrase: string; readonly movementId: MovementId }
   | { readonly type: "replaceAll"; readonly spans: ReadonlyArray<Span> };
 
@@ -92,6 +97,7 @@ export const initialEditorState = (document: ImportDocument): EditorState => ({
     ...(document.coaching === undefined ? {} : { coaching: document.coaching }),
     ...(document.classType === undefined ? {} : { classType: document.classType }),
   },
+  place: document.place ?? THE_BOX,
   selectedId: undefined,
   picking: undefined,
   // Fresh ids never collide with loaded ones ("s12", "e3", ...).
@@ -104,6 +110,7 @@ export const toDocument = (state: EditorState): ImportDocument => ({
   ...(state.performedOn === undefined ? {} : { performedOn: state.performedOn }),
   ...(isEmptyDebrief(state.debrief) ? {} : { debrief: normalizeDebrief(state.debrief) }),
   ...state.marks,
+  ...(state.place._tag === "box" ? {} : { place: state.place }),
 });
 
 /** Drops references to removed spans; a replaced movement hands its links to `heir`. */
@@ -349,6 +356,8 @@ export const editorReducer = (state: EditorState, action: EditorAction): EditorS
       return { ...state, marks: withCoaching(state.marks, action.coaching, action.classType) };
     case "setSessionType":
       return { ...state, marks: withSessionType(state.marks, action.sessionType) };
+    case "setPlace":
+      return { ...state, place: action.place };
     case "replaceAll":
       return { ...state, spans: byStart(action.spans), selectedId: undefined, picking: undefined };
     case "tagPhrase": {

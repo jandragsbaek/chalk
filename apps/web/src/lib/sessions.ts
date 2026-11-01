@@ -1,5 +1,6 @@
 import {
   describeCoaching,
+  describePlace,
   SESSION_TYPE_LABELS,
   type CatalogMovement,
   type MovementId,
@@ -20,7 +21,7 @@ export const monthOf = (iso: string): string => iso.slice(0, 7);
 export interface SessionFilter {
   /**
    * Matches name, score, notes (the session's and its lift sets'), who coached it ("Solo" too),
-   * its class ("WOD class") and movement names, ignoring case.
+   * its class ("WOD class"), where it was trained ("Home") and movement names, ignoring case.
    */
   readonly query: string;
   /** A movement, or a core movement with its variations. */
@@ -65,6 +66,7 @@ export function filterSessions(
               : SESSION_TYPE_LABELS[entry.workout.classType],
           ]
         : []),
+      describePlace(entry._tag === "workout" ? entry.workout.place : entry.place),
       ...entry.movementIds.map((id) => names.get(id) ?? id),
       ...entry.daySets.map((set) => set.notes),
     ];

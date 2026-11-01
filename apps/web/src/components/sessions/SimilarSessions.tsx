@@ -86,8 +86,7 @@ function EchoRow({
         <span className="grid leading-tight">
           <span className="font-semibold tabular-nums">{formatDay(other.performedOn)}</span>
           <span className="text-xs text-muted-foreground">
-            {other.sessionNumber === null ? other.workoutName : `No. ${other.sessionNumber}`} ·{" "}
-            {other.title}
+            {other.workoutName} · {other.title}
           </span>
         </span>
         <span>

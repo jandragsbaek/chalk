@@ -9,9 +9,18 @@ import {
 } from "./baseSchemas.ts";
 import { KnownBenchmarkId } from "./benchmarks/index.ts";
 import { ClassType, Coaching } from "./coaching.ts";
+import { Place } from "./place.ts";
 
 export const WorkoutKind = Schema.Literals(["for_time", "amrap", "emom", "strength", "other"]);
 export type WorkoutKind = typeof WorkoutKind.Type;
+
+export const WORKOUT_KIND_LABELS: Record<WorkoutKind, string> = {
+  for_time: "For time",
+  amrap: "AMRAP",
+  emom: "EMOM",
+  strength: "Strength",
+  other: "Other",
+};
 
 export const Workout = Schema.Struct({
   id: WorkoutId,
@@ -28,6 +37,8 @@ export const Workout = Schema.Struct({
   coaching: Schema.optionalKey(Coaching),
   /** The class it was, WOD or strength; absent when solo or not recorded. */
   classType: Schema.optionalKey(ClassType),
+  /** Where it was trained; the box for everything logged before places existed. */
+  place: Place,
   createdAt: IsoDateTime,
 }).annotate({ identifier: "Workout" });
 export type Workout = typeof Workout.Type;
@@ -43,6 +54,8 @@ export const LogWorkoutInput = Schema.Struct({
   benchmarkId: Schema.optionalKey(KnownBenchmarkId),
   coaching: Schema.optionalKey(Coaching),
   classType: Schema.optionalKey(ClassType),
+  /** Absent: the box. */
+  place: Schema.optionalKey(Place),
 });
 export type LogWorkoutInput = typeof LogWorkoutInput.Type;
 

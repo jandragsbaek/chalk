@@ -1,7 +1,7 @@
 import { MovementId, quantityFromText, type Quantity } from "@chalk/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { asPlanned, describePlan, plannedMovements, planTitle } from "./plan.ts";
+import { asPlanned, describePlan, plannedMovements } from "./plan.ts";
 
 const names: Record<string, string> = {
   "pull-up": "Pull-up",
@@ -56,65 +56,6 @@ describe("describePlan", () => {
     );
     const lift = row(quantityFromText("5", "reps")!, quantityFromText("3", "sets")!);
     expect(describePlan({ perRound: { min: 4, max: 4 } }, nameOf, "m", lift)).toBe("4 each round");
-  });
-});
-
-describe("planTitle", () => {
-  const item = (movementId: string) => ({
-    spanId: movementId,
-    movementId: MovementId.make(movementId),
-    text: movementId,
-    sets: [],
-    performed: [],
-    listed: [],
-    performance: undefined,
-    plan: undefined,
-    alternatives: [],
-  });
-  const session = (sessionNumber: number | undefined, ids: ReadonlyArray<string>) => ({
-    performedOn: "2026-11-01",
-    sessionNumber,
-    name: sessionNumber === undefined ? "Session 2026-11-01" : `Session ${sessionNumber}`,
-    kind: "for_time" as const,
-    score: "",
-    notes: "",
-    parts: [
-      {
-        spanId: undefined,
-        title: "",
-        benchmarkId: undefined,
-        rawText: "",
-        blocks: [
-          {
-            spanId: undefined,
-            title: "",
-            format: "for_time" as const,
-            params: {},
-            items: ids.map(item),
-            intents: [],
-            comments: [],
-            scores: [],
-            tonnageKg: 0,
-          },
-        ],
-      },
-    ],
-    liftSets: [],
-    tonnageKg: 0,
-    issues: [],
-  });
-
-  it("names an unnumbered plan by its kind and first movements", () => {
-    expect(planTitle(session(undefined, ["pull-up", "jumping-pull-up", "pull-up"]), nameOf)).toBe(
-      "For time · Pull-up, Jumping pull-up",
-    );
-    expect(
-      planTitle(session(undefined, ["pull-up", "jumping-pull-up", "burpee", "row"]), nameOf),
-    ).toBe("For time · Pull-up, Jumping pull-up +2");
-  });
-
-  it("keeps a numbered session's own name", () => {
-    expect(planTitle(session(171, ["pull-up"]), nameOf)).toBe("Session 171");
   });
 });
 

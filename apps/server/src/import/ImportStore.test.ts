@@ -62,7 +62,7 @@ describe("ImportStore", () => {
       expect(summary).toMatchObject({
         performedOn: "2026-10-13",
         sessionNumber: 160,
-        name: "Session 160",
+        name: "Strength · Back squat, Deadlift +1",
         partCount: 1,
         // back squat, deadlift, wall ball, and thruster as its alternative
         itemCount: 4,
@@ -115,7 +115,25 @@ describe("ImportStore", () => {
       const stored = yield* store.get(summary.workoutId);
       expect(stored.document).toEqual(document);
       const [workout] = yield* (yield* WorkoutStore.WorkoutStore).list();
-      expect(workout).toMatchObject({ name: "Session 160", kind: "strength", score: "" });
+      expect(workout).toMatchObject({
+        name: "Strength · Back squat, Deadlift +1",
+        kind: "strength",
+        score: "",
+        place: { _tag: "box" },
+      });
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("puts the session and its lift sets where the document says it was trained", () =>
+    Effect.gen(function* () {
+      const document = yield* suggestedDocument(SESSION_160);
+      const away = { _tag: "away", name: "CrossFit Nordvest" } as const;
+      yield* (yield* ImportStore.ImportStore).save({ document: { ...document, place: away } });
+      const [workout] = yield* (yield* WorkoutStore.WorkoutStore).list();
+      expect(workout?.place).toEqual(away);
+      const sets = yield* (yield* StrengthStore.StrengthStore).list();
+      expect(sets.length).toBeGreaterThan(0);
+      expect(sets.every((set) => set.place._tag === "away")).toBe(true);
     }).pipe(Effect.provide(layer)),
   );
 
@@ -157,6 +175,23 @@ describe("ImportStore", () => {
 
       yield* (yield* WorkoutStore.WorkoutStore).remove(summary.workoutId);
       expect(yield* (yield* StrengthStore.StrengthStore).list()).toEqual([]);
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("keeps the name the model gave a session when it is imported again", () =>
+    Effect.gen(function* () {
+      const store = yield* ImportStore.ImportStore;
+      const sql = yield* SqlClient.SqlClient;
+      const document = yield* suggestedDocument(SESSION_160);
+      const first = yield* store.save({ document });
+      yield* sql`UPDATE workouts SET name = 'Squat and deadlift day', name_source = 'model'`;
+
+      const again = yield* store.save({ document, replace: first.workoutId });
+      expect(again.name).toBe("Squat and deadlift day");
+      const [row] = yield* sql<{
+        nameSource: string;
+      }>`SELECT name_source AS "nameSource" FROM workouts`;
+      expect(row?.nameSource).toBe("model");
     }).pipe(Effect.provide(layer)),
   );
 
@@ -245,7 +280,7 @@ describe("ImportStore", () => {
       });
       expect(
         (yield* store.save({ document: { ...document, performedOn: "2026-01-05" } })).name,
-      ).toBe("Session 2026-01-05");
+      ).toBe("Other · Thruster");
     }).pipe(Effect.provide(layer)),
   );
 

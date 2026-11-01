@@ -354,7 +354,7 @@ Printed and decisive: square, semi-bold, no gradient.
 
 ### Inputs / Fields
 
-- **Style:** fresh-sheet fill, 1px box-edge stroke, square, 36px tall, 10px horizontal padding, 0.875rem text. Native selects keep the platform picker; a select whose rows need a note (the coach's model pick, label plus price) uses the popup `Select`: a fresh sheet on a 1px ink stroke, no shadow, highlighted row on the muted tint, a check at the current pick. A free-text field with suggestions (the Log page's workout name) uses `Autocomplete`: the same flat popup, as wide as the field, hidden while nothing matches; the workout picker splits it into a grouped list and the highlighted benchmark's board with your best.
+- **Style:** fresh-sheet fill, 1px box-edge stroke, square, 36px tall, 10px horizontal padding, 0.875rem text. Native selects keep the platform picker; a select whose rows need a note (the coach's model pick, label plus price) uses the popup `Select`: a fresh sheet on a 1px ink stroke, no shadow, highlighted row on the muted tint, a check at the current pick. A free-text field with suggestions (the Log page's workout name, Coached by, Place) uses `Autocomplete`: the same flat popup, as wide as the field, hidden while nothing matches; the workout picker splits it into a grouped list and the highlighted benchmark's board with your best.
 - **Focus:** border turns ballpoint blue with a 2px ring at 30%.
 - **Hover:** border darkens to ink.
 
@@ -411,7 +411,13 @@ A section of the field is titled like a protocol section: condensed heavy caps (
 
 One cell vocabulary shared by the year grid and the week column, shaded on the heat ramp. The year grid is 53 week columns of square cells 3px apart, Monday first, month labels over the columns and Mon, Wed, Fri on a label column; the legend runs a rest-day cell, then None, four cells, 3+ sessions. A **rest day** (marked, never inferred) is a fresh-sheet box on a box-edge stroke struck through bottom-left to top-right by a 1.5px ink line, like a day crossed off a paper calendar; it prints on a day still to come too, so planned rest shows. Clicking a cell, or walking to it with the arrow keys, holds it in the readout (Escape lets go); a day with nothing logged gets a small `Select` at the readout's right, "Mark rest" or "Change" (Rest day, Sick, Injured, Travel, Not resting). The day being read takes the selection double outline (3px, offset 1px) and is read out in a sentence under the grid; pointing at a cell or walking the grid with the arrow keys moves it, and the grid takes a 2px inset ballpoint ring on keyboard focus.
 
-The week column is the same days as a card: one ruled row per day, a 3.5rem stub with the weekday in condensed caps over the date and a 10px heat swatch, then the day's entries (workout name with its kind label, or movement chips for a strength-only day; a marked rest day by its kind, with "By coach" in condensed caps when the coach put it there; "Nothing logged yet" for today, or an empty-cell rule for any other day with nothing logged or still to come). A row with nothing logged shows the same rest `Select` at its right while pointed at or focused. Today carries a 3px double ink outline inset 4px. The day being read in the grid fills its row with the ruled tint, and pointing at a row selects that day in the grid. Below the rows, the consistency numbers as a 2x2 of protocol field boxes and a full-width primary button.
+Over the year grid, the **place tally**: one strip of protocol field boxes on fresh sheet, the
+count kept for fun. "At the box" leads in display caps at 3.75rem with "sessions · 23 to No. 200"
+in pencil grey beside it, ruled off by a 2px ink rule; then Home and Away (its label counting
+the other boxes) in 2.25rem display caps, the empty-cell rule for none; then "Counted since"
+with the month of the first session. Hidden until there is a session.
+
+The week column is the same days as a card: one ruled row per day, a 3.5rem stub with the weekday in condensed caps over the date and a 10px heat swatch, then the day's entries (workout name with its kind label over its number at its place, "Box 179", right-aligned in condensed caps; or movement chips for a strength-only day, its number at the right; a marked rest day by its kind, with "By coach" in condensed caps when the coach put it there; "Nothing logged yet" for today, or an empty-cell rule for any other day with nothing logged or still to come). A row with nothing logged shows the same rest `Select` at its right while pointed at or focused. Today carries a 3px double ink outline inset 4px. The day being read in the grid fills its row with the ruled tint, and pointing at a row selects that day in the grid. Below the rows, the consistency numbers as a 2x2 of protocol field boxes and a full-width primary button.
 
 ### Class Days Rail (import backlog)
 
@@ -439,12 +445,12 @@ Every training day as one list, read like a scorer's register beside the open pr
 month rail prints years in title caps and one tab per month with its count; a tab grows a step
 per session (capped), so busy and quiet stretches read before you scroll. The month being read
 is an ink tab with paper text; a tab jumps the register. Register rows (at least 48px) carry a
-weekday/date stub in condensed caps over the day numeral, the session number in pencil grey (an
-empty-cell rule without one), the name over kind and movements, and the score as a goldenrod
+weekday/date stub in condensed caps over the day numeral, the session's number at its place in
+semi-bold over the place in condensed caps (Box, Home, Away), the name over kind and movements, and the score as a goldenrod
 chip (a muted sets badge for a strength day). Month heads stick, in title caps on a 2px ink rule
 with a count or "7 of 17" under a filter. The open row takes the ruled tint and the double
 outline; up and down walk the register. The sheet is the protocol read back: a title row with
-its actions, a strip of protocol field boxes, then the importer's protocol without its editing
+its actions, a strip of protocol field boxes (Session "No. 179" and Place first), then the importer's protocol without its editing
 affordances (rows do not tint or select), the debrief as the coach reads it, and typed notes in
 Courier.
 

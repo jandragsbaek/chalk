@@ -1,4 +1,11 @@
-import type { CatalogMovement, Coaching, LiftSet, SessionEntry, Workout } from "@chalk/contracts";
+import type {
+  CatalogMovement,
+  Coaching,
+  LiftSet,
+  Place,
+  SessionEntry,
+  Workout,
+} from "@chalk/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { filterSessions, groupByMonth, knownCoaches, movementOptions } from "./sessions.ts";
@@ -22,6 +29,7 @@ function workout(
   movementIds: ReadonlyArray<string>,
   notes = "",
   coaching?: Coaching,
+  place: Place = { _tag: "box" },
 ): SessionEntry {
   return {
     _tag: "workout",
@@ -33,9 +41,10 @@ function workout(
       score: "5+18",
       rx: false,
       notes,
+      place,
       ...(coaching === undefined ? {} : { coaching }),
     },
-    sessionNumber: null,
+    number: 1,
     imported: false,
     movementIds,
     liftSetCount: 0,
@@ -52,6 +61,8 @@ function strengthDay(
   return {
     _tag: "strengthDay",
     performedOn,
+    place: { _tag: "home" },
+    number: 1,
     movementIds,
     daySets: movementIds.map((movementId) => ({
       movementId,
@@ -67,7 +78,17 @@ const entries = [
     coach: "Rikke L.",
   }),
   strengthDay("2026-10-26", ["back-squat"], "Shoulder pain on the last set"),
-  workout("2026-09-29", "Isabel", ["snatch"], "Hands tore", { _tag: "solo" }),
+  workout(
+    "2026-09-29",
+    "Isabel",
+    ["snatch"],
+    "Hands tore",
+    { _tag: "solo" },
+    {
+      _tag: "away",
+      name: "CrossFit Nordvest",
+    },
+  ),
   workout("2025-12-30", "Rowing intervals", ["row"], "", { _tag: "coached", coach: "Sarah L." }),
 ];
 
@@ -100,6 +121,15 @@ describe("filterSessions", () => {
       "Fight the clock",
     ]);
     expect(names(filterSessions(entries, { ...none, query: "solo" }, catalog))).toEqual(["Isabel"]);
+  });
+
+  it("matches where a session was trained", () => {
+    expect(names(filterSessions(entries, { ...none, query: "nordvest" }, catalog))).toEqual([
+      "Isabel",
+    ]);
+    expect(names(filterSessions(entries, { ...none, query: "home" }, catalog))).toEqual([
+      "2026-10-26",
+    ]);
   });
 });
 

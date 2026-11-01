@@ -12,7 +12,7 @@ import type {
   SpanId,
   SpanOf,
 } from "../sessionImport.ts";
-import type { WorkoutKind } from "../workout.ts";
+import { WORKOUT_KIND_LABELS, type WorkoutKind } from "../workout.ts";
 import { lineIndexAt, parseQuantities, splitLines, type Line } from "./parse.ts";
 
 /** Quantities written on one line for one movement: one set of the prescription. */
@@ -100,7 +100,12 @@ export interface ImportIssue {
 
 export interface DerivedSession {
   readonly performedOn: IsoDate | undefined;
+  /** The number a paste's session heading gives; it only tells a re-import from a new one. */
   readonly sessionNumber: number | undefined;
+  /**
+   * Its kind and first movements ("For time · Double-under, Wall ball +1"): a board rarely has
+   * a heading of its own. Saved, the coach's model gives the session a proper name.
+   */
   readonly name: string;
   readonly kind: WorkoutKind;
   readonly score: string;
@@ -265,6 +270,31 @@ const kindOf = (parts: ReadonlyArray<DerivedPart>): WorkoutKind => {
   const last = parts.at(-1)?.blocks.map((block) => block.format) ?? [];
   for (const kind of ["for_time", "amrap", "emom"] as const) if (last.includes(kind)) return kind;
   return formats.includes("strength") ? "strength" : "other";
+};
+
+/** Kind and first two movements: "For time · Double-under, Wall ball +1". */
+const sessionTitle = (
+  kind: WorkoutKind,
+  parts: ReadonlyArray<DerivedPart>,
+  liftSets: ReadonlyArray<DerivedLiftSet>,
+  nameOf: (id: MovementId) => string | undefined,
+): string => {
+  const names = [
+    ...new Set([
+      ...parts.flatMap((part) =>
+        part.blocks.flatMap((block) =>
+          block.items.map(
+            (item) =>
+              (item.movementId === undefined ? undefined : nameOf(item.movementId)) ?? item.text,
+          ),
+        ),
+      ),
+      ...liftSets.map((set) => nameOf(set.movementId) ?? set.movementId),
+    ]),
+  ];
+  if (names.length === 0) return "Imported session";
+  const more = names.length > 2 ? ` +${names.length - 2}` : "";
+  return `${WORKOUT_KIND_LABELS[kind]} · ${names.slice(0, 2).join(", ")}${more}`;
 };
 
 /** "1) 18-15/15-12 cal row": a numbered line of a rotating EMOM. */
@@ -903,16 +933,12 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
       message: "Nothing to import yet: highlight a movement.",
     });
 
+  const kind = kindOf(derivedParts);
   return {
     performedOn,
     sessionNumber,
-    name:
-      sessionNumber !== undefined
-        ? `Session ${sessionNumber}`
-        : performedOn !== undefined
-          ? `Session ${performedOn}`
-          : "Imported session",
-    kind: kindOf(derivedParts),
+    name: sessionTitle(kind, derivedParts, liftSets, nameOf),
+    kind,
     score: derivedParts.flatMap((part) => part.blocks.flatMap((block) => block.scores)).join(" · "),
     notes,
     parts: derivedParts,
