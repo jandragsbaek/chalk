@@ -9,6 +9,7 @@ type NavTarget =
   | "/strength"
   | "/benchmarks"
   | "/levels"
+  | "/power"
   | "/workouts"
   | "/import"
   | "/coach"
@@ -21,6 +22,7 @@ const NAV: ReadonlyArray<{ to: NavTarget; label: string; exact?: boolean }> = [
   { to: "/strength", label: "Strength" },
   { to: "/benchmarks", label: "Benchmarks" },
   { to: "/levels", label: "Levels" },
+  { to: "/power", label: "Power" },
   { to: "/workouts", label: "Workouts" },
   { to: "/import", label: "Import" },
   { to: "/coach", label: "Coach" },

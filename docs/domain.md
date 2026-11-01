@@ -360,6 +360,45 @@ contracts, `GET /workouts/similar`), from the stored blocks and items; nothing i
   other). `/plan`'s workbench shows "Similar sessions" under the protocol (a row opens in a
   new tab); Today's plan lists up to three per part under "Done before".
 
+## Work and power
+
+An estimate of the mechanical work a session took and the power behind it, in the spirit of
+CrossFit's "work = force × distance": the same workout done faster, or with more load, shows as
+more watts. Absolute numbers are rough; a workout compared with itself over time is the point.
+Pure functions in `packages/contracts/src/power/`, computed wherever the session is derived.
+
+- **Body** (`bodyOf`): segment lengths from height after Drillis and Contini (as tabled in
+  Winter, _Biomechanics and Motor Control of Human Movement_), segment masses from bodyweight
+  after de Leva (1996), male or female. A measured arm (acromion to the knuckles of a fist) or
+  inseam rescales that limb. Bodyweight is the weigh-in on or before the session's day.
+- **Work per unit** (`WORK_MODELS`, by catalog id; a variation without one uses its core's):
+  the moving segments and the load, raised by distances read off the body. A pull-up lifts all
+  but the hands and forearms by the arm's length; a squat lifts all but shanks and feet by the
+  thigh's; a thruster is a front squat plus a press; a clean adds the bar from the floor to the
+  shoulders, and the squat when caught low; a wall ball raises the ball from the bottom of the
+  squat to the 10 or 9 ft target. Boxes are 24/20 in (box height is not recorded). Concentric
+  only, and sideways travel does none: carries and holds count as zero work, not left out.
+- **Machines and running**: a calorie (rower, ski, bike) is 750 J, the mechanical work behind
+  one Concept2 calorie at 150–300 W (the display adds 300 kcal/h of resting burn); a rower or
+  ski metre 48.6 J (2:00/500 m, from watts = 2.8 / pace³), a BikeErg metre half that; running
+  1 J per kg per metre (Cavagna's external work of running). A sled is friction (μ 0.3 × load).
+  Swimming and the VersaClimber have no model.
+- **Counting a block** (`estimateBlockWork`): reps per round from the item's lines (the
+  athlete's side of an M/F split, the middle of a range, `perRound` when given), times rounds;
+  a "21-15-9" block's scheme is its items' reps. An AMRAP counts full rounds plus the partial
+  round from its score, in item order; without a score it is skipped. An EMOM or every-X with
+  numbered lines ("1) … 4) Rest") rotates through them (`DerivedBlock.rotation`), so each line
+  is done once per that many intervals. Lift results count set by set at their loads; reps
+  split by variation count each variation's work. An "or" counts the option that was done.
+  Load: the performance's, else the prescription's; a percentage of 1RM is not read yet.
+- **Time and power**: a for-time block's score, an AMRAP's or EMOM's length, rounds × interval,
+  or rounds × (work + rest). Power is work over that time; the session's is the work of its
+  timed blocks over their time. Lift sets from the notes add work, not time.
+- **Left out, said so**: a movement without a model, without reps or without a load is listed
+  with its reason, never dropped silently.
+- **Benchmarks** (`estimateBenchmarkWork`): the Rx prescription over the attempt's time, or a
+  single AMRAP's rounds. Scores in reps (Fight Gone Bad) are not split over movements.
+
 ## Planned sessions (built)
 
 The box posts the day's workout in the morning; the athlete enters it then and plans the

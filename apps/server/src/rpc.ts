@@ -2,6 +2,7 @@ import {
   ChalkRpcGroup,
   LevelStorageError,
   ProfileStorageError,
+  PowerStorageError,
   RPC_METHODS,
   StrengthStorageError,
   WorkoutStorageError,
@@ -11,6 +12,7 @@ import * as Effect from "effect/Effect";
 import * as CoachService from "./coach/CoachService.ts";
 import * as LevelStore from "./levels/LevelStore.ts";
 import * as ProfileStore from "./profile/ProfileStore.ts";
+import * as PowerStore from "./power/PowerStore.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
@@ -35,12 +37,18 @@ const reportProfileStorageError = (error: ProfileStore.ProfilePersistenceError) 
     Effect.andThen(Effect.fail(new ProfileStorageError({ operation: error.operation }))),
   );
 
+const reportPowerStorageError = (error: PowerStore.PowerPersistenceError) =>
+  Effect.logError(error.message, error.cause).pipe(
+    Effect.andThen(Effect.fail(new PowerStorageError({ operation: error.operation }))),
+  );
+
 /** Thin transport: RpcServer decodes the payload, the handler calls one service method and maps errors. */
 export const layer = ChalkRpcGroup.toLayer(
   Effect.gen(function* () {
     const store = yield* WorkoutStore.WorkoutStore;
     const strength = yield* StrengthStore.StrengthStore;
     const levels = yield* LevelStore.LevelStore;
+    const power = yield* PowerStore.PowerStore;
     const coach = yield* CoachService.CoachService;
     const profile = yield* ProfileStore.ProfileStore;
     const onStrengthError = { StrengthPersistenceError: reportStrengthStorageError };
@@ -66,6 +74,8 @@ export const layer = ChalkRpcGroup.toLayer(
         levels
           .overview()
           .pipe(Effect.catchTags({ LevelPersistenceError: reportLevelStorageError })),
+      [RPC_METHODS.powerSessions]: () =>
+        power.sessions().pipe(Effect.catchTags({ PowerPersistenceError: reportPowerStorageError })),
       [RPC_METHODS.coachStatus]: () => coach.status(),
       [RPC_METHODS.coachThreads]: () => coach.threads(),
       [RPC_METHODS.coachThread]: ({ id }) => coach.thread(id),

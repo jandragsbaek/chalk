@@ -17,3 +17,4 @@ export * from "./estimate.ts";
 export * from "./similarity.ts";
 export * from "./blockLabels.ts";
 export * from "./similarityWords.ts";
+export * from "./power/index.ts";

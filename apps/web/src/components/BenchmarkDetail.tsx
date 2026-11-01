@@ -1,10 +1,13 @@
 import {
   BENCHMARK_SOURCES,
+  estimateBenchmarkWork,
   gradeItem,
   LEVEL_SHORT,
   levelKey,
   levelName,
+  workModelsFor,
   type Benchmark,
+  type BenchmarkResult,
 } from "@chalk/contracts";
 import { LevelBadge } from "@chalk/ui/components/level-ruler.tsx";
 import { useAtomValue } from "@effect/atom-react";
@@ -14,6 +17,7 @@ import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 import { benchmarkFacts, historyByBenchmark, historyOf, rxDivision } from "../lib/benchmarks.ts";
 import { catalogLookup, type CatalogLookup } from "../lib/catalog.ts";
+import { bodyOn, formatWatts, useProfile } from "../lib/power.ts";
 import { useAthleteSex } from "../lib/profile.ts";
 import { formatDay } from "../lib/utils.ts";
 import { benchmarkResultsAtom } from "../state/benchmarks.ts";
@@ -81,8 +85,19 @@ function RxLevels({
   );
 }
 
+const MODELS = workModelsFor([]);
+
 function Attempts({ benchmark }: { readonly benchmark: Benchmark }) {
   const results = useAtomValue(benchmarkResultsAtom);
+  const profile = useProfile();
+  /** Estimated at the Rx prescription; a scaled attempt's loads are not recorded. */
+  const wattsOf = (attempt: BenchmarkResult) => {
+    if (attempt.rx === false) return undefined;
+    const body = bodyOn(profile, attempt.performedOn);
+    return body === undefined
+      ? undefined
+      : estimateBenchmarkWork(benchmark, attempt.score, body, MODELS)?.watts;
+  };
   return AsyncResult.match(results, {
     onInitial: () => <p className="px-4 py-3 text-sm text-muted-foreground">Loading attempts...</p>,
     onFailure: () => (
@@ -116,6 +131,7 @@ function Attempts({ benchmark }: { readonly benchmark: Benchmark }) {
                   {attempt.imported ? "Imported" : attempt.rx ? "Rx" : "Scaled"}
                 </span>
                 <span className="font-bold tabular-nums">{attempt.score || "No score"}</span>
+                <AttemptWatts watts={wattsOf(attempt)} />
               </span>
             </li>
           ))}
@@ -123,6 +139,17 @@ function Attempts({ benchmark }: { readonly benchmark: Benchmark }) {
       );
     },
   });
+}
+
+function AttemptWatts({ watts }: { readonly watts: number | undefined }) {
+  return (
+    <span
+      className="w-14 text-right text-xs tabular-nums text-muted-foreground"
+      title="Estimated power at the Rx prescription"
+    >
+      {watts === undefined ? "" : formatWatts(watts)}
+    </span>
+  );
 }
 
 /** One benchmark: the board, how its Rx grades, the athlete's attempts, and a form to log one. */
