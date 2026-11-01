@@ -33,6 +33,7 @@ import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 
+import * as RestDayStore from "../rest/RestDayStore.ts";
 import * as StrengthStore from "../strength/StrengthStore.ts";
 import * as WorkoutStore from "../workout/WorkoutStore.ts";
 import * as CoachStore from "./CoachStore.ts";
@@ -113,6 +114,9 @@ const systemPrompt = (today: string) =>
       "comes from, like (R2).",
     "Rep maxes marked with fromReps above reps are implied by a bigger set, not tested. An " +
       "estimated 1RM is an estimate: say so, and give its spread when it matters.",
+    "Rest is the athlete's choice: a day with nothing logged is not a rest day unless " +
+      "list_rest_days has it. When rest would help, suggest a day; put it in their calendar " +
+      "with mark_rest_day only when they ask for it or agree, and say which day you marked.",
     "Be brief and concrete: a few short paragraphs at most, plain text, no headings or " +
       "tables. Ask one question back when the log cannot answer something.",
     "If the athlete mentions pain or injury, suggest they see a professional and give no " +
@@ -162,6 +166,7 @@ const make = Effect.gen(function* () {
   const store = yield* CoachStore.CoachStore;
   const workouts = yield* WorkoutStore.WorkoutStore;
   const strength = yield* StrengthStore.StrengthStore;
+  const restDays = yield* RestDayStore.RestDayStore;
 
   const status = () =>
     Effect.succeed(
@@ -186,6 +191,8 @@ const make = Effect.gen(function* () {
     readonly model: CoachModelChoice;
     readonly history: string;
     readonly text: string;
+    /** The athlete's local day; the server's UTC day when the browser did not say. */
+    readonly today: string | undefined;
     readonly firstReceipt: number;
     readonly emit: (event: CoachEvent) => Effect.Effect<unknown>;
   }) {
@@ -214,9 +221,11 @@ const make = Effect.gen(function* () {
         }),
     };
 
-    const handlers = yield* CoachToolkit.toHandlers(makeHandlers({ workouts, strength, log }));
+    const today = options.today ?? DateTime.formatIsoDateUtc(yield* DateTime.now);
+    const handlers = yield* CoachToolkit.toHandlers(
+      makeHandlers({ workouts, strength, restDays, today, log }),
+    );
     const toolkit = yield* CoachToolkit.pipe(Effect.provideContext(handlers));
-    const today = DateTime.formatIsoDateUtc(yield* DateTime.now);
     const chat = yield* options.history === ""
       ? Chat.empty
       : Chat.fromJson(options.history).pipe(Effect.orDie);
@@ -323,6 +332,7 @@ const make = Effect.gen(function* () {
               model,
               history,
               text: input.text,
+              today: input.today,
               firstReceipt: started.reads + 1,
               emit,
             });

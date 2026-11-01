@@ -194,7 +194,7 @@ function ThreadPane({
   };
   const submit = (text: string) => {
     setSentHere({ text, at: new Date().toISOString(), model });
-    const pick = model === null ? {} : { model };
+    const pick = { ...(model === null ? {} : { model }), today: localIsoDate(new Date()) };
     send(threadId === undefined ? { text, ...pick } : { threadId, text, ...pick });
   };
 

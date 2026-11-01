@@ -445,6 +445,23 @@ Read-only: GET requests only, never booking or check-in.
   default). It fills the text box; several classes on a day ask which one. On `/import` the
   draft takes the picked day as its date, since board text has no date line.
 
+## Rest days (built)
+
+Rest is a choice, never inferred. A **rest day** (`rest_days`, `RestDay { day, kind, source }`)
+is a day the athlete marked; a day with nothing logged and no mark reads "Nothing logged", not
+rest.
+
+- One mark per local day; `kind` is why: `rest`, `sick`, `injured` or `travel`. Marking a day
+  again replaces it. `source` is who marked it: `athlete` or `coach`.
+- Marked on Today: from a week row (past, today or planned ahead) or by clicking a day in the
+  year grid, where the readout under the grid holds that day. Only a day with nothing logged
+  offers the mark; a session logged on a marked day shows the session.
+- The coach can suggest rest and, when the athlete asks or agrees, put it in the calendar
+  (`mark_rest_day`, see [coaching.md](coaching.md)): today or later only, never over a logged
+  session or a day the athlete marked.
+- Rest days count nowhere: a week of only rest still breaks "Weeks in a row".
+- RPCs: `restDays.list`, `restDays.mark`, `restDays.clear`.
+
 - Load: kilograms everywhere in storage and contracts.
 - Dates: `performedOn` is the athlete's local calendar day (`IsoDate`); `createdAt` is an instant.
 - Durations: seconds as integers.

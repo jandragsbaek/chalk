@@ -34,6 +34,7 @@ import {
   BodyweightNotFoundError,
   ProfileStorageError,
 } from "./profile.ts";
+import { MarkRestDayInput, RestDay, RestDayNotFoundError, RestDayStorageError } from "./restDay.ts";
 import {
   LiftSet,
   LiftSetNotFoundError,
@@ -75,6 +76,9 @@ export const RPC_METHODS = {
   bookingboardConnect: "bookingboard.connect",
   bookingboardDisconnect: "bookingboard.disconnect",
   bookingboardDay: "bookingboard.day",
+  restDaysList: "restDays.list",
+  restDaysMark: "restDays.mark",
+  restDaysClear: "restDays.clear",
 } as const;
 
 /** Mount point for the RPC endpoint on the server, and the web dev proxy. */
@@ -224,6 +228,24 @@ const BookingboardDayRpc = Rpc.make(RPC_METHODS.bookingboardDay, {
   ]),
 });
 
+/** Every day marked as rest, oldest first. */
+const RestDaysListRpc = Rpc.make(RPC_METHODS.restDaysList, {
+  success: Schema.Array(RestDay),
+  error: RestDayStorageError,
+});
+
+/** Marks a day as rest, sick, injured or travel; marking it again replaces the kind. */
+const RestDaysMarkRpc = Rpc.make(RPC_METHODS.restDaysMark, {
+  payload: MarkRestDayInput,
+  success: RestDay,
+  error: RestDayStorageError,
+});
+
+const RestDaysClearRpc = Rpc.make(RPC_METHODS.restDaysClear, {
+  payload: { day: IsoDate },
+  error: Schema.Union([RestDayNotFoundError, RestDayStorageError]),
+});
+
 export const ChalkRpcGroup = RpcGroup.make(
   WorkoutsListRpc,
   WorkoutsLogRpc,
@@ -248,4 +270,7 @@ export const ChalkRpcGroup = RpcGroup.make(
   BookingboardConnectRpc,
   BookingboardDisconnectRpc,
   BookingboardDayRpc,
+  RestDaysListRpc,
+  RestDaysMarkRpc,
+  RestDaysClearRpc,
 );

@@ -603,6 +603,22 @@ kbd[data-key] {
   background: none;
   box-shadow: none;
 }
+/*
+ * A rest day is chosen, not a gap: the box struck through by one ink line, like a day crossed
+ * off a paper calendar. A rest day still to come prints too, so planned rest shows.
+ */
+[data-heat="rest"] {
+  background:
+    linear-gradient(
+      to top right,
+      transparent calc(50% - 0.75px),
+      var(--foreground) calc(50% - 0.75px),
+      var(--foreground) calc(50% + 0.75px),
+      transparent calc(50% + 0.75px)
+    ),
+    var(--card);
+  box-shadow: inset 0 0 0 1px var(--input);
+}
 [data-heat][data-active] {
   position: relative;
   z-index: 1;
@@ -615,6 +631,16 @@ kbd[data-key] {
 }
 [data-day-row][data-active] {
   background: var(--muted);
+}
+/* A row's rest-day pick shows when the row is pointed at or focused, or its popup is open. */
+[data-day-row] [data-rest-control] {
+  opacity: 0;
+  transition: opacity 150ms;
+}
+[data-day-row]:hover [data-rest-control],
+[data-day-row]:focus-within [data-rest-control],
+[data-day-row] [data-rest-control]:has([data-popup-open]) {
+  opacity: 1;
 }
 
 /*

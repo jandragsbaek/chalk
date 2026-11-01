@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema";
 
-import { IsoDateTime, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { IsoDate, IsoDateTime, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
 /**
  * The coach: a conversation with a model that reads the athlete's log through read-only tools.
@@ -130,6 +130,11 @@ export const CoachSendInput = Schema.Struct({
   text: CoachMessageText,
   /** The slug to answer with; absent for the server's default. Anything not offered is refused. */
   model: Schema.optionalKey(TrimmedNonEmptyString.check(Schema.isMaxLength(200))),
+  /**
+   * The athlete's local day, as the browser sees it: the coach's "today", and the first day it
+   * may mark as rest. Absent, the server's UTC day.
+   */
+  today: Schema.optionalKey(IsoDate),
 });
 export type CoachSendInput = typeof CoachSendInput.Type;
 
