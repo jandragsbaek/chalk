@@ -12,7 +12,7 @@ export const entryKey = (entry: SessionEntry): string =>
 export const monthOf = (iso: string): string => iso.slice(0, 7);
 
 export interface SessionFilter {
-  /** Matches name, score, notes and movement names, ignoring case. */
+  /** Matches name, score, notes (the session's and its lift sets') and movement names, ignoring case. */
   readonly query: string;
   /** A movement, or a core movement with its variations. */
   readonly movement: MovementId | undefined;
@@ -49,6 +49,7 @@ export function filterSessions(
         ? [entry.workout.name, entry.workout.score, entry.workout.notes]
         : []),
       ...entry.movementIds.map((id) => names.get(id) ?? id),
+      ...entry.daySets.map((set) => set.notes),
     ];
     return texts.some((text) => text.toLowerCase().includes(needle));
   });

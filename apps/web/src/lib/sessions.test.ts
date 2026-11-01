@@ -34,18 +34,26 @@ function workout(
   } as unknown as SessionEntry & { workout: Workout };
 }
 
-function strengthDay(performedOn: string, movementIds: ReadonlyArray<string>): SessionEntry {
+function strengthDay(
+  performedOn: string,
+  movementIds: ReadonlyArray<string>,
+  notes = "",
+): SessionEntry {
   return {
     _tag: "strengthDay",
     performedOn,
     movementIds,
-    daySets: [] as ReadonlyArray<LiftSet>,
+    daySets: movementIds.map((movementId) => ({
+      movementId,
+      performedOn,
+      notes,
+    })) as unknown as ReadonlyArray<LiftSet>,
   } as unknown as SessionEntry;
 }
 
 const entries = [
   workout("2026-10-27", "Fight the clock", ["power-snatch", "row"]),
-  strengthDay("2026-10-26", ["back-squat"]),
+  strengthDay("2026-10-26", ["back-squat"], "Shoulder pain on the last set"),
   workout("2026-09-29", "Isabel", ["snatch"], "Hands tore"),
   workout("2025-12-30", "Rowing intervals", ["row"]),
 ];
@@ -63,6 +71,9 @@ describe("filterSessions", () => {
 
   it("matches text in names, notes and movement names, and narrows to a year", () => {
     expect(names(filterSessions(entries, { ...none, query: "tore" }, catalog))).toEqual(["Isabel"]);
+    expect(names(filterSessions(entries, { ...none, query: "shoulder pain" }, catalog))).toEqual([
+      "2026-10-26",
+    ]);
     expect(names(filterSessions(entries, { ...none, query: "back SQUAT" }, catalog))).toEqual([
       "2026-10-26",
     ]);
