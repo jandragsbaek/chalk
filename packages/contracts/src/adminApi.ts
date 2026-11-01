@@ -7,7 +7,7 @@ import * as Schema from "effect/Schema";
 import { MovementId, PlanId, WorkoutId } from "./baseSchemas.ts";
 import { PlanNotFoundError, SavePlanInput, SessionPlan } from "./plan.ts";
 import { SessionEntry } from "./session.ts";
-import { SimilarParts } from "./similarity.ts";
+import { PlanSimilarity, SimilarParts, SimilarToPlanInput } from "./similarity.ts";
 import {
   AddAliasInput,
   AliasTakenError,
@@ -60,6 +60,12 @@ export const AdminWorkoutsGroup = HttpApiGroup.make("workouts")
     /** Every saved part's repeats and look-alikes in other sessions. */
     HttpApiEndpoint.get("similar", "/similar", {
       success: SimilarParts,
+      error: WorkoutStorageError,
+    }),
+    /** A plan's parts against the saved ones: what it repeats or resembles, and how it went. */
+    HttpApiEndpoint.post("similarToPlan", "/similar", {
+      payload: SimilarToPlanInput,
+      success: PlanSimilarity,
       error: WorkoutStorageError,
     }),
     HttpApiEndpoint.delete("remove", "/:id", {

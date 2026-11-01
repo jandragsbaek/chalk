@@ -146,6 +146,46 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "workouts"
+        ],
+        "operationId": "workouts.similarToPlan",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "PlanSimilarity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanSimilarity"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "WorkoutStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimilarToPlanInput"
+              }
+            }
+          },
+          "required": true
+        }
       }
     },
     "/api/admin/workouts/{id}": {
@@ -2443,7 +2483,7 @@
         ],
         "additionalProperties": false
       },
-      "SimilarParts": {
+      "PlanSimilarity": {
         "type": "object",
         "properties": {
           "parts": {
@@ -2455,7 +2495,7 @@
           "echoes": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PartEchoes"
+              "$ref": "#/components/schemas/PlannedPartEchoes"
             }
           }
         },
@@ -2465,13 +2505,13 @@
         ],
         "additionalProperties": false
       },
-      "PartEchoes": {
+      "PlannedPartEchoes": {
         "type": "object",
         "properties": {
-          "part": {
-            "type": "string",
-            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
-            "minLength": 1
+          "position": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "matches": {
             "type": "array",
@@ -2483,25 +2523,12 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
-          },
-          "earlierRepeat": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "required": [
-          "part",
+          "position",
           "matches",
-          "total",
-          "earlierRepeat"
+          "total"
         ],
         "additionalProperties": false
       },
@@ -2933,6 +2960,209 @@
           "movementIds",
           "result",
           "top"
+        ],
+        "additionalProperties": false
+      },
+      "SimilarToPlanInput": {
+        "type": "object",
+        "properties": {
+          "plannedOn": {
+            "type": "string"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlannedPart"
+            }
+          }
+        },
+        "required": [
+          "plannedOn",
+          "parts"
+        ],
+        "additionalProperties": false
+      },
+      "PlannedPart": {
+        "type": "object",
+        "properties": {
+          "benchmarkId": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "format": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "amrap",
+                        "emom",
+                        "every",
+                        "intervals",
+                        "for_time",
+                        "strength",
+                        "rest",
+                        "other"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "durationSeconds": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "intervalSeconds": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "workSeconds": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "restSeconds": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "rounds": {
+                      "type": "object",
+                      "properties": {
+                        "min": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "max": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "min",
+                        "max"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "scheme": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "movementId": {
+                        "type": "string",
+                        "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                        "minLength": 1
+                      },
+                      "sets": {
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Quantity"
+                          }
+                        }
+                      }
+                    },
+                    "required": [
+                      "movementId",
+                      "sets"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "format",
+                "params",
+                "items"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "blocks"
+        ],
+        "additionalProperties": false
+      },
+      "SimilarParts": {
+        "type": "object",
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartRef"
+            }
+          },
+          "echoes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartEchoes"
+            }
+          }
+        },
+        "required": [
+          "parts",
+          "echoes"
+        ],
+        "additionalProperties": false
+      },
+      "PartEchoes": {
+        "type": "object",
+        "properties": {
+          "part": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartMatch"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "earlierRepeat": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "part",
+          "matches",
+          "total",
+          "earlierRepeat"
         ],
         "additionalProperties": false
       },

@@ -321,6 +321,11 @@ contracts, `GET /workouts/similar`), from the stored blocks and items; nothing i
 - Web: the session sheet's "Similar sessions" (up to five per part, repeats first), and a
   repeat mark on register rows that repeat an earlier session. The wording (`partLabel`,
   `describeDifference`) lives in contracts, shared with the coach's `find_similar_sessions`.
+- **Plans** compare too, to plan the scaling from last time: the client sends the plan's
+  derived parts (`plannedPart`, what logging would store) to `POST /workouts/similar`; the
+  server runs the same matcher over them and the saved parts (planned parts never meet each
+  other). `/plan`'s workbench shows "Similar sessions" under the protocol (a row opens in a
+  new tab); Today's plan lists up to three per part under "Done before".
 
 ## Planned sessions (built)
 

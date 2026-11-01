@@ -1,7 +1,14 @@
-import type { PartRef, SimilarParts } from "@chalk/contracts";
+import {
+  deriveSession,
+  makeMovementMatcher,
+  suggestSpans,
+  type PartRef,
+  type PlanSimilarity,
+  type SimilarParts,
+} from "@chalk/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { indexSimilar } from "./similar.ts";
+import { indexSimilar, planEchoGroups } from "./similar.ts";
 
 const part = (id: string, workoutId: string, performedOn: string, position = 0): PartRef =>
   ({
@@ -51,5 +58,39 @@ describe("indexSimilar", () => {
     expect(
       index.ofWorkout("now").map((group) => group.echoes.map((echo) => echo.other.id)),
     ).toEqual([["dec/0"]]);
+  });
+});
+
+describe("planEchoGroups", () => {
+  it("names each planned part by its title and first format, in plan order", () => {
+    const text = "**** Strength\nBack squat 5x5\n**** Metcon\nAMRAP 12\n12 Thrusters";
+    let next = 0;
+    const spans = suggestSpans(text, makeMovementMatcher([]), () => `s${++next}`);
+    const session = deriveSession({ text, spans }, () => undefined);
+    const similar = {
+      parts: [part("sept/0", "sept", "2026-09-01")],
+      echoes: [
+        { position: 1, total: 4, matches: [{ other: "sept/0", ...repeat }] },
+        { position: 0, total: 1, matches: [{ other: "gone/0", ...repeat }] },
+      ],
+    } as unknown as PlanSimilarity;
+    expect(
+      planEchoGroups(similar, session, "2026-11-01").map((group) => ({
+        label: group.label,
+        performedOn: group.performedOn,
+        part: group.part,
+        others: group.echoes.map((echo) => echo.other.id),
+        total: group.total,
+      })),
+    ).toEqual([
+      { label: "Strength", performedOn: "2026-11-01", part: undefined, others: [], total: 1 },
+      {
+        label: "Metcon · AMRAP 12 min",
+        performedOn: "2026-11-01",
+        part: undefined,
+        others: ["sept/0"],
+        total: 4,
+      },
+    ]);
   });
 });

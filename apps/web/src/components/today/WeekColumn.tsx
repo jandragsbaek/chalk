@@ -1,4 +1,4 @@
-import type { MovementId, PlanId } from "@chalk/contracts";
+import type { DerivedSession, MovementId, PlanId } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Link } from "@tanstack/react-router";
 import type * as React from "react";
@@ -8,6 +8,7 @@ import type { PlannedMovement } from "../../lib/plan.ts";
 import { toDate } from "../../lib/progress.ts";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { FieldBox } from "../FieldBox.tsx";
+import { SimilarSessionsBrief, usePlanEchoes } from "../sessions/SimilarSessions.tsx";
 import { heatOf } from "./YearGrid.tsx";
 import { formatShort } from "./SectionHead.tsx";
 
@@ -16,6 +17,9 @@ const weekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 /** A plan not logged yet, as the week column shows it. */
 export interface DayPlan {
   readonly id: PlanId;
+  readonly plannedOn: string;
+  /** The plan derived, for comparing its parts with saved sessions. */
+  readonly session: DerivedSession;
   /** Kind and first movements, or the session's own name (see `planTitle`). */
   readonly title: string;
   readonly movements: ReadonlyArray<PlannedMovement>;
@@ -103,7 +107,7 @@ export function WeekColumn({
       </ol>
 
       {todayPlans.map((plan) => (
-        <TodayPlan key={plan.id} plan={plan} />
+        <TodayPlan key={plan.id} plan={plan} names={names} />
       ))}
 
       <dl
@@ -152,8 +156,18 @@ function Unit({ children }: { readonly children: React.ReactNode }) {
   return <span className="ml-1 text-xs font-normal text-muted-foreground">{children}</span>;
 }
 
-/** Today's plan before the session: each movement with the scaling planned, and the way to log it. */
-function TodayPlan({ plan }: { readonly plan: DayPlan }) {
+/**
+ * Today's plan before the session: each movement with the scaling planned, where it was done
+ * before and how it went, and the way to log it.
+ */
+function TodayPlan({
+  plan,
+  names,
+}: {
+  readonly plan: DayPlan;
+  readonly names: ReadonlyMap<MovementId, string>;
+}) {
+  const echoes = usePlanEchoes(plan.session, plan.plannedOn);
   return (
     <section
       aria-label={`Planned today: ${plan.title}`}
@@ -190,6 +204,7 @@ function TodayPlan({ plan }: { readonly plan: DayPlan }) {
           ))}
         </ul>
       ) : null}
+      <SimilarSessionsBrief groups={echoes} nameOf={(id) => names.get(id) ?? id} />
       <Button render={<Link to="/import" search={{ plan: plan.id }} />} className="w-full">
         Log it
       </Button>

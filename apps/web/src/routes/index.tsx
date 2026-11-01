@@ -36,6 +36,8 @@ const plansByDay = (
     const session = deriveSession(plan.document, nameOf);
     const entry: DayPlan = {
       id: plan.id,
+      plannedOn: plan.plannedOn,
+      session,
       title: planTitle(session, nameOf),
       movements: plannedMovements(session, nameOf),
     };

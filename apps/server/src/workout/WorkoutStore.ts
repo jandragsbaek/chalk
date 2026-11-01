@@ -11,7 +11,9 @@ import {
   WorkoutNotFoundError,
   type BenchmarkResult,
   type SessionEntry,
+  type PlanSimilarity,
   type SimilarParts,
+  type SimilarToPlanInput,
   type WorkoutStats,
 } from "@chalk/contracts";
 import * as Context from "effect/Context";
@@ -129,6 +131,10 @@ export class WorkoutStore extends Context.Service<
     readonly sessions: () => Effect.Effect<ReadonlyArray<SessionEntry>, WorkoutPersistenceError>;
     /** Every saved part's repeats and look-alikes among the other sessions' parts. */
     readonly similar: () => Effect.Effect<SimilarParts, WorkoutPersistenceError>;
+    /** What a plan's parts repeat or resemble among the saved parts, before it is done. */
+    readonly similarToPlan: (
+      input: SimilarToPlanInput,
+    ) => Effect.Effect<PlanSimilarity, WorkoutPersistenceError>;
     /** Every attempt at a benchmark, newest first, logged or imported. */
     readonly results: () => Effect.Effect<ReadonlyArray<BenchmarkResult>, WorkoutPersistenceError>;
     readonly remove: (
@@ -363,11 +369,25 @@ const make = Effect.gen(function* () {
   });
 
   const similar = Effect.fn("WorkoutStore.similar")(function* () {
-    return yield* loadSimilarParts().pipe(
-      Effect.mapError(
-        (cause) => new WorkoutPersistenceError({ operation: "compare sessions", cause }),
-      ),
-    );
+    return yield* loadSimilarParts
+      .all()
+      .pipe(
+        Effect.mapError(
+          (cause) => new WorkoutPersistenceError({ operation: "compare sessions", cause }),
+        ),
+      );
+  });
+
+  const similarToPlan = Effect.fn("WorkoutStore.similarToPlan")(function* (
+    input: SimilarToPlanInput,
+  ) {
+    return yield* loadSimilarParts
+      .toPlan(input)
+      .pipe(
+        Effect.mapError(
+          (cause) => new WorkoutPersistenceError({ operation: "compare sessions", cause }),
+        ),
+      );
   });
 
   const results = Effect.fn("WorkoutStore.results")(function* () {
@@ -406,7 +426,17 @@ const make = Effect.gen(function* () {
     if (deleted.length === 0) return yield* new WorkoutNotFoundError({ id });
   });
 
-  return WorkoutStore.of({ list, search, stats, log, sessions, similar, results, remove });
+  return WorkoutStore.of({
+    list,
+    search,
+    stats,
+    log,
+    sessions,
+    similar,
+    similarToPlan,
+    results,
+    remove,
+  });
 });
 
 export const layer = Layer.effect(WorkoutStore, make);
