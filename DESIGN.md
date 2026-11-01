@@ -231,13 +231,18 @@ Carbonless copies. Each tint is a pair: a pale fill and the ink that edges it.
   token (`level-*-ink`): ink on F, S and I, paper on RX and E. On the carbon side the ramp runs
   the other way (Elite lightest), so the highest level is always the most ink.
 
+- **Heat Ramp** (mixed from `foreground` into `card`, not separate tokens): training days by
+  sessions, the same one-hue logic as the level ramp. None is a fresh-sheet box with a 1px
+  form-rule edge; one session is 30% ink, two 62%, three or more solid ink. A day still to come
+  prints nothing. On the carbon side the mix runs toward paper, so more sessions is still more ink.
+
 ### Named Rules
 
 **The One Red Rule.** Red means no-lift: a failed check, a flagged line, an unresolved row, a destructive action. It is never a brand accent, a highlight or a decoration.
 
 **The Carbon Copy Rule.** A tint never appears alone. Every tagged fill is edged by its own ink (a 2px inset underline, a 1px outline, or a dotted underline), and tints are spent only on tagged data, never on panels or decoration.
 
-**The Ink Pressable Rule.** Solid ink fill on the page means "press this" (primary button, primary badge) or a structural element of the form (header band, part marks, lamp housing). It is never used as a decorative panel.
+**The Ink Pressable Rule.** Solid ink fill on the page means "press this" (primary button, primary badge), a structural element of the form (header band, part marks, lamp housing) or the top step of an ink data ramp (level, heat). It is never used as a decorative panel.
 
 ## Typography
 
@@ -275,6 +280,10 @@ The app is a form under a header band. A sticky 48px ink band carries the wordma
 The import workbench owns the viewport below the band (100dvh minus 48px) and its panes scroll independently. A protocol header strip of boxed fields runs across the top, boxes divided by 1px vertical rules, referee panel and actions pushed right. Below it, three columns divided by rules: source and protocol as equal fractions, inspector fixed at 18rem (22rem from 80rem).
 
 Pane headers are 36px strips with a label on the left and meta on the right. Rows use 16px horizontal and 6px vertical padding; protocol rows align on a 13rem name column. The source pane prints a 2.25rem line-number gutter behind a 1px rule, text indented 3.25rem.
+
+The front page (Today) lays out its own two columns under the band: a 20rem fresh-sheet week column, ruled off on its right and sticky below the band, beside a paper field padded 32px whose sections stack 40px apart. Recent PRs and Main lifts sit side by side from 80rem, 32px apart. The year grid keeps a 44rem minimum; in a narrower window it scrolls sideways under a sticky weekday label column.
+
+Record lists that sit side by side share a 56px row so their rules line up: the Recent PRs list and the Main lifts table. Week day rows are at least 48px.
 
 Spacing steps observed: 2px, 4px, 6px, 8px, 12px, 16px, 24px; 48px for the band.
 
@@ -337,7 +346,7 @@ Printed and decisive: square, semi-bold, no gradient.
 
 ### Navigation
 
-- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Log, Strength, Benchmarks, Levels, Workouts, Import). Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
+- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Log, Strength, Benchmarks, Levels, Workouts, Import); Today is the front page and Log the manual entry page. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
 
 ### Protocol Field Box
 
@@ -376,6 +385,16 @@ condensed caps on the ramp, solid when done and dashed when asked for. Used on t
 `/levels` page (one row per family, tabs by group) and on importer protocol rows (small, no
 labels) and in the inspector.
 
+### Section Heads
+
+A section of the field is titled like a protocol section: condensed heavy caps (title size, headline size for the year) on a 2px ink rule, with meta on the right in pencil-grey condensed caps, bottom-aligned. Meta is a count ("Latest 6"), a legend, or a link to the section's full page that ends in a 12px arrow (lucide `ArrowRight`) and turns ink on hover. The table below starts with a label-size column-head row, cells padded 12px by 6px, and an empty section prints one sentence on fresh sheet saying what will appear and how.
+
+### Training Days (heat cells and week rows, signature)
+
+One cell vocabulary shared by the year grid and the week column, shaded on the heat ramp. The year grid is 53 week columns of square cells 3px apart, Monday first, month labels over the columns and Mon, Wed, Fri on a label column; the legend runs Rest, four cells, 3+ sessions. The day being read takes the selection double outline (3px, offset 1px) and is read out in a sentence under the grid; pointing at a cell or walking the grid with the arrow keys moves it, and the grid takes a 2px inset ballpoint ring on keyboard focus.
+
+The week column is the same days as a card: one ruled row per day, a 3.5rem stub with the weekday in condensed caps over the date and a 10px heat swatch, then the day's entries (workout name with its kind label, or movement chips for a strength-only day; "Rest", "Nothing logged yet" for today, or an empty-cell rule for days unknown or still to come). Today carries a 3px double ink outline inset 4px. The day being read in the grid fills its row with the ruled tint, and pointing at a row selects that day in the grid. Below the rows, the consistency numbers as a 2x2 of protocol field boxes and a full-width primary button.
+
 ### Source Line Gutter
 
 Courier source with printed line numbers in a right-aligned 2.25rem gutter behind a 1px rule. A flagged line turns its number cell solid red with a paper numeral, matching the L-number cited in the issue list.
@@ -399,5 +418,5 @@ Courier source with printed line numbers in a right-aligned 2.25rem gutter behin
 - **Don't** spend copy tints on panels, backgrounds or decoration; they belong to tagged data.
 - **Don't** round corners or add soft drop shadows to surfaces at rest; only the modal dialog lifts.
 - **Don't** set a condensed caps label floating above a heading as an eyebrow.
-- **Don't** use solid ink fill for a decorative panel; ink fill marks pressables and the form's structure.
+- **Don't** use solid ink fill for a decorative panel; ink fill marks pressables, the form's structure and the top of an ink data ramp.
 - **Don't** let hue alone carry a state.

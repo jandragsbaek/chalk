@@ -2,10 +2,11 @@ import { createRootRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 
 export const Route = createRootRoute({ component: RootLayout });
 
-type NavTarget = "/" | "/strength" | "/benchmarks" | "/levels" | "/workouts" | "/import";
+type NavTarget = "/" | "/log" | "/strength" | "/benchmarks" | "/levels" | "/workouts" | "/import";
 
 const NAV: ReadonlyArray<{ to: NavTarget; label: string; exact?: boolean }> = [
-  { to: "/", label: "Log", exact: true },
+  { to: "/", label: "Today", exact: true },
+  { to: "/log", label: "Log" },
   { to: "/strength", label: "Strength" },
   { to: "/benchmarks", label: "Benchmarks" },
   { to: "/levels", label: "Levels" },
@@ -21,6 +22,8 @@ const WIDE_PREFIXES = ["/levels", "/benchmarks"];
 type PageLayout = "own" | "wide" | "narrow";
 
 function pageLayout(pathname: string): PageLayout {
+  // The front page lays out its own week column and field.
+  if (pathname === "/") return "own";
   if (OWN_LAYOUT_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return "own";
   if (WIDE_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return "wide";
   return "narrow";

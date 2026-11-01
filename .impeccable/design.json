@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-31T00:00:00Z",
+  "generatedAt": "2026-11-01T00:00:00Z",
   "title": "Design System: Chalk",
   "extensions": {
     "colorMeta": {
@@ -545,12 +545,12 @@
       {
         "name": "lg",
         "value": "64rem",
-        "purpose": "Workbench takes the viewport and splits into three ruled columns; inspector 18rem."
+        "purpose": "Workbench takes the viewport and splits into three ruled columns; inspector 18rem. Today page splits into a 20rem week column beside the field."
       },
       {
         "name": "xl",
         "value": "80rem",
-        "purpose": "Inspector widens to 22rem; header actions show text labels."
+        "purpose": "Inspector widens to 22rem; header actions show text labels. Today page sets Recent PRs and Main lifts side by side."
       }
     ]
   },
@@ -592,8 +592,8 @@
       "kind": "nav",
       "refersTo": "header-band",
       "description": "48px ink title block with wordmark and uppercase tabs; active tab carries a 2px paper rule.",
-      "html": "<header class=\"ds-band\"><span class=\"ds-band-mark\">Chalk</span><span class=\"ds-band-sub\">Backoffice</span><nav class=\"ds-band-nav\"><a class=\"ds-tab\" href=\"#\">Workouts</a><a class=\"ds-tab ds-tab-active\" href=\"#\">Import</a></nav></header>",
-      "css": ".ds-band { display:flex; align-items:center; gap:10px; height:48px; padding:0 24px; background:var(--band); color:var(--band-foreground); font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; } .ds-band-mark { font-size:1.5rem; font-weight:750; font-stretch:70%; text-transform:uppercase; letter-spacing:0.01em; line-height:1; } .ds-band-sub { font-size:0.6875rem; font-weight:600; font-stretch:75%; letter-spacing:0.06em; text-transform:uppercase; color:var(--band-muted); margin-right:14px; } .ds-band-nav { display:flex; } .ds-tab { display:flex; align-items:center; height:48px; padding:0 12px; border-bottom:2px solid transparent; box-sizing:border-box; color:var(--band-muted); text-decoration:none; font-size:0.875rem; font-weight:600; font-stretch:87.5%; letter-spacing:0.025em; text-transform:uppercase; } .ds-tab:hover { color:var(--band-foreground); } .ds-tab:focus-visible { outline:2px solid var(--ring); outline-offset:-2px; } .ds-tab-active { color:var(--band-foreground); border-bottom-color:var(--band-foreground); }"
+      "html": "<header class=\"ds-band\"><span class=\"ds-band-mark\">Chalk</span><nav class=\"ds-band-nav\"><a class=\"ds-tab ds-tab-active\" href=\"#\">Today</a><a class=\"ds-tab\" href=\"#\">Log</a><a class=\"ds-tab\" href=\"#\">Strength</a><a class=\"ds-tab\" href=\"#\">Workouts</a></nav></header>",
+      "css": ".ds-band { display:flex; align-items:center; gap:24px; height:48px; padding:0 24px; background:var(--band); color:var(--band-foreground); font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; } .ds-band-mark { font-size:1.5rem; font-weight:750; font-stretch:70%; text-transform:uppercase; letter-spacing:0.01em; line-height:1; } .ds-band-nav { display:flex; } .ds-tab { display:flex; align-items:center; height:48px; padding:0 12px; border-bottom:2px solid transparent; box-sizing:border-box; color:var(--band-muted); text-decoration:none; font-size:0.875rem; font-weight:600; font-stretch:87.5%; letter-spacing:0.025em; text-transform:uppercase; } .ds-tab:hover { color:var(--band-foreground); } .ds-tab:focus-visible { outline:2px solid var(--ring); outline-offset:-2px; } .ds-tab-active { color:var(--band-foreground); border-bottom-color:var(--band-foreground); }"
     },
     {
       "name": "Protocol Field Boxes",
@@ -626,6 +626,22 @@
       "description": "Signature: three lamps in an ink housing, white good, red no-lift; all white enables Save.",
       "html": "<div class=\"ds-ref\"><div class=\"ds-lamps\"><span class=\"ds-l\"><i class=\"ds-lamp ds-good\"></i>D</span><span class=\"ds-l\"><i class=\"ds-lamp ds-fail\"></i>M</span><span class=\"ds-l\"><i class=\"ds-lamp ds-good\"></i>N</span></div><div class=\"ds-verdict\"><b>No lift</b><small>Check movements</small></div></div>",
       "css": ".ds-ref { display:flex; align-items:center; gap:12px; font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; } .ds-lamps { display:flex; gap:8px; padding:6px 10px 4px; background:var(--band); } .ds-l { display:grid; justify-items:center; gap:2px; font-size:0.6875rem; line-height:1; font-weight:600; font-stretch:75%; letter-spacing:0.06em; color:var(--band-muted); } .ds-lamp { width:14px; height:14px; border-radius:9999px; background:var(--lamp-off); box-shadow:inset 0 -2px 3px oklch(0 0 0 / 0.35); transition:background-color 200ms ease-out; } .ds-good { background:var(--lamp-good); } .ds-fail { background:var(--lamp-fail); } .ds-verdict { display:grid; line-height:1.2; } .ds-verdict b { font-size:1rem; font-weight:700; font-stretch:75%; text-transform:uppercase; color:var(--destructive); } .ds-verdict small { font-size:0.75rem; color:var(--muted-foreground); }"
+    },
+    {
+      "name": "Section Head",
+      "kind": "custom",
+      "refersTo": "section-head",
+      "description": "A field section title: condensed heavy caps on a 2px ink rule, pencil-grey caps meta on the right; a link to the full page ends in a 12px arrow. Rows below share a 56px rhythm.",
+      "html": "<section class=\"ds-sec\"><div class=\"ds-sec-head\"><h2 class=\"ds-sec-title\">Latest sessions</h2><a class=\"ds-sec-more\" href=\"#\">All workouts<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"m12 5 7 7-7 7\"/></svg></a></div><div class=\"ds-sec-cols\"><span>Date</span><span>Lift or workout</span><span>Record</span></div><div class=\"ds-sec-row\"><span class=\"ds-sec-date\">Oct 28</span><span>Back squat <span class=\"ds-sec-cap\">3RM</span></span><span class=\"ds-sec-load\">120 kg</span></div></section>",
+      "css": ".ds-sec { font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; color:var(--foreground); max-width:28rem; } .ds-sec-head { display:flex; align-items:flex-end; justify-content:space-between; gap:4px 16px; border-bottom:2px solid var(--foreground); padding-bottom:6px; } .ds-sec-title { margin:0; font-size:1.25rem; font-weight:750; font-stretch:70%; letter-spacing:0.01em; text-transform:uppercase; line-height:1; } .ds-sec-more { display:inline-flex; align-items:center; gap:4px; color:var(--muted-foreground); text-decoration:none; font-size:0.6875rem; font-weight:600; font-stretch:75%; letter-spacing:0.06em; text-transform:uppercase; line-height:1rem; } .ds-sec-more:hover { color:var(--foreground); } .ds-sec-more:focus-visible { outline:2px solid var(--ring); outline-offset:2px; } .ds-sec-cols, .ds-sec-row { display:grid; grid-template-columns:3.75rem minmax(0,1fr) auto; column-gap:12px; padding:0 12px; background:var(--card); border-bottom:1px solid var(--border); } .ds-sec-cols { padding-top:6px; padding-bottom:6px; color:var(--muted-foreground); font-size:0.6875rem; font-weight:600; font-stretch:75%; letter-spacing:0.06em; text-transform:uppercase; line-height:1rem; } .ds-sec-row { height:56px; align-items:center; font-size:0.875rem; font-variant-numeric:tabular-nums; } .ds-sec-date { font-size:0.75rem; color:var(--muted-foreground); } .ds-sec-cap { color:var(--muted-foreground); font-size:0.6875rem; font-weight:600; font-stretch:75%; letter-spacing:0.06em; text-transform:uppercase; line-height:1rem; } .ds-sec-load { padding:0 6px; font-weight:600; background:var(--copy-canary); box-shadow:inset 0 -2px 0 var(--copy-canary-ink); }"
+    },
+    {
+      "name": "Training Days",
+      "kind": "custom",
+      "refersTo": "heat-cell",
+      "description": "Heat cells on one ink hue by sessions (boxed empty day, unprinted future day, double-outline selected day) and the week column's day row (weekday, date, swatch; today double outline inset; active row in ruled tint).",
+      "html": "<div class=\"ds-days\"><div class=\"ds-heat-row\"><span class=\"ds-heat\" data-h=\"0\"></span><span class=\"ds-heat\" data-h=\"1\"></span><span class=\"ds-heat\" data-h=\"2\"></span><span class=\"ds-heat ds-heat-on\" data-h=\"3\"></span><span class=\"ds-heat\" data-h=\"future\"></span></div><ol class=\"ds-week\"><li class=\"ds-day ds-day-active\"><span class=\"ds-day-stub\"><span class=\"ds-day-wd\">Thu</span><span class=\"ds-day-n\">30<span class=\"ds-heat ds-sw\" data-h=\"2\"></span></span></span><span class=\"ds-day-what\">Fran <span class=\"ds-day-wd\">For time</span></span></li><li class=\"ds-day ds-day-today\"><span class=\"ds-day-stub\"><span class=\"ds-day-wd\">Fri</span><span class=\"ds-day-n\">31<span class=\"ds-heat ds-sw\" data-h=\"0\"></span></span></span><span class=\"ds-day-what ds-day-rest\">Nothing logged yet</span></li></ol></div>",
+      "css": ".ds-days { font-family:'Archivo Variable', ui-sans-serif, system-ui, sans-serif; color:var(--foreground); display:grid; gap:16px; max-width:20rem; } .ds-heat-row { display:flex; gap:3px; } .ds-heat { display:inline-block; width:14px; height:14px; } .ds-heat[data-h='0'] { background:var(--card); box-shadow:inset 0 0 0 1px var(--border); } .ds-heat[data-h='1'] { background:color-mix(in oklch, var(--foreground) 30%, var(--card)); } .ds-heat[data-h='2'] { background:color-mix(in oklch, var(--foreground) 62%, var(--card)); } .ds-heat[data-h='3'] { background:var(--foreground); } .ds-heat[data-h='future'] { background:none; } .ds-heat-on { position:relative; outline:3px double var(--foreground); outline-offset:1px; } .ds-week { list-style:none; margin:0; padding:0; background:var(--card); border-top:1px solid var(--border); } .ds-day { display:grid; grid-template-columns:3.5rem minmax(0,1fr); min-height:48px; border-bottom:1px solid var(--border); } .ds-day-active { background:var(--muted); } .ds-day-today { outline:3px double var(--foreground); outline-offset:-4px; } .ds-day-stub { display:grid; align-content:center; padding:6px 12px; } .ds-day-wd { color:var(--muted-foreground); font-size:0.6875rem; font-weight:600; font-stretch:75%; letter-spacing:0.06em; text-transform:uppercase; line-height:1rem; } .ds-day-n { display:flex; align-items:center; gap:6px; font-size:0.875rem; font-weight:600; line-height:1rem; } .ds-sw { width:10px; height:10px; } .ds-day-what { display:flex; align-items:center; gap:8px; padding:6px 12px 6px 0; font-size:0.875rem; font-weight:500; } .ds-day-rest { color:var(--muted-foreground); font-weight:400; }"
     }
   ],
   "narrative": {
@@ -654,7 +670,7 @@
       },
       {
         "name": "The Ink Pressable Rule",
-        "body": "Solid ink fill on the page means \"press this\" (primary button, primary badge) or a structural element of the form (header band, part marks, lamp housing). It is never used as a decorative panel.",
+        "body": "Solid ink fill on the page means \"press this\" (primary button, primary badge), a structural element of the form (header band, part marks, lamp housing) or the top step of an ink data ramp (level, heat). It is never used as a decorative panel.",
         "section": "colors"
       },
       {
