@@ -350,7 +350,7 @@ Printed and decisive: square, semi-bold, no gradient.
 
 ### Navigation
 
-- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Log, Strength, Benchmarks, Levels, Workouts, Import, Coach); Today is the front page, Log the manual entry page and Workouts the session register. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
+- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Plan, Log, Strength, Benchmarks, Levels, Workouts, Import, Coach, Settings); Today is the front page, Log the manual entry page, Workouts the session register and Settings the athlete's profile. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
 
 ### Protocol Field Box
 

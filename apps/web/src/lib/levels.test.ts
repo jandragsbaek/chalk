@@ -88,6 +88,7 @@ describe("summarizeFamilies", () => {
     items,
     [liftSet("2026-10-10", "power-clean", 1, 95)],
     "2026-08-02",
+    "m",
   );
 
   it("takes the level most pull-up reps reached, and the hardest variation as what you can do", () => {
@@ -98,7 +99,7 @@ describe("summarizeFamilies", () => {
       { level: "scaled", reps: 6 },
     ]);
     expect(pullUps.capability).toMatchObject({ level: "scaled", unbroken: 2 });
-    expect(verdictOf(pullUps, (id) => id).heading).toBe("Volume");
+    expect(verdictOf(pullUps, (id) => id, "m").heading).toBe("Volume");
   });
 
   it("takes the heaviest load in the window and the estimated 1RM as the ceiling", () => {
@@ -108,13 +109,13 @@ describe("summarizeFamilies", () => {
     expect(cleans.capability?.estimateKg).toBe(95);
     expect(cleans.programmed?.from).toBe(1.5);
     expect(cleans.programmed?.to).toBe(2);
-    const verdict = verdictOf(cleans, (id) => id);
+    const verdict = verdictOf(cleans, (id) => id, "m");
     expect(verdict.heading).toBe("+20 kg");
     expect(verdict.detail).toContain("74 % of your estimated 1RM");
   });
 
   it("says when nothing was done in the window", () => {
-    expect(verdictOf(summaries.get("hspu")!, (id) => id)).toMatchObject({
+    expect(verdictOf(summaries.get("hspu")!, (id) => id, "m")).toMatchObject({
       heading: "No workouts",
       quiet: true,
     });
@@ -131,6 +132,7 @@ describe("summarizeAccessories", () => {
       ],
       [],
       undefined,
+      "m",
     );
     expect(gorilla).toMatchObject({
       group: "horizontal_pull",

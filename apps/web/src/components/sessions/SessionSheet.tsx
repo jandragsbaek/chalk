@@ -33,6 +33,7 @@ import { useState } from "react";
 import { formatKg } from "../../lib/blockLabels.ts";
 import { gradeSession } from "../../lib/levelGrades.ts";
 import { findComplexes } from "../../lib/complexes.ts";
+import { useAthleteSex } from "../../lib/profile.ts";
 import type { PartEchoGroup } from "../../lib/similar.ts";
 import { formatDay } from "../../lib/utils.ts";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
@@ -201,6 +202,7 @@ function ImportedProtocol({
   readonly workoutId: WorkoutId;
   readonly names: Names;
 }) {
+  const sex = useAthleteSex();
   const result = useAtomValue(storedImportAtom(workoutId));
   return AsyncResult.match(result, {
     onInitial: () => (
@@ -219,7 +221,7 @@ function ImportedProtocol({
         return core === undefined ? undefined : byId.get(core)?.name;
       };
       const session = deriveSession(stored.document, nameOf);
-      const grades = gradeSession(session, names.catalog);
+      const grades = gradeSession(session, names.catalog, sex);
       const complexes = findComplexes(session, stored.document, (id) => byId.get(id)?.category);
       return (
         <>

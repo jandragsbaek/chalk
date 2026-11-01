@@ -23,6 +23,7 @@ import {
   type BenchmarkHistory,
 } from "../lib/benchmarks.ts";
 import { catalogLookup, type CatalogLookup } from "../lib/catalog.ts";
+import { useAthleteSex } from "../lib/profile.ts";
 import { formatDay } from "../lib/utils.ts";
 import { benchmarkResultsAtom } from "../state/benchmarks.ts";
 import { levelsAtom } from "../state/strength.ts";
@@ -34,7 +35,8 @@ function DivisionBadge({
   readonly benchmark: Benchmark;
   readonly catalog: CatalogLookup;
 }) {
-  const division = rxDivision(benchmark, catalog.gradable);
+  const sex = useAthleteSex();
+  const division = rxDivision(benchmark, catalog.gradable, sex);
   if (division === undefined)
     return <span className="text-xs text-muted-foreground">Not graded</span>;
   return (

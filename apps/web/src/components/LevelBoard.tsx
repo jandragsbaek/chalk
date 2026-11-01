@@ -1,5 +1,4 @@
 import {
-  ATHLETE_SEX,
   COMPLEMENT_NAMES,
   familyStops,
   LEVEL_FAMILIES,
@@ -13,6 +12,7 @@ import {
   type LevelGroup,
   type LevelShare,
   type MovementId,
+  type Sex,
 } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import {
@@ -35,6 +35,7 @@ import {
   type FamilySummary,
   type LevelWindow,
 } from "../lib/levels.ts";
+import { useAthleteSex } from "../lib/profile.ts";
 import { levelsAtom, liftSetsAtom } from "../state/strength.ts";
 
 type Tab = LevelGroup | "accessories";
@@ -88,14 +89,14 @@ function Legend({ tab }: { readonly tab: Tab }) {
 }
 
 /** Reps per level, named by the rung's variation ("Jumping", "Pull-up"). */
-const shareSegments = (summary: FamilySummary, shares: ReadonlyArray<LevelShare>) =>
+const shareSegments = (summary: FamilySummary, shares: ReadonlyArray<LevelShare>, sex: Sex) =>
   shares.map((share) => ({
     level: levelKey(share.level),
     reps: share.reps,
     label:
       share.level === undefined
         ? "under the sheet"
-        : (rungLabel(summary.family, share.level) ?? LEVEL_NAMES[share.level]).toLowerCase(),
+        : (rungLabel(summary.family, share.level, sex) ?? LEVEL_NAMES[share.level]).toLowerCase(),
   }));
 
 function FamilyRow({
@@ -105,8 +106,9 @@ function FamilyRow({
   readonly summary: FamilySummary;
   readonly nameOf: (id: MovementId) => string;
 }) {
+  const sex = useAthleteSex();
   const { family, performed, capability, programmed } = summary;
-  const verdict = verdictOf(summary, nameOf);
+  const verdict = verdictOf(summary, nameOf, sex);
   const markers: Array<RulerMarker> = [];
   if (capability !== undefined)
     markers.push(
@@ -151,13 +153,13 @@ function FamilyRow({
       </div>
       <div className="grid content-start gap-1.5">
         <LevelRuler
-          stops={familyStops(family)}
+          stops={familyStops(family, sex)}
           markers={markers}
           range={programmed}
           label={summaryText}
         />
         {family.kind === "variant" && summary.shares.length > 0 ? (
-          <LevelShareBar segments={shareSegments(summary, summary.shares)} />
+          <LevelShareBar segments={shareSegments(summary, summary.shares, sex)} />
         ) : null}
       </div>
       <div className="grid content-start gap-1">
@@ -185,6 +187,7 @@ function FamilyBoard({
   readonly summaries: ReadonlyMap<string, FamilySummary>;
   readonly nameOf: (id: MovementId) => string;
 }) {
+  const sex = useAthleteSex();
   const families = LEVEL_FAMILIES.filter((family) => family.group === group);
   const notes = families.filter((family) => family.note !== undefined);
   return (
@@ -196,7 +199,7 @@ function FamilyBoard({
             ? "Variation by rung, share of workout reps"
             : group === "functional"
               ? "Rung by load or variation"
-              : `Rung by load, kg (${ATHLETE_SEX === "m" ? "male" : "female"})`}
+              : `Rung by load, kg (${sex === "m" ? "male" : "female"})`}
         </span>
         <span>To the next rung</span>
       </div>
@@ -323,6 +326,7 @@ function AccessoryTable({
 
 /** The open tab's rows, once the catalog, the items and the lift sets have loaded. */
 function LevelPanel({ tab, since }: { readonly tab: Tab; readonly since: string | undefined }) {
+  const sex = useAthleteSex();
   const levels = useAtomValue(levelsAtom);
   const lifts = useAtomValue(liftSetsAtom);
   return AsyncResult.match(AsyncResult.all([levels, lifts]), {
@@ -336,14 +340,20 @@ function LevelPanel({ tab, since }: { readonly tab: Tab; readonly since: string 
       if (tab === "accessories")
         return (
           <AccessoryTable
-            accessories={summarizeAccessories(overview.movements, overview.items, liftSets, since)}
+            accessories={summarizeAccessories(
+              overview.movements,
+              overview.items,
+              liftSets,
+              since,
+              sex,
+            )}
             nameOf={nameOf}
           />
         );
       return (
         <FamilyBoard
           group={tab}
-          summaries={summarizeFamilies(overview.movements, overview.items, liftSets, since)}
+          summaries={summarizeFamilies(overview.movements, overview.items, liftSets, since, sex)}
           nameOf={nameOf}
         />
       );
@@ -356,6 +366,7 @@ function LevelPanel({ tab, since }: { readonly tab: Tab; readonly since: string 
  * workouts put them at, what they can do, and what the box asked for, tab by group.
  */
 export function LevelBoard({ today }: { readonly today: Date }) {
+  const sex = useAthleteSex();
   const [tab, setTab] = useState<Tab>("barbell");
   const [range, setRange] = useState<LevelWindow>("90d");
 
@@ -372,7 +383,7 @@ export function LevelBoard({ today }: { readonly today: Date }) {
               rel="noreferrer"
               className="flex h-8 items-center text-sm font-semibold underline decoration-input hover:decoration-foreground"
             >
-              {STANDARD.name} · {ATHLETE_SEX === "m" ? "Male" : "Female"}
+              {STANDARD.name} · {sex === "m" ? "Male" : "Female"}
             </a>
           </div>
           <div className="grid gap-1">

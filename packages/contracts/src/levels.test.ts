@@ -59,9 +59,9 @@ describe("the sheet", () => {
   });
 
   it("prints load rungs the way the ruler shows them", () => {
-    expect(loadRungLabel(load("bb-thruster").rungs.scaled!)).toBe("42.5");
-    expect(loadRungLabel(load("db-thruster").rungs.intermediate!)).toBe("25 or 2 × 22.5");
-    expect(loadRungLabel(load("kb-swing").rungs.rx!)).toBe("American 32");
+    expect(loadRungLabel(load("bb-thruster").rungs.scaled!, "m")).toBe("42.5");
+    expect(loadRungLabel(load("db-thruster").rungs.intermediate!, "m")).toBe("25 or 2 × 22.5");
+    expect(loadRungLabel(load("kb-swing").rungs.rx!, "m")).toBe("American 32");
     expect(loadRungLabel(load("bb-clean").rungs.rx!, "f")).toBe("65");
   });
 });
@@ -69,13 +69,13 @@ describe("the sheet", () => {
 describe("gradeLoad", () => {
   it("meets the highest rung at or under the load and sits between rungs", () => {
     const clean = load("bb-clean");
-    expect(gradeLoad(clean, 50)).toEqual({ level: "scaled", position: 1 });
-    expect(gradeLoad(clean, 60)).toEqual({ level: "scaled", position: 1.5 });
-    expect(gradeLoad(clean, 100).level).toBe("rx");
+    expect(gradeLoad(clean, 50, { sex: "m" })).toEqual({ level: "scaled", position: 1 });
+    expect(gradeLoad(clean, 60, { sex: "m" })).toEqual({ level: "scaled", position: 1.5 });
+    expect(gradeLoad(clean, 100, { sex: "m" }).level).toBe("rx");
   });
 
   it("is under the sheet below Fundamentals, half a step under it at most", () => {
-    const grade = gradeLoad(load("bb-clean"), 20);
+    const grade = gradeLoad(load("bb-clean"), 20, { sex: "m" });
     expect(grade.level).toBeUndefined();
     expect(grade.position).toBeLessThan(0);
     expect(grade.position).toBeGreaterThanOrEqual(-0.5);
@@ -83,25 +83,29 @@ describe("gradeLoad", () => {
 
   it("skips rungs the sheet leaves out: a snatch starts at Intermediate", () => {
     const snatch = load("bb-snatch");
-    expect(gradeLoad(snatch, 40).level).toBeUndefined();
-    expect(gradeLoad(snatch, 40).position).toBeLessThan(2);
-    expect(gradeLoad(snatch, 60).level).toBe("intermediate");
+    expect(gradeLoad(snatch, 40, { sex: "m" }).level).toBeUndefined();
+    expect(gradeLoad(snatch, 40, { sex: "m" }).position).toBeLessThan(2);
+    expect(gradeLoad(snatch, 60, { sex: "m" }).level).toBe("intermediate");
   });
 
   it("takes the higher rung when two share a load (wall balls at 9 kg)", () => {
-    expect(gradeLoad(load("wall-balls"), 9).level).toBe("intermediate");
+    expect(gradeLoad(load("wall-balls"), 9, { sex: "m" }).level).toBe("intermediate");
   });
 
   it("grades two implements against the dual loads", () => {
     const squat = load("db-squat");
-    expect(gradeLoad(squat, 22.5).level).toBe("scaled");
-    expect(gradeLoad(squat, 22.5, { implements: 2 }).level).toBe("rx");
+    expect(gradeLoad(squat, 22.5, { sex: "m" }).level).toBe("scaled");
+    expect(gradeLoad(squat, 22.5, { implements: 2, sex: "m" }).level).toBe("rx");
   });
 
   it("needs an American swing for RX", () => {
     const swing = load("kb-swing");
-    expect(gradeLoad(swing, 32, { movementId: "kettlebell-swing" }).level).toBe("intermediate");
-    expect(gradeLoad(swing, 32, { movementId: "american-kettlebell-swing" }).level).toBe("rx");
+    expect(gradeLoad(swing, 32, { movementId: "kettlebell-swing", sex: "m" }).level).toBe(
+      "intermediate",
+    );
+    expect(gradeLoad(swing, 32, { movementId: "american-kettlebell-swing", sex: "m" }).level).toBe(
+      "rx",
+    );
   });
 
   it("uses the female side when asked", () => {
@@ -178,24 +182,38 @@ describe("gradeItem", () => {
         sets: [{ quantities: [...repsSet(6).quantities, ...kgSet(60, 40).quantities] }],
       },
       movements,
+      "m",
     );
     expect(grade?.prescribed?.level).toBe("scaled");
     expect(grade?.prescribedLoadKg).toBe(60);
     expect(grade?.performed).toBeUndefined();
   });
 
+  it("reads the female side of an M/F load for a female athlete", () => {
+    const grade = gradeItem(
+      { movementId: id("power-clean"), sets: [kgSet(60, 40)] },
+      movements,
+      "f",
+    );
+    expect(grade?.prescribedLoadKg).toBe(40);
+    expect(grade?.prescribed?.level).toBe("scaled");
+  });
+
   it("grades the load used, and an empty performance as prescribed", () => {
     const sets = [kgSet(60, 40)];
     expect(
-      gradeItem({ movementId: id("power-clean"), sets, performance: { loadKg: 42.5 } }, movements)
-        ?.performed?.level,
+      gradeItem(
+        { movementId: id("power-clean"), sets, performance: { loadKg: 42.5 } },
+        movements,
+        "m",
+      )?.performed?.level,
     ).toBe("fundamentals");
     expect(
-      gradeItem({ movementId: id("power-clean"), sets, performance: {} }, movements)?.performed
+      gradeItem({ movementId: id("power-clean"), sets, performance: {} }, movements, "m")?.performed
         ?.loadKg,
     ).toBe(60);
     expect(
-      gradeItem({ movementId: id("power-clean"), sets, liftedKg: 72.5 }, movements)?.performed
+      gradeItem({ movementId: id("power-clean"), sets, liftedKg: 72.5 }, movements, "m")?.performed
         ?.level,
     ).toBe("intermediate");
   });
@@ -214,6 +232,7 @@ describe("gradeItem", () => {
         },
       },
       movements,
+      "m",
     );
     expect(grade?.prescribed?.level).toBe("scaled");
     expect(grade?.performed?.level).toBe("fundamentals");
@@ -236,6 +255,7 @@ describe("gradeItem", () => {
         performance: { variants: [{ movementId: id("burpee"), reps: 10 }] },
       },
       movements,
+      "m",
     );
     expect(grade?.performed?.level).toBeUndefined();
     expect(grade?.performed?.shares).toEqual([{ level: undefined, reps: 10 }]);
@@ -252,6 +272,7 @@ describe("gradeItem", () => {
         },
       },
       movements,
+      "m",
     );
     expect(grade?.family.id).toBe("bb-thruster");
     expect(grade?.performed?.family.id).toBe("db-thruster");
@@ -259,7 +280,7 @@ describe("gradeItem", () => {
   });
 
   it("is undefined for a movement on no row of the sheet", () => {
-    expect(gradeItem({ movementId: id("burpee"), sets: [] }, movements)).toBeUndefined();
+    expect(gradeItem({ movementId: id("burpee"), sets: [] }, movements, "m")).toBeUndefined();
   });
 });
 

@@ -8,6 +8,7 @@ import {
   type ItemGrade,
   type LevelShare,
   type MovementId,
+  type Sex,
 } from "@chalk/contracts";
 import {
   LevelBadge,
@@ -15,6 +16,8 @@ import {
   LevelShareBar,
   type RulerMarker,
 } from "@chalk/ui/components/level-ruler.tsx";
+
+import { useAthleteSex } from "../../lib/profile.ts";
 
 const kgFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
@@ -72,7 +75,7 @@ const markersOf = (
   return markers;
 };
 
-const segmentsOf = (grade: ItemGrade, shares: ReadonlyArray<LevelShare>) =>
+const segmentsOf = (grade: ItemGrade, shares: ReadonlyArray<LevelShare>, sex: Sex) =>
   shares.map((share) => ({
     level: levelKey(share.level),
     reps: share.reps,
@@ -80,7 +83,7 @@ const segmentsOf = (grade: ItemGrade, shares: ReadonlyArray<LevelShare>) =>
       share.level === undefined
         ? "under the sheet"
         : (
-            rungLabel(grade.performed?.family ?? grade.family, share.level) ??
+            rungLabel(grade.performed?.family ?? grade.family, share.level, sex) ??
             LEVEL_NAMES[share.level]
           ).toLowerCase(),
   }));
@@ -142,6 +145,7 @@ export function LevelLine({
   /** Off for rows that are not selected while planning; the inspector keeps the full ruler. */
   readonly ruler?: boolean;
 }) {
+  const sex = useAthleteSex();
   const note = shareNote(grade);
   const family = grade.performed?.family ?? grade.family;
   return (
@@ -171,7 +175,7 @@ export function LevelLine({
         <span className="ml-auto w-44">
           <LevelRuler
             size="sm"
-            stops={familyStops(family)}
+            stops={familyStops(family, sex)}
             markers={markersOf(grade, nameOf, side)}
             range={
               grade.prescribed && family.id === grade.family.id
@@ -196,6 +200,7 @@ export function LevelVerdict({
   readonly nameOf: (id: MovementId) => string | undefined;
   readonly side?: GradeSide;
 }) {
+  const sex = useAthleteSex();
   const family = grade.performed?.family ?? grade.family;
   const shares = grade.performed?.family.kind === "variant" ? grade.performed.shares : [];
   return (
@@ -208,7 +213,7 @@ export function LevelVerdict({
         <Badges grade={grade} side={side} />
       </span>
       <LevelRuler
-        stops={familyStops(family)}
+        stops={familyStops(family, sex)}
         markers={markersOf(grade, nameOf, side)}
         range={
           grade.prescribed && family.id === grade.family.id
@@ -217,7 +222,7 @@ export function LevelVerdict({
         }
         label={rulerLabel(grade, family.name, side)}
       />
-      {shares.length > 0 ? <LevelShareBar segments={segmentsOf(grade, shares)} /> : null}
+      {shares.length > 0 ? <LevelShareBar segments={segmentsOf(grade, shares, sex)} /> : null}
       {family.id !== grade.family.id ? (
         <p className="text-xs text-muted-foreground">
           {side === "done" ? "Done" : "Planned"} as another movement, so it is graded on{" "}

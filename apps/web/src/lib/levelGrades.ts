@@ -7,6 +7,7 @@ import {
   type Grade,
   type ItemGrade,
   type MovementId,
+  type Sex,
   type SpanId,
 } from "@chalk/contracts";
 
@@ -20,6 +21,7 @@ export type GradedSide = "done" | "planned";
 export const gradeDerivedItem = (
   item: DerivedItem,
   movements: ReadonlyMap<MovementId, CatalogMovement>,
+  sex: Sex,
   side: GradedSide = "done",
 ): ItemGrade | undefined =>
   gradeItem(
@@ -32,6 +34,7 @@ export const gradeDerivedItem = (
         }
       : { movementId: item.movementId, sets: item.sets, performance: item.plan },
     movements,
+    sex,
   );
 
 export interface SessionGrades {
@@ -51,12 +54,13 @@ export interface SessionGrades {
 export function gradeSession(
   session: DerivedSession,
   catalog: ReadonlyArray<CatalogMovement>,
+  sex: Sex,
   side: GradedSide = "done",
 ): SessionGrades {
   const movements = new Map(catalog.map((movement) => [movement.id, movement]));
   const byItem = new Map<SpanId, ItemGrade>();
   const visit = (item: DerivedItem) => {
-    const grade = gradeDerivedItem(item, movements, side);
+    const grade = gradeDerivedItem(item, movements, sex, side);
     if (grade) byItem.set(item.spanId, grade);
     item.alternatives.forEach(visit);
   };

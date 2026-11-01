@@ -51,6 +51,7 @@ import { formatKg } from "../../lib/blockLabels.ts";
 import { findComplexes } from "../../lib/complexes.ts";
 import { gradeSession } from "../../lib/levelGrades.ts";
 import { asPlanned, planTitle, withPlannedLoad } from "../../lib/plan.ts";
+import { useAthleteSex } from "../../lib/profile.ts";
 import { resultDefaults } from "../../lib/resultDraft.ts";
 import { chooseOption, chosenOption, stationOptions } from "../../lib/station.ts";
 import { localIsoDate } from "../../lib/utils.ts";
@@ -202,7 +203,8 @@ export function ImportWorkbench({
   const errors = session.issues.filter((issue) => issue.severity === "error");
   const selected = state.spans.find((span) => span.id === state.selectedId);
   const programmed = selected?._tag === "movement" ? findItem(session, selected.id) : undefined;
-  const grades = gradeSession(session, catalog, planning ? "planned" : "done");
+  const sex = useAthleteSex();
+  const grades = gradeSession(session, catalog, sex, planning ? "planned" : "done");
   const complexes = findComplexes(session, document, (id) => categories.get(id));
   const selectedComplex =
     programmed === undefined || selected === undefined ? undefined : complexes.get(selected.id);

@@ -33,14 +33,12 @@ export const LEVEL_SHORT: Record<Level, string> = {
 
 export const levelIndex = (level: Level): number => LEVELS.indexOf(level);
 
-/** Which side of a male/female load ("20/12") applies. */
-export type Sex = "m" | "f";
-
 /**
- * The athlete's side of every M/F load. A setting from a first-run setup wizard later
- * (docs/roadmap.md); until then the athlete is graded on the male loads.
+ * Which side of a male/female load ("20/12") applies. The athlete's is a setting on their
+ * profile (`AthleteProfile.sex`); every grading helper takes it explicitly.
  */
-export const ATHLETE_SEX: Sex = "m";
+export const Sex = Schema.Literals(["m", "f"]);
+export type Sex = typeof Sex.Type;
 
 /** Who wrote a rung: the official sheet, or Chalk (Elite, and anything the sheet leaves open). */
 export type StandardSource = "gymdanmark" | "chalk";
@@ -712,10 +710,10 @@ const clampToLevel = (family: LevelFamily, level: Level | undefined, position: n
 export const gradeLoad = (
   family: LoadFamily,
   loadKg: number,
-  options: { readonly implements?: 1 | 2; readonly movementId?: string; readonly sex?: Sex } = {},
+  options: { readonly implements?: 1 | 2; readonly movementId?: string; readonly sex: Sex },
 ): Grade => {
   const implementCount = options.implements ?? 1;
-  const sex = options.sex ?? ATHLETE_SEX;
+  const sex = options.sex;
   const movementId = options.movementId ?? "";
   const level = climb(family, (at) =>
     family.rungs[at]!.options.some((option) =>
@@ -837,10 +835,7 @@ export interface ItemGrade {
 }
 
 /** The heaviest load written for the movement, on the athlete's side of an M/F split. */
-export const prescribedLoad = (
-  sets: GradableItem["sets"],
-  sex: Sex = ATHLETE_SEX,
-): number | undefined => {
+export const prescribedLoad = (sets: GradableItem["sets"], sex: Sex): number | undefined => {
   const loads = sets.flatMap((set) =>
     set.quantities
       .filter((quantity) => quantity.measure === "load_kg")
@@ -877,7 +872,7 @@ const familyFor = (
 export const gradeItem = (
   item: GradableItem,
   movements: ReadonlyMap<MovementId, GradableMovement>,
-  sex: Sex = ATHLETE_SEX,
+  sex: Sex,
 ): ItemGrade | undefined => {
   const family = familyFor(item.movementId, movements);
   if (family === undefined || item.movementId === undefined) return undefined;
@@ -980,7 +975,7 @@ export const divisionOf = (
 };
 
 /** "42.5", "Russian 24", "2 × 22.5": how a load rung is printed on the ruler. */
-export const loadRungLabel = (rung: LoadRung, sex: Sex = ATHLETE_SEX): string =>
+export const loadRungLabel = (rung: LoadRung, sex: Sex): string =>
   rung.options
     .map(
       (option) =>
@@ -988,7 +983,7 @@ export const loadRungLabel = (rung: LoadRung, sex: Sex = ATHLETE_SEX): string =>
     )
     .join(" or ");
 
-export const rungLabel = (family: LevelFamily, level: Level, sex: Sex = ATHLETE_SEX) => {
+export const rungLabel = (family: LevelFamily, level: Level, sex: Sex) => {
   if (family.kind === "variant") return family.rungs[level]?.label;
   const rung = family.rungs[level];
   return rung === undefined ? undefined : loadRungLabel(rung, sex);
@@ -1004,7 +999,7 @@ export const isChalkRung = (family: LevelFamily, level: Level) =>
   family.rungs[level]?.source === "chalk";
 
 /** A family's five rungs as the ruler prints them; `label` is absent where the sheet has "-". */
-export const familyStops = (family: LevelFamily, sex: Sex = ATHLETE_SEX) =>
+export const familyStops = (family: LevelFamily, sex: Sex) =>
   LEVELS.map((level) => ({
     level,
     short: LEVEL_SHORT[level],

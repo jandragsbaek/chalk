@@ -1,5 +1,4 @@
 import {
-  ATHLETE_SEX,
   BENCHMARK_CATEGORY_NAMES,
   BENCHMARK_SOURCES,
   gradeItem,
@@ -16,6 +15,7 @@ import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 import { historyByBenchmark, historyOf, rxDivision } from "../lib/benchmarks.ts";
 import { catalogLookup, type CatalogLookup } from "../lib/catalog.ts";
+import { useAthleteSex } from "../lib/profile.ts";
 import { formatDay } from "../lib/utils.ts";
 import { benchmarkResultsAtom } from "../state/benchmarks.ts";
 import { levelsAtom } from "../state/strength.ts";
@@ -41,14 +41,15 @@ function RxLevels({
   readonly benchmark: Benchmark;
   readonly catalog: CatalogLookup;
 }) {
-  const division = rxDivision(benchmark, catalog.gradable);
+  const sex = useAthleteSex();
+  const division = rxDivision(benchmark, catalog.gradable, sex);
   const graded = benchmark.blocks
     .flatMap((block) => block.items)
     .flatMap((item) => {
       const grade = gradeItem(
         { movementId: item.movementId, sets: [{ quantities: item.quantities }] },
         catalog.gradable,
-        ATHLETE_SEX,
+        sex,
       );
       return grade?.prescribed === undefined
         ? []

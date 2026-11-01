@@ -59,7 +59,9 @@ coach.
 
 - Custom movements and aliases (done through the importer; no catalog screen yet).
 - kg / lb display preference.
-- Athlete sex (M/F) as a setting from a first-run setup wizard; picks which side of M/F loads
-  (prescriptions and level standards like GymDanmark's "20/12") applies. Assumed male until then.
+- Athlete profile (done): sex (M/F, picks the side of every M/F load; male until set), height,
+  optional arm and inseam lengths, bodyweight over time, on `/settings`. A plain settings page,
+  not a setup wizard. RPCs: `profile.get`, `profile.update`, `bodyweights.log`,
+  `bodyweights.delete`; migration `013_AthleteProfile`.
 - Desk pages: catalog management (movements, scaling options, templates).
 - Import pasted session text (done: the Import page, see domain.md). Whiteboard photos later.

@@ -1,6 +1,7 @@
 import {
   ChalkRpcGroup,
   LevelStorageError,
+  ProfileStorageError,
   RPC_METHODS,
   StrengthStorageError,
   WorkoutStorageError,
@@ -9,6 +10,7 @@ import * as Effect from "effect/Effect";
 
 import * as CoachService from "./coach/CoachService.ts";
 import * as LevelStore from "./levels/LevelStore.ts";
+import * as ProfileStore from "./profile/ProfileStore.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
@@ -28,6 +30,11 @@ const reportLevelStorageError = (error: LevelStore.LevelPersistenceError) =>
     Effect.andThen(Effect.fail(new LevelStorageError({ operation: error.operation }))),
   );
 
+const reportProfileStorageError = (error: ProfileStore.ProfilePersistenceError) =>
+  Effect.logError(error.message, error.cause).pipe(
+    Effect.andThen(Effect.fail(new ProfileStorageError({ operation: error.operation }))),
+  );
+
 /** Thin transport: RpcServer decodes the payload, the handler calls one service method and maps errors. */
 export const layer = ChalkRpcGroup.toLayer(
   Effect.gen(function* () {
@@ -35,7 +42,9 @@ export const layer = ChalkRpcGroup.toLayer(
     const strength = yield* StrengthStore.StrengthStore;
     const levels = yield* LevelStore.LevelStore;
     const coach = yield* CoachService.CoachService;
+    const profile = yield* ProfileStore.ProfileStore;
     const onStrengthError = { StrengthPersistenceError: reportStrengthStorageError };
+    const onProfileError = { ProfilePersistenceError: reportProfileStorageError };
     return ChalkRpcGroup.of({
       [RPC_METHODS.workoutsList]: () =>
         store.list().pipe(Effect.catchTags({ WorkoutPersistenceError: reportStorageError })),
@@ -61,6 +70,13 @@ export const layer = ChalkRpcGroup.toLayer(
       [RPC_METHODS.coachThreads]: () => coach.threads(),
       [RPC_METHODS.coachThread]: ({ id }) => coach.thread(id),
       [RPC_METHODS.coachSend]: (input) => coach.send(input),
+      [RPC_METHODS.profileGet]: () => profile.get().pipe(Effect.catchTags(onProfileError)),
+      [RPC_METHODS.profileUpdate]: (body) =>
+        profile.update(body).pipe(Effect.catchTags(onProfileError)),
+      [RPC_METHODS.bodyweightsLog]: (entry) =>
+        profile.logBodyweight(entry).pipe(Effect.catchTags(onProfileError)),
+      [RPC_METHODS.bodyweightsDelete]: ({ performedOn }) =>
+        profile.removeBodyweight(performedOn).pipe(Effect.catchTags(onProfileError)),
     });
   }),
 );
