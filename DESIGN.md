@@ -404,6 +404,26 @@ One cell vocabulary shared by the year grid and the week column, shaded on the h
 
 The week column is the same days as a card: one ruled row per day, a 3.5rem stub with the weekday in condensed caps over the date and a 10px heat swatch, then the day's entries (workout name with its kind label, or movement chips for a strength-only day; a marked rest day by its kind, with "By coach" in condensed caps when the coach put it there; "Nothing logged yet" for today, or an empty-cell rule for any other day with nothing logged or still to come). A row with nothing logged shows the same rest `Select` at its right while pointed at or focused. Today carries a 3px double ink outline inset 4px. The day being read in the grid fills its row with the ruled tint, and pointing at a row selects that day in the grid. Below the rows, the consistency numbers as a 2x2 of protocol field boxes and a full-width primary button.
 
+### Class Days Rail (import backlog)
+
+`/import` is a desk like `/workouts`: a 25rem rail of class days beside the paste box, each
+scrolling on its own; Imported follows the form. The rail heads like a section ("Class days",
+"Since Aug 22, 2025" as meta), then two protocol field boxes (To log, Logged "35 of 168") over a
+6px progress rule (ink on the ruled tint). "Oldest to log" names the next day and its classes with
+the primary Pull. The month tally is one column per month from the first class, one 6px bar per
+class day stacked from the bottom, by stroke form: logged solid ink, still to log a 1px dashed
+ink box on fresh sheet, skipped a pale box-edge box; month caps under the columns with the year
+under August and January. The picked day's month takes the double outline; a column hovers to
+the ruled tint and jumps the register there. Tabs in condensed caps (To log, All, Skipped, with
+counts; the open one ink with a 2px ink underline) sit over the register: sticky month heads in
+title caps on a 2px ink rule ("8 to log · 1 logged"), rows at least 48px with the weekday/date
+stub and each class as "17:00 WOD · Rikke L.". A day to log ends in a 14px dashed ink box and a
+ghost Skip that shows on hover, focus or pick; a logged day prints its session name over the
+classes with one white lamp; a skipped day prints in pencil grey with Put back. The picked day
+takes the ruled tint and the inset double outline. Arrow keys walk the days, Enter pulls, S
+skips. The foot says when bookingboard was read, with a ghost Check now; a failed read is one
+line in official red. With nothing to log, the three white lamps.
+
 ### Session Register (rail, register, sheet)
 
 Every training day as one list, read like a scorer's register beside the open protocol. The

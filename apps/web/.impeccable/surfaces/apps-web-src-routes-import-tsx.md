@@ -43,3 +43,10 @@ Signature move: referee lights, three lamps (date, movements, numbers) white for
 no-lift; all white enables Save.
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+
+## Class days rail (2026-11-01)
+
+Decided with Jan: the backlog of ~170 class days from bookingboard lives as a register rail on
+the left of /import (desk like /workouts), oldest first; saving a day picked there pulls the next
+day to log and focuses the text. Keyboard: arrows walk, Enter pulls, S skips, Ctrl+Enter
+suggests marks. Imported follows the form in the main column.

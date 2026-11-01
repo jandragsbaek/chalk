@@ -4,6 +4,8 @@ import * as Schema from "effect/Schema";
 
 import { IsoDate, LiftSetId, WorkoutId } from "./baseSchemas.ts";
 import {
+  BookingboardAttendance,
+  BookingboardAttendanceInput,
   BookingboardDay,
   BookingboardNotConnectedError,
   BookingboardStatus,
@@ -12,6 +14,7 @@ import {
   BookingboardTokenInvalidError,
   BookingboardUnavailableError,
   ConnectBookingboardInput,
+  SkipBookingboardDayInput,
 } from "./bookingboard.ts";
 import {
   CoachEvent,
@@ -99,6 +102,8 @@ export const RPC_METHODS = {
   garminConnect: "garmin.connect",
   garminSync: "garmin.sync",
   garminDisconnect: "garmin.disconnect",
+  bookingboardAttendance: "bookingboard.attendance",
+  bookingboardSkipDay: "bookingboard.skipDay",
   restDaysList: "restDays.list",
   restDaysMark: "restDays.mark",
   restDaysClear: "restDays.clear",
@@ -291,6 +296,24 @@ const GarminDisconnectRpc = Rpc.make(RPC_METHODS.garminDisconnect, {
   error: GarminStorageError,
 });
 
+/** The classes the athlete attended, from Chalk's copy of their bookings; see the input. */
+const BookingboardAttendanceRpc = Rpc.make(RPC_METHODS.bookingboardAttendance, {
+  payload: BookingboardAttendanceInput,
+  success: BookingboardAttendance,
+  error: Schema.Union([
+    BookingboardNotConnectedError,
+    BookingboardTokenExpiredError,
+    BookingboardUnavailableError,
+    BookingboardStorageError,
+  ]),
+});
+
+/** Marks an attended day as one the athlete will not log, or takes the mark back. */
+const BookingboardSkipDayRpc = Rpc.make(RPC_METHODS.bookingboardSkipDay, {
+  payload: SkipBookingboardDayInput,
+  error: BookingboardStorageError,
+});
+
 /** Every day marked as rest, oldest first. */
 const RestDaysListRpc = Rpc.make(RPC_METHODS.restDaysList, {
   success: Schema.Array(RestDay),
@@ -386,6 +409,8 @@ export const ChalkRpcGroup = RpcGroup.make(
   GarminConnectRpc,
   GarminSyncRpc,
   GarminDisconnectRpc,
+  BookingboardAttendanceRpc,
+  BookingboardSkipDayRpc,
   RestDaysListRpc,
   RestDaysMarkRpc,
   RestDaysClearRpc,

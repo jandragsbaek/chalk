@@ -457,6 +457,35 @@ Read-only: GET requests only, never booking or check-in.
 - Web: "Pull from bookingboard" on `/plan` (today) and on `/import` (a picked day, yesterday by
   default). It fills the text box; several classes on a day ask which one. On `/import` the
   draft takes the picked day as its date, since board text has no date line.
+- **Attendance copy** (`bookingboard.attendance`, migration `018_BookingboardLedger`): the
+  athlete's own bookings (not opted out or cancelled, not wait-listed) kept in
+  `bookingboard_bookings`, with what they cover in `bookingboard_ledger` (from the first class,
+  read when, for which participant). Read from the web API's
+  `GET https://box7100.bookingboard.io/api/account/{participantId}/classes?from&to&page&pageSize`
+  (what the site's "My classes" page calls): only the athlete's classes, newest first, 100 a
+  page, about 400 bytes each (it also carries their name and email, which are not read). The
+  first read takes the whole history (Aug 2025 to Oct 2026: 178 bookings, two pages, 72 KB);
+  later reads go from 3 days before the last (check-ins land after the class), only when the
+  copy is 30 minutes old (`ifStale`, on page load) or 1 minute old (`now`, "Check now"); one read
+  at a time, and a failed read is not retried for a minute. A failed read (expired token,
+  bookingboard down) still answers from the copy with `checkFailed`. Attended is `OnTime` or
+  `TooLate`. Disconnecting forgets the copy; a connection for another participant replaces it.
+- **A day** reads the same endpoint for the box-local day (`from` noon UTC the day before, `to`
+  the day's end in UTC), or the copy when it holds that day and the day was over when it was
+  read; the gym-wide `/participations` is no longer read.
+- **Connect** reads `GET /api/account` on the web API: the token's account id is the
+  participant id, so a mistyped one is put right.
+- **Class cache** (`bookingboard_classes`): a past class's program, title and coach, read once
+  from the mobile API's `/classes/{id}`, so pulling a past day usually costs one request or none.
+- **Import rail** (web `/import`, "Class days"): every class day oldest first, against the
+  sessions logged (any workout that day counts, imported or `/log`), matched in the browser so a
+  save shows at once. Head counts (to log, logged of all) and the oldest day to log with Pull; a
+  month tally; tabs To log / All / Skipped; the register by month. Enter or a click pulls a day
+  into the paste box (its date and coach go on the draft); S or Skip
+  (`bookingboard.skipDay`, `bookingboard_skipped_days`) takes it off the list until put back. A
+  day picked from the rail moves on when saved: the next day to log after it is pulled and the
+  text focused. Ctrl+Enter in the text suggests marks. A day with only open gym puts the typed
+  session on that day, solo.
 - **Coached by** (`Coaching`: `coached { coach }` or `solo`; absent = not recorded): who ran a
   session, or that the athlete trained alone. The coach is the class's `instructors[].name`
   ("Rikke L."), joined if several; checked against the live API (Sep to Oct 2026), every class

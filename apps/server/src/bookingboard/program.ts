@@ -24,12 +24,15 @@ export const boxLocal = (iso: string): { readonly date: string; readonly time: s
   };
 };
 
-/** The calendar day before `date`, both IsoDate. */
-export const dayBefore = (date: string): string => {
+/** The calendar day `days` before `date`, both IsoDate. */
+export const daysBefore = (date: string, days: number): string => {
   const day = new Date(`${date}T00:00:00Z`);
-  day.setUTCDate(day.getUTCDate() - 1);
+  day.setUTCDate(day.getUTCDate() - days);
   return day.toISOString().slice(0, 10);
 };
+
+/** The calendar day before `date`, both IsoDate. */
+export const dayBefore = (date: string): string => daysBefore(date, 1);
 
 /** The token's `exp` as an ISO instant; undefined when it is not a JWT with one. */
 export const tokenExpiry = (token: string): string | undefined => {
