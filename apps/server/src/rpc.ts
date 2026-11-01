@@ -1,4 +1,5 @@
 import {
+  BookingboardStorageError,
   ChalkRpcGroup,
   LevelStorageError,
   ProfileStorageError,
@@ -9,6 +10,7 @@ import {
 } from "@chalk/contracts";
 import * as Effect from "effect/Effect";
 
+import * as Bookingboard from "./bookingboard/Bookingboard.ts";
 import * as CoachService from "./coach/CoachService.ts";
 import * as LevelStore from "./levels/LevelStore.ts";
 import * as ProfileStore from "./profile/ProfileStore.ts";
@@ -42,6 +44,11 @@ const reportPowerStorageError = (error: PowerStore.PowerPersistenceError) =>
     Effect.andThen(Effect.fail(new PowerStorageError({ operation: error.operation }))),
   );
 
+const reportBookingboardStorageError = (error: Bookingboard.BookingboardPersistenceError) =>
+  Effect.logError(error.message, error.cause).pipe(
+    Effect.andThen(Effect.fail(new BookingboardStorageError({ operation: error.operation }))),
+  );
+
 /** Thin transport: RpcServer decodes the payload, the handler calls one service method and maps errors. */
 export const layer = ChalkRpcGroup.toLayer(
   Effect.gen(function* () {
@@ -51,8 +58,10 @@ export const layer = ChalkRpcGroup.toLayer(
     const power = yield* PowerStore.PowerStore;
     const coach = yield* CoachService.CoachService;
     const profile = yield* ProfileStore.ProfileStore;
+    const bookingboard = yield* Bookingboard.Bookingboard;
     const onStrengthError = { StrengthPersistenceError: reportStrengthStorageError };
     const onProfileError = { ProfilePersistenceError: reportProfileStorageError };
+    const onBookingboardError = { BookingboardPersistenceError: reportBookingboardStorageError };
     return ChalkRpcGroup.of({
       [RPC_METHODS.workoutsList]: () =>
         store.list().pipe(Effect.catchTags({ WorkoutPersistenceError: reportStorageError })),
@@ -87,6 +96,14 @@ export const layer = ChalkRpcGroup.toLayer(
         profile.logBodyweight(entry).pipe(Effect.catchTags(onProfileError)),
       [RPC_METHODS.bodyweightsDelete]: ({ performedOn }) =>
         profile.removeBodyweight(performedOn).pipe(Effect.catchTags(onProfileError)),
+      [RPC_METHODS.bookingboardStatus]: () =>
+        bookingboard.status().pipe(Effect.catchTags(onBookingboardError)),
+      [RPC_METHODS.bookingboardConnect]: (input) =>
+        bookingboard.connect(input).pipe(Effect.catchTags(onBookingboardError)),
+      [RPC_METHODS.bookingboardDisconnect]: () =>
+        bookingboard.disconnect().pipe(Effect.catchTags(onBookingboardError)),
+      [RPC_METHODS.bookingboardDay]: ({ date }) =>
+        bookingboard.day(date).pipe(Effect.catchTags(onBookingboardError)),
     });
   }),
 );

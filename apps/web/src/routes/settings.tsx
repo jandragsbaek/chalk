@@ -4,11 +4,15 @@ import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 import { AthleteForm } from "../components/settings/AthleteForm.tsx";
 import { BodyweightLog } from "../components/settings/BodyweightLog.tsx";
+import { BookingboardForm } from "../components/settings/BookingboardForm.tsx";
 import { profileAtom } from "../state/profile.ts";
 
 export const Route = createFileRoute("/settings")({ component: SettingsPage });
 
-/** The athlete's profile: who is training (sex, height, limbs) and bodyweight over time. */
+/**
+ * The athlete's profile: who is training (sex, height, limbs) and bodyweight over time, and the
+ * box's bookingboard login.
+ */
 function SettingsPage() {
   return (
     <main className="mx-auto grid w-full max-w-6xl content-start gap-8 px-6 pt-8 pb-16">
@@ -30,7 +34,10 @@ function ProfileSections() {
     ),
     onSuccess: ({ value }) => (
       <div className="grid grid-cols-[minmax(0,24rem)_minmax(0,1fr)] items-start gap-10">
-        <AthleteForm profile={value} />
+        <div className="grid content-start gap-10">
+          <AthleteForm profile={value} />
+          <BookingboardForm />
+        </div>
         <BodyweightLog entries={value.bodyweights} />
       </div>
     ),

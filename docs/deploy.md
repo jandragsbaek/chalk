@@ -48,7 +48,7 @@ new container starts, so keep them additive.
 
 ## Secrets
 
-The one secret is `OPENROUTER_API_KEY`, which turns the coach on. It is managed in the ansible
+The one deploy secret is `OPENROUTER_API_KEY`, which turns the coach on. It is managed in the ansible
 repo (`coldbrewwithmilk/ansible`: SOPS host_vars for `lab-chalk-01`, see `docs/CHALK.md`), which
 renders it to `/etc/chalk/chalk.env` (owner `semaphore`, `0600`). `deploy.yml` hands that file to
 the `web` container with `options: env-file`, so Docker reads it on the VM.
@@ -58,6 +58,9 @@ the `web` container with `options: env-file`, so Docker reads it on the VM.
 - Docker reads the file only when it creates the container. To rotate: update it through ansible,
   then `kamal app boot` or redeploy.
 - The value shows in `docker inspect` on the VM, like any container env.
+
+The bookingboard token is not a deploy secret: the athlete pastes it in Settings and it lives in
+the database (see [domain](domain.md#bookingboard-built)), so a copy of the volume holds it.
 
 ## The VM
 

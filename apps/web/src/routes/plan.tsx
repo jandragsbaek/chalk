@@ -8,6 +8,7 @@ import * as Schema from "effect/Schema";
 import { Highlighter } from "lucide-react";
 import { useState } from "react";
 
+import { BoardPull } from "../components/bookingboard/BoardPull.tsx";
 import { ImportWorkbench, suggestDocument } from "../components/import/ImportWorkbench.tsx";
 import { PlanList } from "../components/plan/PlanList.tsx";
 import { formatDay, localIsoDate } from "../lib/utils.ts";
@@ -101,8 +102,8 @@ function PlanPaste({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
         <div className="grid gap-2 border-b-2 border-foreground pb-3">
           <h1 className="protocol-title text-4xl">Plan a session</h1>
           <p className="max-w-prose text-sm text-muted-foreground">
-            Paste the workout the box posted, plan each movement's scaling, and log it from the plan
-            after training.
+            Paste the workout the box posted, or pull today's from bookingboard, plan each
+            movement's scaling, and log it from the plan after training.
           </p>
         </div>
         {saved ? (
@@ -116,6 +117,7 @@ function PlanPaste({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
             </p>
           </div>
         ) : null}
+        <BoardPull date={today} onPulled={(entry) => setText(entry.text)} />
         <div className="grid gap-1.5">
           <Label htmlFor="plan-text">Posted workout</Label>
           <div className="font-mono">

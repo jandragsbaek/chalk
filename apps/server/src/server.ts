@@ -2,6 +2,7 @@ import { ADMIN_API_PREFIX, ChalkAdminApi, ChalkRpcGroup, RPC_PATH } from "@chalk
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpStaticServer from "effect/http/HttpStaticServer";
@@ -12,6 +13,7 @@ import * as RpcServer from "effect/rpc/RpcServer";
 import * as NodeHttp from "node:http";
 
 import * as AdminApi from "./adminApi.ts";
+import * as Bookingboard from "./bookingboard/Bookingboard.ts";
 import * as CatalogStore from "./catalog/CatalogStore.ts";
 import * as CoachService from "./coach/CoachService.ts";
 import * as CoachStore from "./coach/CoachStore.ts";
@@ -35,6 +37,7 @@ const layerStores = Layer.mergeAll(
   PlanStore.layer,
   ProfileStore.layer,
   PowerStore.layer,
+  Bookingboard.layer.pipe(Layer.provide(FetchHttpClient.layer)),
   LevelStore.layer.pipe(Layer.provide(CatalogStore.layer)),
 ).pipe(Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)));
 

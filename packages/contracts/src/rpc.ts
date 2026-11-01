@@ -4,6 +4,16 @@ import * as Schema from "effect/Schema";
 
 import { IsoDate, LiftSetId, WorkoutId } from "./baseSchemas.ts";
 import {
+  BookingboardDay,
+  BookingboardNotConnectedError,
+  BookingboardStatus,
+  BookingboardStorageError,
+  BookingboardTokenExpiredError,
+  BookingboardTokenInvalidError,
+  BookingboardUnavailableError,
+  ConnectBookingboardInput,
+} from "./bookingboard.ts";
+import {
   CoachEvent,
   CoachModelNotAllowedError,
   CoachSendInput,
@@ -61,6 +71,10 @@ export const RPC_METHODS = {
   profileUpdate: "profile.update",
   bodyweightsLog: "bodyweights.log",
   bodyweightsDelete: "bodyweights.delete",
+  bookingboardStatus: "bookingboard.status",
+  bookingboardConnect: "bookingboard.connect",
+  bookingboardDisconnect: "bookingboard.disconnect",
+  bookingboardDay: "bookingboard.day",
 } as const;
 
 /** Mount point for the RPC endpoint on the server, and the web dev proxy. */
@@ -176,6 +190,40 @@ const BodyweightsDeleteRpc = Rpc.make(RPC_METHODS.bodyweightsDelete, {
   error: Schema.Union([BodyweightNotFoundError, ProfileStorageError]),
 });
 
+const BookingboardStatusRpc = Rpc.make(RPC_METHODS.bookingboardStatus, {
+  success: BookingboardStatus,
+  error: BookingboardStorageError,
+});
+
+/** Checks the token against bookingboard, then keeps it with the athlete's participant id. */
+const BookingboardConnectRpc = Rpc.make(RPC_METHODS.bookingboardConnect, {
+  payload: ConnectBookingboardInput,
+  success: BookingboardStatus,
+  error: Schema.Union([
+    BookingboardTokenInvalidError,
+    BookingboardTokenExpiredError,
+    BookingboardUnavailableError,
+    BookingboardStorageError,
+  ]),
+});
+
+/** Forgets the token. */
+const BookingboardDisconnectRpc = Rpc.make(RPC_METHODS.bookingboardDisconnect, {
+  error: BookingboardStorageError,
+});
+
+/** The programs of the classes the athlete booked or attended on a box-local day. */
+const BookingboardDayRpc = Rpc.make(RPC_METHODS.bookingboardDay, {
+  payload: { date: IsoDate },
+  success: BookingboardDay,
+  error: Schema.Union([
+    BookingboardNotConnectedError,
+    BookingboardTokenExpiredError,
+    BookingboardUnavailableError,
+    BookingboardStorageError,
+  ]),
+});
+
 export const ChalkRpcGroup = RpcGroup.make(
   WorkoutsListRpc,
   WorkoutsLogRpc,
@@ -196,4 +244,8 @@ export const ChalkRpcGroup = RpcGroup.make(
   ProfileUpdateRpc,
   BodyweightsLogRpc,
   BodyweightsDeleteRpc,
+  BookingboardStatusRpc,
+  BookingboardConnectRpc,
+  BookingboardDisconnectRpc,
+  BookingboardDayRpc,
 );
