@@ -846,16 +846,18 @@ export const prescribedLoad = (sets: GradableItem["sets"], sex: Sex): number | u
   return loads.length === 0 ? undefined : Math.max(...loads);
 };
 
-/** Total prescribed reps, for an item done "as prescribed" without a split. */
-const prescribedReps = (sets: GradableItem["sets"]) =>
-  sets.reduce(
-    (total, set) =>
-      total +
-      set.quantities
-        .filter((quantity) => quantity.measure === "reps")
-        .reduce((sum, quantity) => sum + quantity.amount.max, 0),
-    0,
-  );
+/**
+ * Total prescribed reps, for an item done "as prescribed" without a split, or swapped whole:
+ * "5 x 5" is 25.
+ */
+export const prescribedReps = (sets: GradableItem["sets"]) =>
+  sets.reduce((total, set) => {
+    const count = set.quantities.find((quantity) => quantity.measure === "sets");
+    const reps = set.quantities
+      .filter((quantity) => quantity.measure === "reps")
+      .reduce((sum, quantity) => sum + quantity.amount.max, 0);
+    return total + reps * (count === undefined ? 1 : count.amount.max);
+  }, 0);
 
 const familyFor = (
   movementId: MovementId | undefined,

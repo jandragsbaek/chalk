@@ -29,6 +29,7 @@ export class CatalogPersistenceError extends Schema.TaggedError<CatalogPersisten
       "add an alias",
       "set a core movement",
       "set a movement's levels",
+      "set a movement's scalings",
     ]),
     cause: Schema.Defect(),
   },
@@ -59,6 +60,7 @@ const MovementRow = Schema.Struct({
   accessory: Schema.Number,
   complements: Schema.fromJsonString(Schema.Array(Complement)),
   supports: Schema.fromJsonString(Schema.Array(LevelFamilyId)),
+  scalings: Schema.fromJsonString(Schema.Array(MovementId)),
 });
 type MovementRow = typeof MovementRow.Type;
 
@@ -108,6 +110,14 @@ export class CatalogStore extends Context.Service<
       id: MovementId,
       input: SetMovementLevelsInput,
     ) => Effect.Effect<CatalogMovement, CatalogNotFoundError | CatalogPersistenceError>;
+    /**
+     * The movements `id` scales to, first offered first; itself and repeats are dropped. Fails
+     * with `CatalogNotFoundError` for `id` or a scaling not in the catalog.
+     */
+    readonly setScalings: (
+      id: MovementId,
+      scalings: ReadonlyArray<MovementId>,
+    ) => Effect.Effect<CatalogMovement, CatalogNotFoundError | CatalogPersistenceError>;
   }
 >()("chalk/catalog/CatalogStore") {}
 
@@ -120,7 +130,7 @@ const make = Effect.gen(function* () {
     execute: () =>
       sql`
         SELECT id, name, category, variation_of AS "variationOf", level_family AS "levelFamily",
-               accessory, complements, supports
+               accessory, complements, supports, scalings
         FROM movements ORDER BY category, name
       `,
   });
@@ -143,7 +153,7 @@ const make = Effect.gen(function* () {
     aliases: ReadonlyArray<typeof AliasRow.Type>,
   ): ReadonlyArray<CatalogMovement> =>
     movements.map(
-      ({ variationOf, levelFamily, accessory, complements, supports, ...movement }) => ({
+      ({ variationOf, levelFamily, accessory, complements, supports, scalings, ...movement }) => ({
         ...movement,
         aliases: aliases.filter((row) => row.movementId === movement.id).map((row) => row.alias),
         ...(variationOf === null ? {} : { variationOf }),
@@ -151,6 +161,7 @@ const make = Effect.gen(function* () {
         ...(accessory === 1 ? { accessory: true } : {}),
         ...(complements.length === 0 ? {} : { complements }),
         ...(supports.length === 0 ? {} : { supports }),
+        ...(scalings.length === 0 ? {} : { scalings }),
       }),
     );
 
@@ -306,7 +317,31 @@ const make = Effect.gen(function* () {
     }),
   );
 
-  return CatalogStore.of({ list, create, addAlias, setVariationOf, setLevels });
+  const setScalings = Effect.fn("CatalogStore.setScalings")(
+    function* (id: MovementId, scalings: ReadonlyArray<MovementId>) {
+      const entry = yield* Effect.gen(function* () {
+        const { movements } = yield* loadAll;
+        if (!movements.some((movement) => movement.id === id))
+          return yield* new CatalogNotFoundError({ id });
+        const known = new Set<string>(movements.map((movement) => movement.id));
+        const missing = scalings.find((other) => !known.has(other));
+        if (missing !== undefined) return yield* new CatalogNotFoundError({ id: missing });
+        const kept = [...new Set(scalings)].filter((other) => other !== id);
+        yield* sql`UPDATE movements SET scalings = ${JSON.stringify(kept)} WHERE id = ${id}`;
+        return yield* catalogEntry(id);
+      }).pipe(sql.withTransaction);
+      if (!entry) return yield* new CatalogNotFoundError({ id });
+      return entry;
+    },
+    Effect.catchTags({
+      SqlError: (cause) =>
+        Effect.fail(new CatalogPersistenceError({ operation: "set a movement's scalings", cause })),
+      SchemaError: (cause) =>
+        Effect.fail(new CatalogPersistenceError({ operation: "set a movement's scalings", cause })),
+    }),
+  );
+
+  return CatalogStore.of({ list, create, addAlias, setVariationOf, setLevels, setScalings });
 });
 
 export const layer = Layer.effect(CatalogStore, make);

@@ -5,6 +5,7 @@ import {
   makeMovementMatcher,
   MovementId,
   normalizeMovementPhrase,
+  scalingOptions,
   WORK_MODELS,
   workModelsFor,
 } from "@chalk/contracts";
@@ -104,6 +105,36 @@ describe("CatalogStore", () => {
       ]);
       expect(matcher.lookup("SGDL")).toBe("snatch-deadlift");
       expect(matcher.lookup("CL pulls")).toBe("clean-pull");
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("seeds the usual scalings: ring rows for pull-ups, walk-outs for wall walks", () =>
+    Effect.gen(function* () {
+      const store = yield* CatalogStore.CatalogStore;
+      const catalog = yield* store.list();
+      const names = (id: string) =>
+        scalingOptions(MovementId.make(id), catalog).map((option) => option.name);
+      expect(names("pull-up")).toEqual(["Ring row", "Jumping pull-up"]);
+      expect(names("wall-walk")).toEqual(["Walk-out", "Bear crawl"]);
+      expect(makeMovementMatcher(catalog).find("10 walkouts")[0]?.movementId).toBe("walk-out");
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("sets a movement's scalings in order, without itself or repeats", () =>
+    Effect.gen(function* () {
+      const store = yield* CatalogStore.CatalogStore;
+      const id = MovementId.make("pistol");
+      const set = (scalings: ReadonlyArray<string>) =>
+        store.setScalings(
+          id,
+          scalings.map((other) => MovementId.make(other)),
+        );
+      expect(
+        (yield* set(["goblet-squat", "pistol", "air-squat", "goblet-squat"])).scalings,
+      ).toEqual(["goblet-squat", "air-squat"]);
+      expect((yield* set([])).scalings).toBeUndefined();
+      const missing = yield* Effect.flip(set(["no-such-movement"]));
+      expect(missing).toMatchObject({ _tag: "CatalogNotFoundError", id: "no-such-movement" });
     }).pipe(Effect.provide(layer)),
   );
 

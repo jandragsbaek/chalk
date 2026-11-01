@@ -26,6 +26,7 @@ import {
   REST_DAY_LABELS,
   RestDayKind,
   RestDaySource,
+  scalingUsage,
   WorkoutId,
   WorkoutKind,
   type CoachReceipt,
@@ -41,6 +42,7 @@ import * as Schema from "effect/Schema";
 import * as Tool from "effect/ai/Tool";
 import * as Toolkit from "effect/ai/Toolkit";
 
+import type * as LevelStore from "../levels/LevelStore.ts";
 import type * as RestDayStore from "../rest/RestDayStore.ts";
 import type * as PlanStore from "../plan/PlanStore.ts";
 import type * as StrengthStore from "../strength/StrengthStore.ts";
@@ -355,10 +357,44 @@ const DraftBlock = Tool.make("draft_block", {
   ...common,
 });
 
+const ListScalings = Tool.make("list_scalings", {
+  description:
+    "How the athlete scaled programmed movements: per movement, the sessions it was " +
+    "programmed in, the sessions done scaled, and what they did instead (sessions and reps, " +
+    "e.g. ring rows for pull-ups), with the scalings they keep for it. For 'the last 6 weeks' " +
+    "pass from. Without movementId, only movements done scaled at least once in the range.",
+  parameters: Schema.Struct({
+    movementId: Schema.optionalKey(MovementId).annotate({
+      description: "Catalog id, e.g. 'pull-up'; omit for every movement done scaled",
+    }),
+    ...Range,
+  }),
+  success: Schema.Array(
+    Schema.Struct({
+      movementId: MovementId,
+      movement: Schema.String,
+      sessions: Schema.Int,
+      scaledSessions: Schema.Int,
+      doneAs: Schema.Array(
+        Schema.Struct({
+          movementId: MovementId,
+          movement: Schema.String,
+          sessions: Schema.Int,
+          reps: Schema.Int,
+        }),
+      ),
+      lastScaledOn: Schema.optionalKey(IsoDate),
+      scalesTo: Schema.Array(Schema.String),
+    }),
+  ),
+  ...common,
+});
+
 export const CoachToolkit = Toolkit.make(
   ListMovements,
   ListWorkouts,
   ListLiftSets,
+  ListScalings,
   GetRepMaxes,
   ListBenchmarks,
   ListBenchmarkResults,
@@ -445,10 +481,11 @@ export const makeHandlers = (deps: {
   /** The coach's today, YYYY-MM-DD: the first day it may mark. */
   readonly plans: PlanStore.PlanStore["Service"];
   readonly blocks: BlockStore.BlockStore["Service"];
+  readonly levels: LevelStore.LevelStore["Service"];
   readonly today: IsoDate;
   readonly log: ReadLog;
 }) => {
-  const { workouts, strength, restDays, plans, blocks, today, log } = deps;
+  const { workouts, strength, restDays, plans, blocks, levels, today, log } = deps;
 
   const movementNames = strength
     .movements()
@@ -887,6 +924,76 @@ export const makeHandlers = (deps: {
             ),
           };
         },
+      );
+    }),
+
+    list_scalings: Effect.fn("CoachTools.list_scalings")(function* ({ movementId, from, to }) {
+      const names = yield* movementNames.pipe(
+        Effect.orElseSucceed(() => new Map<MovementId, string>()),
+      );
+      const label = (id: MovementId) => names.get(id) ?? id;
+      return yield* read(
+        "list_scalings",
+        [
+          movementId === undefined
+            ? { tag: "text", text: "Every movement done scaled" }
+            : movement(label(movementId)),
+          range({ from, to }),
+        ],
+        Effect.gen(function* () {
+          if (movementId !== undefined) yield* requireMovement(movementId);
+          const overview = yield* levels.overview();
+          const usage = scalingUsage(
+            overview.items.filter((item) => inRange(item.performedOn, { from, to })),
+          );
+          const scalesTo = new Map(
+            overview.movements.map((entry) => [entry.id, (entry.scalings ?? []).map(label)]),
+          );
+          const ids =
+            movementId === undefined
+              ? [...usage].filter(([, entry]) => entry.scaled > 0).map(([id]) => id)
+              : [movementId];
+          return ids
+            .map((id) => {
+              const entry = usage.get(id);
+              return {
+                movementId: id,
+                movement: label(id),
+                sessions: entry?.sessions ?? 0,
+                scaledSessions: entry?.scaled ?? 0,
+                doneAs: (entry?.swaps ?? []).map((swap) => ({
+                  movementId: swap.movementId,
+                  movement: label(swap.movementId),
+                  sessions: swap.sessions,
+                  reps: swap.reps,
+                })),
+                ...(entry?.lastScaledOn === undefined
+                  ? {}
+                  : { lastScaledOn: IsoDate.make(entry.lastScaledOn) }),
+                scalesTo: scalesTo.get(id) ?? [],
+              };
+            })
+            .toSorted(
+              (left, right) =>
+                right.scaledSessions - left.scaledSessions || right.sessions - left.sessions,
+            );
+        }),
+        (found) => ({
+          summary:
+            movementId === undefined
+              ? plural(found.length, "movement") + " done scaled"
+              : `Scaled in ${found[0]?.scaledSessions ?? 0} of ${plural(found[0]?.sessions ?? 0, "session")}`,
+          columns: ["Movement", "Sessions", "Scaled", "Done as", "Last scaled"],
+          rows: found.map((entry) => [
+            entry.movement,
+            String(entry.sessions),
+            String(entry.scaledSessions),
+            entry.doneAs
+              .map((swap) => `${swap.movement} ×${swap.sessions} (${swap.reps} reps)`)
+              .join(", "),
+            entry.lastScaledOn === undefined ? "" : day(entry.lastScaledOn),
+          ]),
+        }),
       );
     }),
 

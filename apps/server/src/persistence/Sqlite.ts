@@ -27,6 +27,7 @@ import Migration017 from "./Migrations/017_TrainingBlocks.ts";
 import Migration018 from "./Migrations/018_Garmin.ts";
 import Migration019 from "./Migrations/019_SessionClassType.ts";
 import Migration020 from "./Migrations/020_BookingboardLedger.ts";
+import Migration021 from "./Migrations/021_Scalings.ts";
 
 // Explicit list: Migrator skips every id at or below the highest one recorded, so ids must only grow.
 const migrations = Migrator.fromRecord({
@@ -50,6 +51,7 @@ const migrations = Migrator.fromRecord({
   "18_Garmin": Migration018,
   "19_SessionClassType": Migration019,
   "20_BookingboardLedger": Migration020,
+  "21_Scalings": Migration021,
 });
 
 const layerMigrations = SqliteMigrator.layer({ loader: migrations });

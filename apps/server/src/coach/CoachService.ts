@@ -36,6 +36,7 @@ import * as Stream from "effect/Stream";
 import * as RestDayStore from "../rest/RestDayStore.ts";
 import * as PlanStore from "../plan/PlanStore.ts";
 import * as StrengthStore from "../strength/StrengthStore.ts";
+import * as LevelStore from "../levels/LevelStore.ts";
 import * as BlockStore from "../training/BlockStore.ts";
 import * as WorkoutStore from "../workout/WorkoutStore.ts";
 import * as CoachStore from "./CoachStore.ts";
@@ -125,6 +126,9 @@ const systemPrompt = (today: string) =>
       "Calendar page, where they put it in the calendar and move sessions as life moves. Pair " +
       "heavy lifting with the box classes honestly: a high-volume squat cycle on top of daily " +
       "CrossFit needs lighter class days or a smaller cycle, and say so.",
+    "When scaling comes up (how often they scale a movement, whether they are ready to do it " +
+      "as written), read list_scalings for the weeks in question rather than guessing from " +
+      "workout names.",
     "Be brief and concrete: a few short paragraphs at most, plain text, no headings or " +
       "tables. Ask one question back when the log cannot answer something.",
     "If the athlete mentions pain or injury, suggest they see a professional and give no " +
@@ -177,6 +181,7 @@ const make = Effect.gen(function* () {
   const restDays = yield* RestDayStore.RestDayStore;
   const plans = yield* PlanStore.PlanStore;
   const blocks = yield* BlockStore.BlockStore;
+  const levels = yield* LevelStore.LevelStore;
 
   const status = () =>
     Effect.succeed(
@@ -233,7 +238,7 @@ const make = Effect.gen(function* () {
 
     const today = options.today ?? DateTime.formatIsoDateUtc(yield* DateTime.now);
     const handlers = yield* CoachToolkit.toHandlers(
-      makeHandlers({ workouts, strength, restDays, plans, blocks, today, log }),
+      makeHandlers({ workouts, strength, restDays, plans, blocks, levels, today, log }),
     );
     const toolkit = yield* CoachToolkit.pipe(Effect.provideContext(handlers));
     const chat = yield* options.history === ""

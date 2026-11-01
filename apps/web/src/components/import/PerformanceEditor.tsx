@@ -2,6 +2,8 @@ import {
   formatAmount,
   LEVELS,
   prescribedLoad,
+  prescribedReps,
+  scalingOptions,
   type CatalogMovement,
   type DerivedItem,
   type ItemGrade,
@@ -72,12 +74,16 @@ export const performanceFromDraft = (draft: Draft, planning = false): Performanc
     : performance;
 };
 
-/** The family's own variations first, easiest first, then the rest of the catalog. */
+/**
+ * The family's own variations first, easiest first, and the movement's scalings, then the rest
+ * of the catalog.
+ */
 const variationOptions = (
   family: LevelFamily | undefined,
+  scalings: ReadonlyArray<CatalogMovement>,
   catalog: ReadonlyArray<CatalogMovement>,
 ) => {
-  const own =
+  const fromFamily =
     family?.kind === "variant"
       ? [...family.below, ...LEVELS.flatMap((level) => family.rungs[level]?.introduces ?? [])]
       : family === undefined
@@ -85,6 +91,7 @@ const variationOptions = (
         : catalog
             .filter((movement) => movement.levelFamily === family.id)
             .map((movement) => movement.id);
+  const own = [...new Set([...fromFamily, ...scalings.map((movement) => movement.id)])];
   const known = own.flatMap((id) => {
     const movement = catalog.find((candidate) => candidate.id === id);
     return movement ? [movement] : [];
@@ -94,6 +101,43 @@ const variationOptions = (
     .toSorted((left, right) => left.name.localeCompare(right.name));
   return { known, rest };
 };
+
+/**
+ * One click to the usual scaling: every rep done as the picked movement (ring rows for
+ * pull-ups). Pressed while the reps are all that movement.
+ */
+function ScaleTo({
+  options,
+  rows,
+  onPick,
+}: {
+  readonly options: ReadonlyArray<CatalogMovement>;
+  readonly rows: Draft["rows"] | undefined;
+  readonly onPick: (movementId: MovementId) => void;
+}) {
+  if (options.length === 0) return null;
+  return (
+    <div className="grid gap-1">
+      <span className="form-label text-muted-foreground">Scale to</span>
+      <div role="group" aria-label="Scale to" className="flex flex-wrap gap-1">
+        {options.map((option) => {
+          const on = rows?.length === 1 && rows[0]?.movementId === option.id;
+          return (
+            <Button
+              key={option.id}
+              size="sm"
+              variant={on ? "default" : "outline"}
+              aria-pressed={on}
+              onClick={() => onPick(option.id)}
+            >
+              {option.name}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function Field({
   label,
@@ -151,7 +195,6 @@ export function PerformanceEditor({
   const sex = useAthleteSex();
   const [draft, setDraft] = useState(() => draftFromPerformance(performance));
   const family = grade?.family;
-  const { known, rest } = variationOptions(family, catalog);
   const nameOf = (id: MovementId) => catalog.find((movement) => movement.id === id)?.name;
   const written = prescribedLoad(item.sets, sex);
   const showLoad = family === undefined || family.kind === "load" || written !== undefined;
@@ -171,6 +214,14 @@ export function PerformanceEditor({
     : grade === undefined
       ? []
       : [grade];
+  const scalings =
+    complex || item.movementId === undefined ? [] : scalingOptions(item.movementId, catalog);
+  // Every prescribed rep, or one for an item counted in metres or calories: a blank count would
+  // drop the row and read as done as prescribed.
+  const { known, rest } = variationOptions(family, scalings, catalog);
+  const allReps = String(Math.max(1, Math.round(prescribedReps(item.sets))));
+  const scaleTo = (movementId: MovementId) =>
+    edit({ ...draft, recorded: true, asWritten: false, rows: [{ movementId, reps: allReps }] });
   const scaleRows = () =>
     family?.kind === "variant" && item.movementId !== undefined
       ? [{ movementId: item.movementId, reps: "" }]
@@ -256,6 +307,7 @@ export function PerformanceEditor({
               {planning ? "Scale it" : "Scaled it"}
             </Button>
           </div>
+          <ScaleTo options={scalings} rows={undefined} onPick={scaleTo} />
         </>
       )}
 
@@ -286,6 +338,8 @@ export function PerformanceEditor({
               ) : null}
             </div>
           ) : null}
+
+          <ScaleTo options={scalings} rows={draft.rows} onPick={scaleTo} />
 
           {complex ? null : (
             <div className="grid gap-1">

@@ -745,6 +745,83 @@
         }
       }
     },
+    "/api/admin/movements/{id}/scalings": {
+      "put": {
+        "tags": [
+          "movements"
+        ],
+        "operationId": "movements.setScalings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "CatalogMovement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogMovement"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "CatalogNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogNotFoundErrorEncoded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "ImportStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scalings": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "required": [
+                  "scalings"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/admin/imports": {
       "get": {
         "tags": [
@@ -2396,6 +2473,14 @@
                 "push-ups",
                 "ghd-sit-ups"
               ]
+            }
+          },
+          "scalings": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+              "minLength": 1
             }
           }
         },

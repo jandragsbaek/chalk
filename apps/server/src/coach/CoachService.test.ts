@@ -21,6 +21,7 @@ import * as Stream from "effect/Stream";
 import * as CatalogStore from "../catalog/CatalogStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as ImportStore from "../import/ImportStore.ts";
+import * as LevelStore from "../levels/LevelStore.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
 import * as RestDayStore from "../rest/RestDayStore.ts";
 import * as PlanStore from "../plan/PlanStore.ts";
@@ -113,6 +114,7 @@ const layerWith = <E>(
         RestDayStore.layer,
         PlanStore.layer,
         BlockStore.layer,
+        LevelStore.layer.pipe(Layer.provide(CatalogStore.layer)),
       ).pipe(
         Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)),
         Layer.provide(ServerConfig.layerTest()),
@@ -316,6 +318,58 @@ describe("CoachService", () => {
       expect(shown).toContain("AMRAP 15 min then");
       expect(shown).toContain("5 x 100 kg Back squat");
     }).pipe(Effect.provide(layerWith(comparesRetest.model))),
+  );
+
+  /** Three sessions with pull-ups: done as ring rows twice (one before the range), once as written. */
+  const seedScaledPullUps = Effect.gen(function* () {
+    const imports = yield* ImportStore.ImportStore;
+    const catalog = yield* (yield* CatalogStore.CatalogStore).list();
+    const save = (number: number, day: string, ringRows: number | undefined) => {
+      const text = `** Session ${number} <${day} ti>\n**** Workout #1\nAMRAP 12 min\n10 pull-ups\n`;
+      let next = 0;
+      const spans = suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`).map(
+        (span) =>
+          span._tag === "movement" && span.movementId === "pull-up" && ringRows !== undefined
+            ? {
+                ...span,
+                performance: {
+                  variants: [{ movementId: MovementId.make("ring-row"), reps: ringRows }],
+                },
+              }
+            : span,
+      );
+      return imports.save({ document: { text, spans } });
+    };
+    yield* save(160, "2026-08-04", 40);
+    yield* save(170, "2026-10-06", 50);
+    yield* save(171, "2026-10-20", undefined);
+  });
+
+  const readsScalings = scriptedModel((options) =>
+    Effect.succeed(
+      options.prompt.content.at(-1)?.role === "tool"
+        ? text("Ring rows once in the last 6 weeks (R1).")
+        : toolCalls([{ name: "list_scalings", params: { from: "2026-09-20" } }]),
+    ),
+  );
+
+  it.effect("reads how often a movement was scaled, and to what, in the weeks asked", () =>
+    Effect.gen(function* () {
+      yield* seedScaledPullUps;
+      const events = yield* send({ text: "How often did I scale pull-ups lately?" });
+      const receipt = (events[2] as Extract<CoachEvent, { _tag: "ReadFinished" }>).receipt;
+      expect(receipt).toMatchObject({
+        tool: "list_scalings",
+        request: [
+          { tag: "text", text: "Every movement done scaled" },
+          { tag: "range", text: "Since 20 Sep 2026" },
+        ],
+        summary: "1 movement done scaled",
+        rows: [["Pull-up", "2", "1", "Ring row ×1 (50 reps)", "6 Oct 2026"]],
+      });
+      const shown = JSON.stringify(readsScalings.calls[1]?.prompt.content.at(-1));
+      expect(shown).toContain('"scalesTo":["Ring row","Jumping pull-up"]');
+    }).pipe(Effect.provide(layerWith(readsScalings.model))),
   );
 
   const marksRest = scriptedModel((options) =>

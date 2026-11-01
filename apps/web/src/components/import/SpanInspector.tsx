@@ -38,6 +38,7 @@ import type { PickMode } from "../../lib/importEditor.ts";
 import type { ResultDefaults } from "../../lib/resultDraft.ts";
 import { CoreMovementField } from "./CoreMovementField.tsx";
 import { MovementLevelsField } from "./MovementLevelsField.tsx";
+import { MovementScalingsField } from "./MovementScalingsField.tsx";
 import { MovementPicker } from "./MovementPicker.tsx";
 import { PerformanceEditor } from "./PerformanceEditor.tsx";
 import { ResultEditor } from "./ResultEditor.tsx";
@@ -788,6 +789,7 @@ function MovementMark({
       />
       {picked ? <CoreMovementField movement={picked} catalog={catalog} /> : null}
       {picked ? <MovementLevelsField movement={picked} /> : null}
+      {picked ? <MovementScalingsField movement={picked} catalog={catalog} /> : null}
       <LinkRow
         label="Alternative of"
         target={alternativeOfText}

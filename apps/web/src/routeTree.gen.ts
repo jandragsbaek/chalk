@@ -15,6 +15,7 @@ import { Route as CoachRouteImport } from './routes/coach'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as LevelsRouteImport } from './routes/levels'
 import { Route as LogRouteImport } from './routes/log'
+import { Route as MovementsRouteImport } from './routes/movements'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as PowerRouteImport } from './routes/power'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -53,6 +54,11 @@ const LevelsRoute = LevelsRouteImport.update({
 const LogRoute = LogRouteImport.update({
   id: '/log',
   path: '/log',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MovementsRoute = MovementsRouteImport.update({
+  id: '/movements',
+  path: '/movements',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlanRoute = PlanRouteImport.update({
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/import': typeof ImportRoute
   '/levels': typeof LevelsRoute
   '/log': typeof LogRoute
+  '/movements': typeof MovementsRoute
   '/plan': typeof PlanRoute
   '/power': typeof PowerRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/import': typeof ImportRoute
   '/levels': typeof LevelsRoute
   '/log': typeof LogRoute
+  '/movements': typeof MovementsRoute
   '/plan': typeof PlanRoute
   '/power': typeof PowerRoute
   '/strength': typeof StrengthRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/import': typeof ImportRoute
   '/levels': typeof LevelsRoute
   '/log': typeof LogRoute
+  '/movements': typeof MovementsRoute
   '/plan': typeof PlanRoute
   '/power': typeof PowerRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/levels'
     | '/log'
+    | '/movements'
     | '/plan'
     | '/power'
     | '/settings'
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/levels'
     | '/log'
+    | '/movements'
     | '/plan'
     | '/power'
     | '/strength'
@@ -194,6 +205,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/levels'
     | '/log'
+    | '/movements'
     | '/plan'
     | '/power'
     | '/settings'
@@ -212,6 +224,7 @@ export interface RootRouteChildren {
   ImportRoute: typeof ImportRoute
   LevelsRoute: typeof LevelsRoute
   LogRoute: typeof LogRoute
+  MovementsRoute: typeof MovementsRoute
   PlanRoute: typeof PlanRoute
   PowerRoute: typeof PowerRoute
   SettingsRoute: typeof SettingsRouteWithChildren
@@ -263,6 +276,13 @@ declare module '@tanstack/react-router' {
       path: '/log'
       fullPath: '/log'
       preLoaderRoute: typeof LogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/movements': {
+      id: '/movements'
+      path: '/movements'
+      fullPath: '/movements'
+      preLoaderRoute: typeof MovementsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/plan': {
@@ -352,6 +372,7 @@ const rootRouteChildren: RootRouteChildren = {
   ImportRoute: ImportRoute,
   LevelsRoute: LevelsRoute,
   LogRoute: LogRoute,
+  MovementsRoute: MovementsRoute,
   PlanRoute: PlanRoute,
   PowerRoute: PowerRoute,
   SettingsRoute: SettingsRouteWithChildren,

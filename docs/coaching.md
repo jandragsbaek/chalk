@@ -20,7 +20,10 @@ Two ways to talk to the coach, on the Coach page (`/coach`):
   scoring and the posted prescription, by category or name), `list_benchmark_results` and
   `find_similar_sessions` (a session's, or a date range's, repeats and look-alikes from
   `WorkoutStore.similar()`: both sides' date, result or heaviest set, and the differences in
-  the sheet's words; at most 10 sessions and 3 matches per part), `list_rest_days` (marked
+  the sheet's words; at most 10 sessions and 3 matches per part), `list_scalings` (per programmed
+  movement in a date range: sessions programmed, sessions done scaled, and what stood in, with
+  sessions and reps, the latest scaled day and the scalings the athlete keeps for it; without a
+  movement, only those done scaled), `list_rest_days` (marked
   days with why and who marked them), `list_blocks` (training blocks, drafts included, with
   dates, training maxes and sessions done), `list_calendar` (day by day: logged, box plans,
   rest marks, programmed and draft sessions with their lines; today and 13 days after by
