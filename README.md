@@ -26,8 +26,8 @@ tokens to paste on `/settings/connections`, beside the box's bookingboard login.
   maxes, the weekly volume grid.
 - [docs/roadmap.md](docs/roadmap.md): phases, in order.
 - [docs/coaching.md](docs/coaching.md): the coach on `/coach` (built: conversations whose
-  every read of your log is a receipt) and what comes next: check-ins that fill the debrief, and
-  an MCP server over the same tools.
+  every read of your log is a receipt), and the MCP server at `/mcp` that lets an agent read the
+  log and see where the importer misread a pasted session. Next: check-ins that fill the debrief.
 
 Chalk is also a learning project. It uses the architecture and stack of
 [T3 Code](https://github.com/pingdotgg/t3code), scaled down to a small app: shared Effect Schema
@@ -80,6 +80,7 @@ apps/server                            apps/web (:5173)
   rpc.ts      thin RPC handlers            routes/ file-based routes; desk pages
                                                    (/workouts, /import) keep search in the URL
   adminApi.ts thin HttpApi handlers
+  mcp/        MCP server at /mcp: coach reads + import inspection
   workout/    WorkoutStore service (SQL)
   catalog/    CatalogStore: movements with aliases, user-added movements
   import/     ImportStore: saves a pasted session (text + spans) and what it derives
@@ -89,7 +90,8 @@ apps/server                            apps/web (:5173)
 
 - **One server, one app, two transports.** The app's pages read and write over Effect RPC
   (`/rpc`); the desk pages (workout search, import) use the admin `HttpApi` (`/api/admin`, with
-  OpenAPI at `/api/admin/openapi.json`). One process serves both and the SPA from one origin.
+  OpenAPI at `/api/admin/openapi.json`). One process serves both and the SPA from one origin,
+  and MCP for agents at `/mcp` (read-only; [coaching.md](docs/coaching.md#mcp-server-built)).
 - **Contracts first.** Every request, response and error crossing the wire is an Effect Schema in
   `packages/contracts`. Both the server and the client validate against it.
 - **Services, thin transports.** Features are `Context.Service` classes with a `make` and a

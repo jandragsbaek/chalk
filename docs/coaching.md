@@ -116,12 +116,31 @@ its read count, and the thread's Model box shows the last one.
 Hard limits per session: tool calls (about 8), model turns (3), output tokens, and a wall-clock
 timeout. A session that hits a limit ends with whatever note it has.
 
-## MCP server (planned)
+## MCP server (built)
 
-The same toolkit, exposed through `effect/ai/McpServer` (stdio in `apps/server` or an
-`apps/mcp` package, same Layer graph, different transport), so Claude Code, Claude Desktop or
-any MCP client can read Chalk too. Later tools: `movement_volume` (after the volume grid),
-`scaling_history` (after scaling), and narrowly, `save_coach_note { workoutId, note }`.
+`apps/server/src/mcp/`: the server also answers MCP (Streamable HTTP, `effect/ai/McpServer`) at
+`/mcp`, on the same origin and Layer graph as the app, so Claude Code or any MCP client can read
+the log. In production that is `https://lab-chalk-01.llama-burbot.ts.net/mcp`; the repo's
+`.mcp.json` points Claude Code at it. Read-only, and like the admin API it has no login: the
+tailnet is the boundary. Requests with an `Origin` header are refused, so a web page cannot call
+it from a browser.
+
+- **The coach's reads**, on the coach's handlers: every tool in the list above but the two
+  writes. Each result is `{ rows: [...] }` (MCP wants an object at the root), there are no
+  receipts or read budget, and "today" is the server's UTC day at the call.
+- **The importer's view**, for fixing the parser from real sessions: `list_imports`,
+  `get_import { workoutId }`, `list_plans`, `get_plan { id }`, `suggest_spans { text }` and
+  `list_catalog { query? }` (movements with their aliases, which the parser matches).
+  `get_import` and `get_plan` return the text, each saved span with the text it covers and its
+  line, the issues the editor shows, the derived session (`deriveSession`), and a **review**:
+  the parser's suggestions for the same text today against the saved spans, matched by range.
+  `changed` (same range, another reading), `missed` (saved, not suggested) and `extra`
+  (suggested, removed) are where the athlete corrected the parser. What the athlete enters
+  (results, performance, plans) is left out of the comparison.
+- **Limits of the review**: it runs the deployed parser and today's catalog, not the ones at
+  import time, so an alias added while correcting that session already counts as suggested.
+- **Later**: `movement_volume` (after the volume grid), `scaling_history` (after scaling), and
+  narrowly, `save_coach_note { workoutId, note }`.
 
 ## Privacy
 
@@ -131,7 +150,7 @@ question needs (no free-text notes unless the session is about that workout).
 
 ## Testing
 
-- Tools: handler tests against in-memory SQLite, like the store tests today; MCP wiring through
-  `effect/ai/McpTest`.
+- Tools: handler tests against in-memory SQLite, like the store tests today; the MCP server
+  through `effect/ai/McpTest` (`mcp/Mcp.test.ts`: result schemas, the review, failures).
 - Loop: a scripted `LanguageModel` layer that returns fixed tool calls and questions, so limits,
   decoding failures and the note format are tested without the network.
