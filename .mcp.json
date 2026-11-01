@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "chalk": {
+      "type": "http",
+      "url": "https://lab-chalk-01.llama-burbot.ts.net/mcp"
+    }
+  }
+}

@@ -22,6 +22,7 @@ import * as Garmin from "./garmin/Garmin.ts";
 import * as Sqlite from "./persistence/Sqlite.ts";
 import * as ImportStore from "./import/ImportStore.ts";
 import * as LevelStore from "./levels/LevelStore.ts";
+import * as Mcp from "./mcp/Mcp.ts";
 import * as PlanStore from "./plan/PlanStore.ts";
 import * as ProfileStore from "./profile/ProfileStore.ts";
 import * as PowerStore from "./power/PowerStore.ts";
@@ -96,7 +97,7 @@ const layerHttpServer = Layer.unwrap(
 );
 
 export const layer = HttpRouter.serve(
-  Layer.mergeAll(layerRpcRoute, layerAdminApiRoute, layerSpaRoute),
+  Layer.mergeAll(layerRpcRoute, layerAdminApiRoute, Mcp.layer, layerSpaRoute),
 ).pipe(
   Layer.provide(layerServices),
   Layer.provide(layerHttpServer),

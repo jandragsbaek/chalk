@@ -8,7 +8,9 @@ OpenRouter key, lives on the VM: see [Secrets](#secrets).
 
 Request path: tailnet → Caddy (ts.net TLS, `:443`) → kamal-proxy on `127.0.0.1:80` → the `web`
 container on 4300, which mounts the `chalk_data` volume at `/data`. Everything, the import desk
-included, is at `https://lab-chalk-01.llama-burbot.ts.net`.
+included, is at `https://lab-chalk-01.llama-burbot.ts.net`, and the read-only MCP endpoint at
+`/mcp` there (the repo's `.mcp.json`). A deploy drops MCP sessions; a client reconnects (in
+Claude Code, `/mcp`).
 
 ## The image
 

@@ -52,8 +52,9 @@ coach.
 ## 6. Coach
 
 - Conversations with receipts on `/coach`, through OpenRouter (done).
-- Check-ins that fill a workout's debrief; MCP server over the same tools. Details in
-  [coaching.md](coaching.md).
+- Check-ins that fill a workout's debrief. Details in [coaching.md](coaching.md).
+- MCP server (done): the coach's reads and the importer's view of each saved session at
+  `/mcp`, so an agent can read the log and see where the parser went wrong.
 - Training blocks (done): the coach drafts a strength cycle or a prehab block as dated
   sessions of structured lines (movement, sets × reps or seconds, % of a training max → kg in
   2.5 kg steps, kg, or words); `/calendar` is the Sunday desk: this week reviewed beside next

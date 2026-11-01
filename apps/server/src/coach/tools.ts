@@ -406,6 +406,21 @@ export const CoachToolkit = Toolkit.make(
   DraftBlock,
 );
 
+/** The coach's reads without its writes: the MCP server serves these over the same handlers. */
+export const CoachReads = {
+  ListMovements,
+  ListWorkouts,
+  ListLiftSets,
+  ListScalings,
+  GetRepMaxes,
+  ListBenchmarks,
+  ListBenchmarkResults,
+  FindSimilarSessions,
+  ListRestDays,
+  ListBlocks,
+  ListCalendar,
+} as const;
+
 /** Rows a receipt keeps; the model gets every row, the athlete's copy is capped. */
 const RECEIPT_ROWS = 60;
 
