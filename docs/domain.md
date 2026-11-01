@@ -397,7 +397,9 @@ Pure functions in `packages/contracts/src/power/`, computed wherever the session
 - **Left out, said so**: a movement without a model, without reps or without a load is listed
   with its reason, never dropped silently.
 - **Benchmarks** (`estimateBenchmarkWork`): the Rx prescription over the attempt's time, or a
-  single AMRAP's rounds. Scores in reps (Fight Gone Bad) are not split over movements.
+  single AMRAP's rounds; a "two dumbbells" note lifts two. Shown for attempts logged Rx; an
+  import is estimated on its session sheet from what was done. Scores in reps (Fight Gone Bad)
+  are not split over movements.
 
 ## Planned sessions (built)
 

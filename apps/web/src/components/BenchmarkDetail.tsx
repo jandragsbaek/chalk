@@ -90,9 +90,12 @@ const MODELS = workModelsFor([]);
 function Attempts({ benchmark }: { readonly benchmark: Benchmark }) {
   const results = useAtomValue(benchmarkResultsAtom);
   const profile = useProfile();
-  /** Estimated at the Rx prescription; a scaled attempt's loads are not recorded. */
+  /**
+   * At the Rx prescription, so only for attempts logged Rx. An import does not record Rx; its
+   * session sheet estimates it from what was done.
+   */
   const wattsOf = (attempt: BenchmarkResult) => {
-    if (attempt.rx === false) return undefined;
+    if (attempt.rx !== true) return undefined;
     const body = bodyOn(profile, attempt.performedOn);
     return body === undefined
       ? undefined

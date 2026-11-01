@@ -402,12 +402,16 @@ export interface BenchmarkWork {
   readonly leftOut: ReadonlyArray<LeftOut>;
 }
 
+/** "two dumbbells": the posted load is per implement, and two are lifted. */
+const TWO_IMPLEMENTS = /\btwo (?:dumbbells|kettlebells)\b/i;
+
 const benchmarkItem = (item: Benchmark["blocks"][number]["items"][number]): WorkItem => ({
   movementId: item.movementId,
   text: item.movementId,
   sets: item.quantities.length === 0 ? [] : [{ quantities: item.quantities }],
   performed: [],
-  performance: undefined,
+  performance:
+    item.note !== undefined && TWO_IMPLEMENTS.test(item.note) ? { implements: 2 } : undefined,
   alternatives: (item.alternatives ?? []).map(benchmarkItem),
 });
 

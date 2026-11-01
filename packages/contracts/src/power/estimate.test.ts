@@ -98,6 +98,25 @@ describe("estimateBenchmarkWork", () => {
     expect(estimateBenchmarkWork(cindy, "DNF", jan, modelOf)).toBeUndefined();
   });
 
+  it("lifts two dumbbells where the board says so", () => {
+    const ellen = benchmarkById("ellen")!;
+    const doubled = estimateBenchmarkWork(ellen, "15:00", jan, modelOf)!;
+    // The same workout with the thrusters' note dropped: one dumbbell.
+    const single = estimateBenchmarkWork(
+      {
+        ...ellen,
+        blocks: ellen.blocks.map((block) => ({
+          ...block,
+          items: block.items.map(({ note: _note, ...item }) => item),
+        })),
+      },
+      "15:00",
+      jan,
+      modelOf,
+    )!;
+    expect(doubled.joules).toBeGreaterThan(single.joules);
+  });
+
   it("has no number without a score", () => {
     expect(estimateBenchmarkWork(fran, "", jan, modelOf)).toBeUndefined();
   });
