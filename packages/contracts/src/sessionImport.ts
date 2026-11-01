@@ -88,6 +88,8 @@ export const BlockParams = Schema.Struct({
   restSeconds: Schema.optionalKey(NonNegative),
   rounds: Schema.optionalKey(Amount),
   scheme: Schema.optionalKey(Schema.Array(NonNegative)),
+  /** "Cap = 15 min": a for-time block not finished by then is scored by the reps done. */
+  timeCapSeconds: Schema.optionalKey(NonNegative),
 });
 export type BlockParams = typeof BlockParams.Type;
 
@@ -110,6 +112,24 @@ export const LiftResult = Schema.TaggedUnion({
 });
 export type LiftResult = typeof LiftResult.Type;
 
+/**
+ * A block's score, entered by the athlete. `capped`: the cap came in round `round` (1-based) on
+ * station `at` (an item span) after `reps` of it; `total` is the board's score, counted by the
+ * editor, which knows the athlete's side of an M/F split.
+ */
+export const BlockResult = Schema.TaggedUnion({
+  time: { seconds: Count },
+  capped: {
+    round: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
+    at: SpanId,
+    reps: Count,
+    total: Count,
+  },
+  rounds_reps: { rounds: Count, reps: Count },
+  reps: { reps: Count },
+});
+export type BlockResult = typeof BlockResult.Type;
+
 const spanFields = {
   id: SpanId,
   start: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
@@ -129,7 +149,13 @@ export const Span = Schema.TaggedUnion({
   notes: { ...spanFields },
   intent: { ...spanFields },
   comment: { ...spanFields },
-  block: { ...spanFields, format: BlockFormat, params: BlockParams },
+  block: {
+    ...spanFields,
+    format: BlockFormat,
+    params: BlockParams,
+    /** The athlete's score for the block, entered in the editor. */
+    result: Schema.optionalKey(BlockResult),
+  },
   movement: {
     ...spanFields,
     /** Absent until the athlete picks one; saving needs every movement resolved. */
@@ -152,7 +178,12 @@ export const Span = Schema.TaggedUnion({
   /** A score as written ("12+5", "8:32"); attached to the block or benchmark it scores. */
   score: { ...spanFields, attachedTo: Schema.optionalKey(SpanId) },
   /** "Fran", "Murph": absent until the athlete picks one; saving needs it resolved. */
-  benchmark: { ...spanFields, benchmarkId: Schema.optionalKey(BenchmarkId) },
+  benchmark: {
+    ...spanFields,
+    benchmarkId: Schema.optionalKey(BenchmarkId),
+    /** The attempt's score, for a benchmark written by name only (its blocks are the template). */
+    result: Schema.optionalKey(BlockResult),
+  },
 });
 export type Span = typeof Span.Type;
 export type SpanTag = Span["_tag"];

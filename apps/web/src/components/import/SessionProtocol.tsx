@@ -1,6 +1,8 @@
 import {
   describeBlock,
+  formatBlockResult,
   benchmarkById,
+  type BlockResult,
   formatPerformed,
   formatQuantity,
   tonnageOf,
@@ -16,13 +18,15 @@ import {
   type SpanId,
 } from "@chalk/contracts";
 import { LevelBadge } from "@chalk/ui/components/level-ruler.tsx";
-import type { ReactNode } from "react";
+import { Plus } from "lucide-react";
+import { useState, type ReactNode } from "react";
 
 import { formatKg } from "../../lib/blockLabels.ts";
 import { formatComplex, type Complex } from "../../lib/complexes.ts";
 import { describePlan } from "../../lib/plan.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
 import { chosenOption } from "../../lib/station.ts";
+import { BlockResultEditor } from "./BlockResultEditor.tsx";
 import { LevelLine, type GradeSide, type LevelLead } from "./LevelVerdict.tsx";
 
 export interface ProtocolNames {
@@ -51,6 +55,12 @@ export interface ProtocolEditor {
   readonly rulerOnSelectedOnly?: boolean;
   /** Words left after the row's mark that may name a variation ("o. line"). */
   readonly tailOf?: (id: SpanId) => string | undefined;
+  /** Enters a block's result on the span holding it; absent while planning. */
+  readonly onResult?: (spanId: SpanId, result: BlockResult | undefined) => void;
+  /** The result saved on `spanId`, even one that no longer fits its block. */
+  readonly storedResultOf?: (spanId: SpanId) => BlockResult | undefined;
+  /** Sets the time cap of the block span `spanId`. */
+  readonly onCap?: (spanId: SpanId, seconds: number | undefined) => void;
 }
 
 /** Row state the editor reads: selected, lit by a hovered mark. */
@@ -459,6 +469,114 @@ function ComplexRows({
   );
 }
 
+/** A score box on the header strip: the entered result, or one marked in the text. */
+function ScoreBox({ label, children }: { readonly label: string; readonly children: ReactNode }) {
+  return (
+    <span
+      data-result-box
+      className="flex items-baseline gap-1.5 bg-card px-1.5 text-sm font-semibold leading-6 tabular-nums"
+    >
+      <span className="form-label text-muted-foreground">{label}</span>
+      {children}
+    </span>
+  );
+}
+
+/**
+ * A block's header strip: its format, its scores and what it lifted. In the editor a block that
+ * takes a result offers it here, in the box the score prints in, and opens its fields below.
+ */
+function BlockHeader({
+  block,
+  names,
+  editor,
+}: {
+  readonly block: DerivedBlock;
+  readonly names: ProtocolNames;
+  readonly editor: ProtocolEditor | undefined;
+}) {
+  const sex = useAthleteSex();
+  const [open, setOpen] = useState(false);
+  const resultSpanId = block.resultSpanId;
+  const onResult = editor?.onResult;
+  const entering = onResult !== undefined && resultSpanId !== undefined;
+  const stored = resultSpanId === undefined ? undefined : editor?.storedResultOf?.(resultSpanId);
+  // Saved but no longer fitting: shown open, with its words, until it is entered again.
+  const unfit = block.result === undefined && stored !== undefined;
+  // The entered result is the first score; the editor prints it in its own box.
+  const marked = block.result === undefined ? block.scores : block.scores.slice(1);
+  const title = describeBlock(block.format, block.params);
+  return (
+    <>
+      <div className="flex min-h-8 items-center justify-between gap-3 bg-muted px-4">
+        {editor ? (
+          <button
+            type="button"
+            disabled={block.spanId === undefined}
+            className="cursor-pointer text-sm font-bold uppercase tracking-wide font-stretch-condensed hover:underline disabled:cursor-default disabled:no-underline"
+            onClick={() => (block.spanId ? editor.onSelect(block.spanId) : undefined)}
+          >
+            {title}
+          </button>
+        ) : (
+          <span className="text-sm font-bold uppercase tracking-wide font-stretch-condensed">
+            {title}
+          </span>
+        )}
+        <span className="flex flex-wrap justify-end gap-1.5">
+          {entering ? (
+            <button
+              type="button"
+              aria-expanded={open}
+              data-result-box={block.result === undefined ? undefined : ""}
+              data-open-box={block.result === undefined ? "" : undefined}
+              title={unfit ? "No longer fits the block: enter it again" : undefined}
+              className="flex cursor-pointer items-baseline gap-1.5 bg-card px-1.5 text-sm font-semibold leading-6 tabular-nums transition-colors duration-150 hover:bg-background"
+              onClick={() => setOpen(!open)}
+            >
+              <span className="form-label text-muted-foreground">Result</span>
+              {block.result !== undefined ? (
+                block.scores[0]
+              ) : unfit ? (
+                <span className="text-destructive">{formatBlockResult(stored)}</span>
+              ) : (
+                <Plus aria-hidden className="size-3.5 self-center" />
+              )}
+            </button>
+          ) : block.result === undefined ? null : (
+            <ScoreBox label="Result">{block.scores[0]}</ScoreBox>
+          )}
+          {marked.map((score) => (
+            <ScoreBox key={score} label="Score">
+              {score}
+            </ScoreBox>
+          ))}
+          {block.tonnageKg > 0 ? (
+            <ScoreBox label="Lifted">{formatKg(block.tonnageKg)}</ScoreBox>
+          ) : null}
+        </span>
+      </div>
+      {entering && open ? (
+        <BlockResultEditor
+          // A new format takes other result fields: start its draft over.
+          key={block.format ?? "none"}
+          block={block}
+          stored={stored}
+          nameOf={names.nameOf}
+          sex={sex}
+          onResult={(result) => onResult(resultSpanId, result)}
+          onCap={
+            editor?.onCap && block.spanId !== undefined && block.spanId === resultSpanId
+              ? (seconds) => editor.onCap?.(resultSpanId, seconds)
+              : undefined
+          }
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </>
+  );
+}
+
 /**
  * The session set like a meet protocol: parts, their blocks, one row per movement with its sets
  * in boxes and what was lifted, and the lift sets read from the notes. With an `editor` it is the
@@ -502,43 +620,7 @@ export function SessionProtocol({
           </div>
           {part.blocks.map((block, index) => (
             <div key={block.spanId ?? `implicit-${index}`} className="border-b">
-              <div className="flex min-h-8 items-center justify-between gap-3 bg-muted px-4">
-                {editor ? (
-                  <button
-                    type="button"
-                    disabled={block.spanId === undefined}
-                    className="cursor-pointer text-sm font-bold uppercase tracking-wide font-stretch-condensed hover:underline disabled:cursor-default disabled:no-underline"
-                    onClick={() => (block.spanId ? editor.onSelect(block.spanId) : undefined)}
-                  >
-                    {describeBlock(block.format, block.params)}
-                  </button>
-                ) : (
-                  <span className="text-sm font-bold uppercase tracking-wide font-stretch-condensed">
-                    {describeBlock(block.format, block.params)}
-                  </span>
-                )}
-                <span className="flex flex-wrap justify-end gap-1.5">
-                  {block.scores.map((score) => (
-                    <span
-                      key={score}
-                      data-result-box
-                      className="flex items-baseline gap-1.5 bg-card px-1.5 text-sm font-semibold leading-6"
-                    >
-                      <span className="form-label text-muted-foreground">Score</span>
-                      {score}
-                    </span>
-                  ))}
-                  {block.tonnageKg > 0 ? (
-                    <span
-                      data-result-box
-                      className="flex items-baseline gap-1.5 bg-card px-1.5 text-sm font-semibold leading-6 tabular-nums"
-                    >
-                      <span className="form-label text-muted-foreground">Lifted</span>
-                      {formatKg(block.tonnageKg)}
-                    </span>
-                  ) : null}
-                </span>
-              </div>
+              <BlockHeader block={block} names={names} editor={editor} />
               {block.intents.length > 0 || block.comments.length > 0 ? (
                 <ul className="divide-y border-b">
                   {block.intents.map((intent) => (

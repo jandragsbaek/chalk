@@ -571,6 +571,26 @@ export function SpanInspector({
                 onUpdate({ ...span, params: withParam(span.params, "restSeconds", seconds) })
               }
             />
+            {span.format === "for_time" ? (
+              <NumberField
+                label="Time cap (min)"
+                value={
+                  span.params.timeCapSeconds === undefined
+                    ? undefined
+                    : span.params.timeCapSeconds / 60
+                }
+                onChange={(minutes) =>
+                  onUpdate({
+                    ...span,
+                    params: withParam(
+                      span.params,
+                      "timeCapSeconds",
+                      minutes === undefined || minutes <= 0 ? undefined : Math.round(minutes * 60),
+                    ),
+                  })
+                }
+              />
+            ) : null}
           </div>
         </div>
       ) : null}

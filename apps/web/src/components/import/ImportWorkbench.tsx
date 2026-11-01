@@ -779,6 +779,40 @@ export function ImportWorkbench({
                 lineOf,
                 rulerOnSelectedOnly: outcomeFirst,
                 tailOf: (id) => tails.get(id)?.text,
+                ...(planning
+                  ? {}
+                  : {
+                      storedResultOf: (id) => {
+                        const span = state.spans.find((candidate) => candidate.id === id);
+                        return span?._tag === "block" || span?._tag === "benchmark"
+                          ? span.result
+                          : undefined;
+                      },
+                      onResult: (id, result) => {
+                        const span = state.spans.find((candidate) => candidate.id === id);
+                        if (span?._tag !== "block" && span?._tag !== "benchmark") return;
+                        const { result: _previous, ...rest } = span;
+                        dispatch({
+                          type: "update",
+                          span: result === undefined ? rest : { ...rest, result },
+                        });
+                      },
+                      onCap: (id, seconds) => {
+                        const span = state.spans.find((candidate) => candidate.id === id);
+                        if (span?._tag !== "block") return;
+                        const { timeCapSeconds: _previous, ...params } = span.params;
+                        dispatch({
+                          type: "update",
+                          span: {
+                            ...span,
+                            params:
+                              seconds === undefined
+                                ? params
+                                : { ...params, timeCapSeconds: seconds },
+                          },
+                        });
+                      },
+                    }),
               }}
             />
             {planning ? (

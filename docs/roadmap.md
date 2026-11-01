@@ -25,7 +25,8 @@ coach.
 ## 3. Composed workouts
 
 - `workout_parts` and `workout_items` tables (prescribed vs performed, derived total reps).
-- Structured scores per format, with the display string derived.
+- Structured scores per format, with the display string derived (imports: built, entered on
+  the block header; the Log form not yet).
 - Log form builds a workout from parts and catalog movements.
 - Benchmarks (done): the Girls, the 244 Heroes and three classics as reference data; logging
   one writes its structure, the importer links parts to them, `/benchmarks` shows attempts,

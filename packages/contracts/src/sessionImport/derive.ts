@@ -4,6 +4,7 @@ import { LEVEL_NAMES, type Performance } from "../levels.ts";
 import type {
   BlockFormat,
   BlockParams,
+  BlockResult,
   ImportDocument,
   LiftResult,
   PerformedSet,
@@ -13,6 +14,15 @@ import type {
   SpanOf,
 } from "../sessionImport.ts";
 import { WORKOUT_KIND_LABELS, type WorkoutKind } from "../workout.ts";
+import {
+  BLOCK_RESULT_LABELS,
+  cappedTotal,
+  formatBlockResult,
+  isStation,
+  resultKindsFor,
+  roundsOfBlock,
+  stationCount,
+} from "./blockResult.ts";
 import { lineIndexAt, parseQuantities, splitLines, type Line } from "./parse.ts";
 
 /** Quantities written on one line for one movement: one set of the prescription. */
@@ -59,7 +69,15 @@ export interface DerivedBlock {
   readonly items: ReadonlyArray<DerivedItem>;
   readonly intents: ReadonlyArray<DerivedIntent>;
   readonly comments: ReadonlyArray<DerivedComment>;
+  /** The athlete's entered result first (as the board writes it), then scores marked in the text. */
   readonly scores: ReadonlyArray<string>;
+  /**
+   * The span the athlete's result is entered on: the block's, or for a benchmark written by name
+   * only, the benchmark's on the block it scores. Absent where a block takes no result.
+   */
+  readonly resultSpanId?: SpanId;
+  /** The entered result, when it fits the block; one that does not is an issue instead. */
+  readonly result?: BlockResult;
   /**
    * Numbered lines ("1) 12 cal row", "4) Rest") in an EMOM or every-X block: how many lines it
    * rotates through, one per interval. Absent when the lines are not numbered.
@@ -655,6 +673,77 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     scoresOf.set(block.id, [...(scoresOf.get(block.id) ?? []), slice(score)]);
   }
 
+  /** The result entered on `owner` for a block, checked against it; an issue when it misfits. */
+  const resultFor = (
+    owner: SpanOf<"block"> | SpanOf<"benchmark"> | undefined,
+    block: {
+      readonly format: BlockFormat | undefined;
+      readonly params: BlockParams;
+      readonly items: ReadonlyArray<DerivedItem>;
+    },
+  ): Pick<DerivedBlock, "resultSpanId" | "result"> => {
+    const kinds = resultKindsFor(block.format);
+    const result = owner?.result;
+    if (owner === undefined || (kinds.length === 0 && result === undefined)) return {};
+    const base = { resultSpanId: owner.id };
+    if (result === undefined) return base;
+    const where = { check: "numbers", spanId: owner.id } as const;
+    const problem = (message: string) => {
+      issues.push({ severity: "error", message, ...where });
+      return base;
+    };
+    if (!kinds.includes(result._tag))
+      return problem(
+        `${slice(owner)}: a result as ${BLOCK_RESULT_LABELS[result._tag].toLowerCase()} does not fit the block's format; enter it again.`,
+      );
+    if (result._tag === "capped") {
+      const rounds = roundsOfBlock(block.params);
+      if (!block.items.some((item) => isStation(item, result.at)))
+        return problem(
+          `${slice(owner)}: the capped result stops at a movement no longer in the block; pick where you stopped again.`,
+        );
+      if (result.round > rounds)
+        return problem(
+          `${slice(owner)}: the capped result is in round ${result.round}, but the block has ${rounds}.`,
+        );
+      // One side of an M/F split, the athlete's, must hold both the reps and the total.
+      const station = block.items.find((item) => isStation(item, result.at))!;
+      const sides = (["m", "f"] as const).map((sex) => ({
+        asked: stationCount(station, block.params, result.round - 1, sex),
+        total: cappedTotal(block, result, sex),
+      }));
+      const fits = ({ asked, total }: (typeof sides)[number]) =>
+        (asked === undefined || result.reps <= asked) && total === result.total;
+      if (!sides.some(fits)) {
+        const [side] = sides;
+        return problem(
+          side!.asked !== undefined && result.reps > side!.asked
+            ? `${slice(owner)}: the capped result has ${result.reps} reps of a station of ${side!.asked}.`
+            : side!.total === undefined
+              ? `${slice(owner)}: the capped result can no longer be counted; enter it again.`
+              : `${slice(owner)}: the capped result says ${result.total} reps, but the block now adds up to ${side!.total}; enter it again.`,
+        );
+      }
+      if (block.params.timeCapSeconds === undefined)
+        issues.push({
+          severity: "warning",
+          message: `${slice(owner)}: capped, but the block has no time cap, so its time is unknown.`,
+          ...where,
+        });
+    }
+    return { ...base, result };
+  };
+
+  /** The entered result's text first; a score marked in the text that says the same is dropped. */
+  const withResult = (
+    scored: Pick<DerivedBlock, "result">,
+    scores: ReadonlyArray<string>,
+  ): ReadonlyArray<string> => {
+    if (scored.result === undefined) return scores;
+    const entered = formatBlockResult(scored.result);
+    return [entered, ...scores.filter((score) => score.trim() !== entered)];
+  };
+
   const boundaries = [
     ...spans
       .filter((span) => span._tag === "part" || span._tag === "notes")
@@ -704,28 +793,39 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
       0,
       benchmark.blocks.findIndex((block) => block.format !== "rest"),
     );
-    return benchmark.blocks.map((block, blockIndex) => ({
-      spanId: undefined,
-      title: block.title,
-      format: block.format,
-      params: block.params,
-      items: block.items.map((item, itemIndex) =>
+    return benchmark.blocks.map((block, blockIndex) => {
+      const items = block.items.map((item, itemIndex) =>
         toTemplateItem(item, `${blockIndex}.${itemIndex}`),
-      ),
-      intents: [
-        ...(blockIndex === 0 ? intents : []),
-        ...block.intents.map((intentText, index) => ({
-          spanId: `${span.id}/${blockIndex}.i${index}`,
-          text: intentText,
-          quantities: parseQuantities(intentText, 0, { bareReps: false }).map(
-            (match) => match.quantity,
-          ),
-        })),
-      ],
-      comments: blockIndex === 0 ? comments : [],
-      scores: blockIndex === scoredAt ? scores : [],
-      tonnageKg: 0,
-    }));
+      );
+      // The benchmark's cap ("20 min cap") is the cap of the block it scores.
+      const params =
+        blockIndex === scoredAt && benchmark.timeCapSeconds !== undefined
+          ? { ...block.params, timeCapSeconds: benchmark.timeCapSeconds }
+          : block.params;
+      const scored =
+        blockIndex === scoredAt ? resultFor(span, { ...block, params, items }) : ({} as const);
+      return {
+        spanId: undefined,
+        title: block.title,
+        format: block.format,
+        params,
+        items,
+        ...scored,
+        intents: [
+          ...(blockIndex === 0 ? intents : []),
+          ...block.intents.map((intentText, index) => ({
+            spanId: `${span.id}/${blockIndex}.i${index}`,
+            text: intentText,
+            quantities: parseQuantities(intentText, 0, { bareReps: false }).map(
+              (match) => match.quantity,
+            ),
+          })),
+        ],
+        comments: blockIndex === 0 ? comments : [],
+        scores: withResult(scored, blockIndex === scoredAt ? scores : []),
+        tonnageKg: 0,
+      };
+    });
   };
 
   // A block's own lines run from its format line to the next block, part, notes or benchmark.
@@ -812,6 +912,12 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
       blocks: blocks.map((block, index) => {
         const items = block.items.map(toItem);
         const rotation = rotationOf(block.spanId);
+        const owner = block.spanId === undefined ? undefined : byId.get(block.spanId);
+        const scored = resultFor(owner?._tag === "block" ? owner : undefined, {
+          format: block.format,
+          params: block.params,
+          items,
+        });
         return {
           spanId: block.spanId,
           title: block.title,
@@ -820,10 +926,11 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
           items,
           intents: block.intents.map(toIntent),
           comments: block.comments.map(toComment),
-          scores: [
+          ...scored,
+          scores: withResult(scored, [
             ...(block.spanId === undefined ? [] : (scoresOf.get(block.spanId) ?? [])),
             ...(index === scoredAt ? benchmarkScores : []),
-          ],
+          ]),
           ...(rotation === undefined ? {} : { rotation }),
           tonnageKg: roundKg(items.reduce((total, item) => total + itemTonnage(item), 0)),
         };
