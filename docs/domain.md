@@ -302,6 +302,25 @@ re-derivable.
 - One import per session number, or per day without one; saving the same session again needs an
   explicit replace. Deleting the workout deletes its import, structure and lift sets.
 
+## Similar sessions (built)
+
+The box re-runs workouts ("retest from July") and programs ones close to earlier ones. Chalk
+compares every saved **part** with every other session's parts (`findSimilarParts` in
+contracts, `GET /workouts/similar`), from the stored blocks and items; nothing is stored.
+
+- **Repeat**: same blocks (rest blocks ignored), same format and parameters, same movements
+  with the same prescription, in any order; or the same benchmark.
+- **Similar**: a score of at least 0.6. Each block pairs with its closest block; within it,
+  format 15 %, parameters 15 % (half for the same format with other numbers), movements 45 %
+  (a variation of the same core counts 0.6) and identical prescriptions 25 %. The part's
+  score weighs blocks by their movements. What differs is listed: format, swapped variation,
+  movement only on one side, other numbers.
+- A part with one movement only reports repeats; its look-alikes are that lift's history.
+- Each part shows its result (block scores, or the session's for a one-part session) or its
+  heaviest lift set, so a repeat reads as then versus now.
+- Web: the session sheet's "Similar sessions" (up to five per part, repeats first), and a
+  repeat mark on register rows that repeat an earlier session.
+
 ## Planned sessions (built)
 
 The box posts the day's workout in the morning; the athlete enters it then and plans the

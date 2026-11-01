@@ -1,9 +1,9 @@
-import type { MovementId, SessionEntry } from "@chalk/contracts";
+import type { MovementId, PartRef, SessionEntry } from "@chalk/contracts";
 import { Badge } from "@chalk/ui/components/badge.tsx";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, NativeSelect } from "@chalk/ui/components/field.tsx";
 import { Link } from "@tanstack/react-router";
-import { X } from "lucide-react";
+import { Repeat2, X } from "lucide-react";
 import type * as React from "react";
 
 import {
@@ -23,14 +23,19 @@ const asDate = (iso: string) => new Date(`${iso}T00:00:00`);
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
+const shortDay = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+
 function Row({
   entry,
   selected,
   nameOf,
+  repeats,
 }: {
   readonly entry: SessionEntry;
   readonly selected: boolean;
   readonly nameOf: (id: MovementId) => string;
+  /** The latest earlier session one of its parts repeats. */
+  readonly repeats: PartRef | undefined;
 }) {
   const day = entryDay(entry);
   const movements = entry.movementIds.map(nameOf).join(", ");
@@ -64,8 +69,21 @@ function Row({
           )}
         </span>
         <span className="grid min-w-0">
-          <span className="truncate font-semibold">
-            {entry._tag === "workout" ? entry.workout.name : "Strength day"}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate font-semibold">
+              {entry._tag === "workout" ? entry.workout.name : "Strength day"}
+            </span>
+            {repeats ? (
+              <span
+                className="flex shrink-0 items-center text-muted-foreground"
+                title={`Repeats ${repeats.title} from ${shortDay.format(asDate(repeats.performedOn))}`}
+              >
+                <Repeat2 aria-hidden className="size-3.5" />
+                <span className="sr-only">
+                  Repeats {repeats.title} from {shortDay.format(asDate(repeats.performedOn))}
+                </span>
+              </span>
+            ) : null}
           </span>
           <span className="truncate text-xs text-muted-foreground">
             {entry._tag === "workout" ? WORKOUT_KIND_LABELS[entry.workout.kind] : "Lift sets"}
@@ -105,6 +123,7 @@ export function SessionRegister({
   years,
   selectedKey,
   nameOf,
+  repeatsEarlier,
   scrollRef,
   onScroll,
   onScrollByHand,
@@ -118,6 +137,7 @@ export function SessionRegister({
   readonly years: ReadonlyArray<string>;
   readonly selectedKey: string | undefined;
   readonly nameOf: (id: MovementId) => string;
+  readonly repeatsEarlier: (workoutId: string) => PartRef | undefined;
   readonly scrollRef: React.Ref<HTMLDivElement>;
   readonly onScroll: () => void;
   /** The wheel, a drag or a touch moved the register, not a month tab. */
@@ -241,6 +261,9 @@ export function SessionRegister({
                     entry={entry}
                     selected={entryKey(entry) === selectedKey}
                     nameOf={nameOf}
+                    repeats={
+                      entry._tag === "workout" ? repeatsEarlier(entry.workout.id) : undefined
+                    }
                   />
                 ))}
               </ul>

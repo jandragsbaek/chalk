@@ -11,6 +11,7 @@ import {
   WorkoutNotFoundError,
   type BenchmarkResult,
   type SessionEntry,
+  type SimilarParts,
   type WorkoutStats,
 } from "@chalk/contracts";
 import * as Context from "effect/Context";
@@ -24,6 +25,7 @@ import * as SqlSchema from "effect/sql/SqlSchema";
 
 import { deleteWorkoutRows } from "./deleteWorkoutRows.ts";
 import { insertBenchmarkPart } from "./insertBenchmarkPart.ts";
+import { makeLoadSimilarParts } from "./similarParts.ts";
 
 export class WorkoutPersistenceError extends Schema.TaggedError<WorkoutPersistenceError>()(
   "WorkoutPersistenceError",
@@ -36,6 +38,7 @@ export class WorkoutPersistenceError extends Schema.TaggedError<WorkoutPersisten
       "delete workout",
       "list benchmark results",
       "list sessions",
+      "compare sessions",
     ]),
     cause: Schema.Defect(),
   },
@@ -124,6 +127,8 @@ export class WorkoutStore extends Context.Service<
      * workout, and every day with lift sets but no workout.
      */
     readonly sessions: () => Effect.Effect<ReadonlyArray<SessionEntry>, WorkoutPersistenceError>;
+    /** Every saved part's repeats and look-alikes among the other sessions' parts. */
+    readonly similar: () => Effect.Effect<SimilarParts, WorkoutPersistenceError>;
     /** Every attempt at a benchmark, newest first, logged or imported. */
     readonly results: () => Effect.Effect<ReadonlyArray<BenchmarkResult>, WorkoutPersistenceError>;
     readonly remove: (
@@ -135,6 +140,7 @@ export class WorkoutStore extends Context.Service<
 const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const random = yield* SecureRandom.SecureRandom;
+  const loadSimilarParts = yield* makeLoadSimilarParts;
 
   const selectAll = SqlSchema.findAll({
     Request: Schema.Void,
@@ -356,6 +362,14 @@ const make = Effect.gen(function* () {
     return entries.sort((left, right) => dayOf(right).localeCompare(dayOf(left)));
   });
 
+  const similar = Effect.fn("WorkoutStore.similar")(function* () {
+    return yield* loadSimilarParts().pipe(
+      Effect.mapError(
+        (cause) => new WorkoutPersistenceError({ operation: "compare sessions", cause }),
+      ),
+    );
+  });
+
   const results = Effect.fn("WorkoutStore.results")(function* () {
     const { linked, unlinked } = yield* Effect.all({
       linked: selectResults(undefined),
@@ -392,7 +406,7 @@ const make = Effect.gen(function* () {
     if (deleted.length === 0) return yield* new WorkoutNotFoundError({ id });
   });
 
-  return WorkoutStore.of({ list, search, stats, log, sessions, results, remove });
+  return WorkoutStore.of({ list, search, stats, log, sessions, similar, results, remove });
 });
 
 export const layer = Layer.effect(WorkoutStore, make);

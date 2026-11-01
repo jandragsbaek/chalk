@@ -7,6 +7,7 @@ import * as Schema from "effect/Schema";
 import { MovementId, PlanId, WorkoutId } from "./baseSchemas.ts";
 import { PlanNotFoundError, SavePlanInput, SessionPlan } from "./plan.ts";
 import { SessionEntry } from "./session.ts";
+import { SimilarParts } from "./similarity.ts";
 import {
   AddAliasInput,
   AliasTakenError,
@@ -54,6 +55,11 @@ export const AdminWorkoutsGroup = HttpApiGroup.make("workouts")
     /** Every session, newest day first: workouts and strength-only days, with their movements. */
     HttpApiEndpoint.get("sessions", "/sessions", {
       success: Schema.Array(SessionEntry),
+      error: WorkoutStorageError,
+    }),
+    /** Every saved part's repeats and look-alikes in other sessions. */
+    HttpApiEndpoint.get("similar", "/similar", {
+      success: SimilarParts,
       error: WorkoutStorageError,
     }),
     HttpApiEndpoint.delete("remove", "/:id", {
