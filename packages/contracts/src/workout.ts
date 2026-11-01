@@ -8,7 +8,7 @@ import {
   WorkoutId,
 } from "./baseSchemas.ts";
 import { KnownBenchmarkId } from "./benchmarks/index.ts";
-import { Coaching } from "./coaching.ts";
+import { ClassType, Coaching } from "./coaching.ts";
 
 export const WorkoutKind = Schema.Literals(["for_time", "amrap", "emom", "strength", "other"]);
 export type WorkoutKind = typeof WorkoutKind.Type;
@@ -26,6 +26,8 @@ export const Workout = Schema.Struct({
   benchmarkId: Schema.optionalKey(BenchmarkId),
   /** Who coached it, or that it was done alone; absent when not recorded. */
   coaching: Schema.optionalKey(Coaching),
+  /** The class it was, WOD or strength; absent when solo or not recorded. */
+  classType: Schema.optionalKey(ClassType),
   createdAt: IsoDateTime,
 }).annotate({ identifier: "Workout" });
 export type Workout = typeof Workout.Type;
@@ -40,6 +42,7 @@ export const LogWorkoutInput = Schema.Struct({
   /** Logs the benchmark: the session gets its blocks and movements, and the score counts. */
   benchmarkId: Schema.optionalKey(KnownBenchmarkId),
   coaching: Schema.optionalKey(Coaching),
+  classType: Schema.optionalKey(ClassType),
 });
 export type LogWorkoutInput = typeof LogWorkoutInput.Type;
 

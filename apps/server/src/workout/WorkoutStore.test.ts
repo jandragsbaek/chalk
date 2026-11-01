@@ -56,6 +56,37 @@ describe("WorkoutStore", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect("records the class a session was, never beside Solo, and finds it by type", () =>
+    Effect.gen(function* () {
+      const store = yield* WorkoutStore.WorkoutStore;
+      const imports = yield* ImportStore.ImportStore;
+      const catalog = yield* (yield* CatalogStore.CatalogStore).list();
+      const text = "** Session 171 <2026-10-30 fr>\n**** Workout #1\n- Back squat 5x5 @100kg";
+      let next = 0;
+      const document = {
+        text,
+        spans: suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`),
+      };
+      const imported = yield* imports.save({ document: { ...document, classType: "strength" } });
+      const logged = yield* store.log({
+        ...fran,
+        classType: "wod",
+        coaching: { _tag: "solo" },
+      });
+
+      expect(logged.classType).toBeUndefined();
+      expect(
+        (yield* store.list()).map((workout) => [workout.name, workout.classType, workout.coaching]),
+      ).toEqual([
+        ["Session 171", "strength", undefined],
+        ["Fran", undefined, { _tag: "solo" }],
+      ]);
+      expect((yield* store.search("strength cl")).map((workout) => workout.id)).toEqual([
+        imported.workoutId,
+      ]);
+    }).pipe(Effect.provide(layer)),
+  );
+
   it.effect("records who coached a session, or that it was done alone, and finds it by coach", () =>
     Effect.gen(function* () {
       const store = yield* WorkoutStore.WorkoutStore;

@@ -1,10 +1,12 @@
 import {
   classCoaching,
+  classTypeOf,
   dayCoaching,
   describeCoaching,
   parseCoaching,
   SOLO_LABEL,
   type BookingboardClass,
+  type ClassType,
   type Coaching,
   type IsoDate,
 } from "@chalk/contracts";
@@ -40,7 +42,7 @@ const classLabel = (entry: BookingboardClass) => `${entry.startsAt} ${entry.titl
 /**
  * "Coached by" in the workbench header: a coach's name, or Solo for a session done alone. Offers
  * the coaches of earlier sessions as you type, and looks the day up on bookingboard: its class's
- * coach, or Solo when only open gym (or nothing) was booked.
+ * coach (and, by its name, the class it was), or Solo when only open gym (or nothing) was booked.
  */
 export function CoachingField({
   id,
@@ -53,13 +55,18 @@ export function CoachingField({
   readonly coaching: Coaching | undefined;
   /** The session's day; without one there is nothing to look up. */
   readonly date: IsoDate | undefined;
-  readonly onChange: (coaching: Coaching | undefined) => void;
+  /** `classType`: what the class looked up on bookingboard was, when its name says. */
+  readonly onChange: (coaching: Coaching | undefined, classType?: ClassType) => void;
 }) {
   const sessions = AsyncResult.getOrElse(useAtomValue(sessionsAtom), () => []);
   const status = useAtomValue(bookingboardStatusAtom);
   const pullDay = useAtomSet(bookingboardDayAtom, { mode: "promiseExit" });
   // As typed, so a space mid-name survives; the document gets it parsed.
-  const [text, setText] = useState(() => (coaching ? describeCoaching(coaching) : ""));
+  const described = coaching ? describeCoaching(coaching) : "";
+  const [text, setText] = useState(described);
+  // Set from outside (the session type picked Solo, or a class over Solo): show it.
+  const typed = parseCoaching(text);
+  if ((typed ? describeCoaching(typed) : "") !== described) setText(described);
   const [lookup, setLookup] = useState<Lookup>({ type: "idle" });
   const connected = AsyncResult.isSuccess(status) && status.value._tag === "connected";
   const options = [SOLO_LABEL, ...knownCoaches(sessions)];
@@ -70,15 +77,15 @@ export function CoachingField({
     onChange(parseCoaching(value));
   }
 
-  function apply(next: Coaching, note: string) {
+  function apply(next: Coaching, note: string, classType?: ClassType) {
     setText(describeCoaching(next));
-    onChange(next);
+    onChange(next, classType);
     setLookup({ type: "note", tone: "muted", text: note });
   }
 
   function pick(entry: BookingboardClass) {
     const next = classCoaching(entry);
-    if (next) apply(next, classLabel(entry));
+    if (next) apply(next, classLabel(entry), classTypeOf(entry));
     else setLookup({ type: "note", tone: "muted", text: `${classLabel(entry)} names no coach.` });
   }
 

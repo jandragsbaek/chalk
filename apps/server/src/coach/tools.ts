@@ -12,6 +12,8 @@ import {
   BENCHMARKS,
   BenchmarkScoring,
   describeCoaching,
+  SESSION_TYPE_LABELS,
+  sessionTypeOf,
   describeDifference,
   estimateOneRepMax,
   IsoDate,
@@ -79,8 +81,9 @@ const ListMovements = Tool.make("list_movements", {
 
 const ListWorkouts = Tool.make("list_workouts", {
   description:
-    "Logged training sessions, newest first: date, name, kind, score, whether it was Rx, and " +
-    "who coached it ('Solo' for one done alone) where recorded.",
+    "Logged training sessions, newest first: date, name, kind (the workout's format), score, " +
+    "whether it was Rx, and where recorded the session type ('WOD class', 'Strength class' or " +
+    "'Solo' for one done alone) and who coached it.",
   parameters: Schema.Struct({
     ...Range,
     limit: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))),
@@ -94,6 +97,7 @@ const ListWorkouts = Tool.make("list_workouts", {
       score: Schema.String,
       rx: Schema.Boolean,
       benchmark: Schema.optionalKey(Schema.String),
+      session: Schema.optionalKey(Schema.String),
       coachedBy: Schema.optionalKey(Schema.String),
     }),
   ),
@@ -561,6 +565,7 @@ export const makeHandlers = (deps: {
                   workout.benchmarkId === undefined
                     ? undefined
                     : benchmarkById(workout.benchmarkId)?.name;
+                const type = sessionTypeOf(workout);
                 return {
                   id: workout.id,
                   performedOn: workout.performedOn,
@@ -569,6 +574,7 @@ export const makeHandlers = (deps: {
                   score: workout.score,
                   rx: workout.rx,
                   ...(benchmark === undefined ? {} : { benchmark }),
+                  ...(type === undefined ? {} : { session: SESSION_TYPE_LABELS[type] }),
                   ...(workout.coaching === undefined
                     ? {}
                     : { coachedBy: describeCoaching(workout.coaching) }),
@@ -578,12 +584,13 @@ export const makeHandlers = (deps: {
         ),
         (found) => ({
           summary: plural(found.length, "session"),
-          columns: ["Date", "Workout", "Kind", "Score", "Coached by"],
+          columns: ["Date", "Workout", "Kind", "Score", "Session", "Coached by"],
           rows: found.map((workout) => [
             day(workout.performedOn),
             workout.name,
             workout.kind,
             workout.score === "" ? "" : `${workout.score}${workout.rx ? " Rx" : ""}`,
+            workout.session ?? "",
             workout.coachedBy ?? "",
           ]),
         }),

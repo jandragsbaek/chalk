@@ -1920,6 +1920,13 @@
                 "additionalProperties": false
               }
             ]
+          },
+          "classType": {
+            "type": "string",
+            "enum": [
+              "wod",
+              "strength"
+            ]
           }
         },
         "required": [
@@ -3432,6 +3439,13 @@
                 ],
                 "additionalProperties": false
               }
+            ]
+          },
+          "classType": {
+            "type": "string",
+            "enum": [
+              "wod",
+              "strength"
             ]
           },
           "createdAt": {

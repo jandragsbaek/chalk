@@ -2,6 +2,8 @@ import {
   benchmarkById,
   deriveSession,
   describeCoaching,
+  SESSION_TYPE_LABELS,
+  sessionTypeOf,
   describeDebrief,
   estimateBenchmarkWork,
   estimateSessionWork,
@@ -48,7 +50,6 @@ import {
   useProfile,
 } from "../../lib/power.ts";
 import { formatDay } from "../../lib/utils.ts";
-import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { IMPORTS_REACTIVITY_KEY, storedImportAtom } from "../../state/imports.ts";
 import { removeWorkoutAtom } from "../../state/sessions.ts";
 import { LIFTS_REACTIVITY_KEY } from "../../state/strength.ts";
@@ -338,6 +339,7 @@ export function SessionSheet({
   readonly onDeleted: () => void;
 }) {
   const day = entry._tag === "workout" ? entry.workout.performedOn : entry.performedOn;
+  const sessionType = entry._tag === "workout" ? sessionTypeOf(entry.workout) : undefined;
   const daySetTonnage = tonnageOf(entry.daySets);
   const liftSets =
     entry._tag === "workout" ? entry.liftSetCount + entry.daySets.length : entry.daySets.length;
@@ -391,6 +393,15 @@ export function SessionSheet({
           ) : null}
           <FieldBox label="Date">{formatDay(day)}</FieldBox>
           {entry._tag === "workout" ? (
+            <FieldBox label="Session type">
+              {sessionType ? (
+                SESSION_TYPE_LABELS[sessionType]
+              ) : (
+                <span data-empty aria-label="Not recorded" />
+              )}
+            </FieldBox>
+          ) : null}
+          {entry._tag === "workout" ? (
             <FieldBox label="Coached by">
               {entry.workout.coaching ? (
                 describeCoaching(entry.workout.coaching)
@@ -398,9 +409,6 @@ export function SessionSheet({
                 <span data-empty aria-label="Not recorded" />
               )}
             </FieldBox>
-          ) : null}
-          {entry._tag === "workout" ? (
-            <FieldBox label="Kind">{WORKOUT_KIND_LABELS[entry.workout.kind]}</FieldBox>
           ) : null}
           <FieldBox label="Movements">{entry.movementIds.length}</FieldBox>
           <FieldBox label="Lift sets">{liftSets}</FieldBox>

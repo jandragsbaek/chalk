@@ -3,8 +3,10 @@ import {
   findBenchmark,
   LogWorkoutInput,
   SCORE_PLACEHOLDERS as BENCHMARK_SCORE_PLACEHOLDERS,
+  withCoaching,
+  withSessionType,
   type Benchmark,
-  type Coaching,
+  type SessionMarks,
 } from "@chalk/contracts";
 import { useAtomSet } from "@effect/atom-react";
 import * as Exit from "effect/Exit";
@@ -17,6 +19,7 @@ import { SCORE_PLACEHOLDERS, WORKOUT_KIND_LABELS, WORKOUT_KINDS } from "../lib/w
 import { LIFTS_REACTIVITY_KEY } from "../state/strength.ts";
 import { logWorkoutAtom, WORKOUTS_REACTIVITY_KEY } from "../state/workouts.ts";
 import { CoachingField } from "./import/CoachingField.tsx";
+import { SessionTypeField } from "./import/SessionTypeField.tsx";
 import { WorkoutPicker } from "./WorkoutPicker.tsx";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, Label, NativeSelect, Textarea } from "@chalk/ui/components/field.tsx";
@@ -43,7 +46,7 @@ export function LogWorkoutForm({ benchmark: fixed }: { readonly benchmark?: Benc
   const [score, setScore] = useState("");
   const [rx, setRx] = useState(true);
   const [notes, setNotes] = useState("");
-  const [coaching, setCoaching] = useState<Coaching | undefined>();
+  const [marks, setMarks] = useState<SessionMarks>({});
   const [status, setStatus] = useState<SubmitStatus>({ type: "idle" });
   const benchmark = fixed ?? findBenchmark(name);
 
@@ -63,7 +66,7 @@ export function LogWorkoutForm({ benchmark: fixed }: { readonly benchmark?: Benc
       rx,
       notes: notes.trim(),
       ...(benchmark ? { benchmarkId: benchmark.id } : {}),
-      ...(coaching ? { coaching } : {}),
+      ...marks,
     });
     if (Option.isNone(input)) {
       setStatus({ type: "error", message: "Add a date, a workout name and a score." });
@@ -156,12 +159,23 @@ export function LogWorkoutForm({ benchmark: fixed }: { readonly benchmark?: Benc
       </div>
 
       <div className="grid gap-1.5">
+        <Label htmlFor="workout-session">Session</Label>
+        <SessionTypeField
+          id="workout-session"
+          marks={marks}
+          onChange={(type) => setMarks((current) => withSessionType(current, type))}
+        />
+      </div>
+
+      <div className="grid gap-1.5">
         <Label htmlFor="workout-coach">Coached by</Label>
         <CoachingField
           id="workout-coach"
-          coaching={coaching}
+          coaching={marks.coaching}
           date={performedOn === "" ? undefined : performedOn}
-          onChange={setCoaching}
+          onChange={(coaching, classType) =>
+            setMarks((current) => withCoaching(current, coaching, classType))
+          }
         />
       </div>
 

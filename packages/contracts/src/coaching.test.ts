@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 
-import { dayCoaching, type BookingboardClass } from "./bookingboard.ts";
-import { parseCoaching } from "./coaching.ts";
+import { classMarks, dayCoaching, type BookingboardClass } from "./bookingboard.ts";
+import { parseCoaching, sessionPhrase, withCoaching, withSessionType } from "./coaching.ts";
 
 const wod = (coach: string | null, startsAt = "16:30"): BookingboardClass => ({
   classId: startsAt === "16:30" ? 1 : 2,
@@ -39,5 +39,59 @@ describe("dayCoaching", () => {
       undefined,
     );
     expect(dayCoaching({ ...day, classes: [wod(null)] })).toBeUndefined();
+  });
+});
+
+describe("classMarks", () => {
+  it("reads WOD and Power classes by name, and leaves other names untyped", () => {
+    expect(classMarks(wod("Rikke L."))).toEqual({
+      coaching: { _tag: "coached", coach: "Rikke L." },
+      classType: "wod",
+    });
+    expect(classMarks({ ...wod(null), title: "Power" })).toEqual({ classType: "strength" });
+    expect(classMarks({ ...wod(null), title: "Gymnastics" })).toEqual({});
+  });
+});
+
+describe("session type", () => {
+  const rikke = { _tag: "coached", coach: "Rikke L." } as const;
+
+  it("makes Solo the coaching, and a class over Solo drops it but keeps a named coach", () => {
+    const solo = withSessionType({ classType: "wod", coaching: rikke }, "solo");
+    expect(solo).toEqual({ coaching: { _tag: "solo" } });
+    expect(withSessionType(solo, "strength")).toEqual({ classType: "strength" });
+    expect(withSessionType({ coaching: rikke }, "wod")).toEqual({
+      classType: "wod",
+      coaching: rikke,
+    });
+    expect(withSessionType({ classType: "wod", coaching: rikke }, undefined)).toEqual({
+      coaching: rikke,
+    });
+  });
+
+  it("drops the class for Solo coaching, and reads a coach named after Solo as the WOD", () => {
+    expect(withCoaching({ classType: "strength" }, { _tag: "solo" })).toEqual({
+      coaching: { _tag: "solo" },
+    });
+    expect(withCoaching({ coaching: { _tag: "solo" } }, rikke)).toEqual({
+      classType: "wod",
+      coaching: rikke,
+    });
+    expect(withCoaching({ coaching: { _tag: "solo" } }, rikke, "strength")).toEqual({
+      classType: "strength",
+      coaching: rikke,
+    });
+    expect(withCoaching({ classType: "strength" }, rikke)).toEqual({
+      classType: "strength",
+      coaching: rikke,
+    });
+  });
+
+  it("phrases the type with its coach, either alone, or neither", () => {
+    expect(sessionPhrase({ classType: "wod", coaching: rikke })).toBe("WOD class with Rikke L.");
+    expect(sessionPhrase({ classType: "strength" })).toBe("Strength class");
+    expect(sessionPhrase({ coaching: { _tag: "solo" } })).toBe("Solo");
+    expect(sessionPhrase({ coaching: rikke })).toBe("with Rikke L.");
+    expect(sessionPhrase({})).toBeUndefined();
   });
 });

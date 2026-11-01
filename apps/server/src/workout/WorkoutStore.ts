@@ -25,7 +25,7 @@ import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 
-import { coachingColumns, coachingOf } from "./coaching.ts";
+import { sessionColumns, sessionMarksOf } from "./sessionMarks.ts";
 import { deleteWorkoutRows } from "./deleteWorkoutRows.ts";
 import { insertBenchmarkPart } from "./insertBenchmarkPart.ts";
 import { makeLoadSimilarParts } from "./similarParts.ts";
@@ -62,6 +62,7 @@ const WorkoutRow = Schema.Struct({
   benchmarkId: Schema.NullOr(BenchmarkId),
   coach: Schema.NullOr(Schema.String),
   solo: Schema.Number,
+  classType: Schema.NullOr(Schema.String),
   createdAt: Workout.fields.createdAt,
 });
 
@@ -100,15 +101,18 @@ const KindCountRow = Schema.Struct({
   rxCount: Schema.Number,
 });
 
-const toWorkout = ({ benchmarkId, coach, solo, ...row }: typeof WorkoutRow.Type): Workout => {
-  const coaching = coachingOf({ coach, solo });
-  return {
-    ...row,
-    rx: row.rx === 1,
-    ...(benchmarkId === null ? {} : { benchmarkId }),
-    ...(coaching === undefined ? {} : { coaching }),
-  };
-};
+const toWorkout = ({
+  benchmarkId,
+  coach,
+  solo,
+  classType,
+  ...row
+}: typeof WorkoutRow.Type): Workout => ({
+  ...row,
+  rx: row.rx === 1,
+  ...(benchmarkId === null ? {} : { benchmarkId }),
+  ...sessionMarksOf({ coach, solo, classType }),
+});
 
 // The first benchmark part names the session's benchmark.
 const WORKOUT_COLUMNS = `
@@ -116,7 +120,7 @@ const WORKOUT_COLUMNS = `
   (SELECT p.benchmark_id FROM workout_parts p
    WHERE p.workout_id = w.id AND p.benchmark_id IS NOT NULL
    ORDER BY p.position LIMIT 1) AS "benchmarkId",
-  w.coach, w.solo, w.created_at AS "createdAt"
+  w.coach, w.solo, w.class_type AS "classType", w.created_at AS "createdAt"
 `;
 
 export class WorkoutStore extends Context.Service<
@@ -124,7 +128,7 @@ export class WorkoutStore extends Context.Service<
   {
     /** Newest first. */
     readonly list: () => Effect.Effect<ReadonlyArray<Workout>, WorkoutPersistenceError>;
-    /** Case-insensitive match on name, score, notes or coach; newest first. */
+    /** Case-insensitive match on name, score, notes, coach or session type; newest first. */
     readonly search: (
       query: string,
     ) => Effect.Effect<ReadonlyArray<Workout>, WorkoutPersistenceError>;
@@ -172,6 +176,8 @@ const make = Effect.gen(function* () {
       WHERE w.name LIKE ${pattern} ESCAPE '!' OR w.score LIKE ${pattern} ESCAPE '!'
          OR w.notes LIKE ${pattern} ESCAPE '!' OR w.coach LIKE ${pattern} ESCAPE '!'
          OR (w.solo = 1 AND 'Solo' LIKE ${pattern} ESCAPE '!')
+         OR (w.class_type = 'wod' AND 'WOD class' LIKE ${pattern} ESCAPE '!')
+         OR (w.class_type = 'strength' AND 'Strength class' LIKE ${pattern} ESCAPE '!')
       ORDER BY w.performed_on DESC, w.id DESC
     `,
   });
@@ -292,21 +298,24 @@ const make = Effect.gen(function* () {
   });
 
   const log = Effect.fn("WorkoutStore.log")(function* (input: LogWorkoutInput) {
+    // As stored: solo drops a class sent with it.
+    const { coach, solo, classType } = sessionColumns(input);
+    const { coaching: _coaching, classType: _classType, ...fields } = input;
     const workout: Workout = {
-      ...input,
+      ...fields,
+      ...sessionMarksOf({ coach, solo, classType }),
       id: WorkoutId.make(yield* random.uuidV7()),
       createdAt: DateTime.formatIso(yield* DateTime.now),
     };
     const benchmark =
       input.benchmarkId === undefined ? undefined : benchmarkById(input.benchmarkId);
-    const { coach, solo } = coachingColumns(input.coaching);
     yield* Effect.gen(function* () {
       yield* sql`
         INSERT INTO workouts (id, performed_on, name, kind, score, rx, notes, coach, solo,
-                              created_at)
+                              class_type, created_at)
         VALUES (${workout.id}, ${workout.performedOn}, ${workout.name}, ${workout.kind},
                 ${workout.score}, ${workout.rx ? 1 : 0}, ${workout.notes}, ${coach}, ${solo},
-                ${workout.createdAt})
+                ${classType}, ${workout.createdAt})
       `;
       if (benchmark)
         yield* insertBenchmarkPart(sql, random.uuidV7(), {
