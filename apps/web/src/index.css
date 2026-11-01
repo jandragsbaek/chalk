@@ -921,3 +921,73 @@ kbd[data-key] {
 [data-ruler-today] {
   background: var(--foreground);
 }
+
+/*
+ * Words the matcher left after a movement mark ("o. line" after "Burpee"): the mark may run on
+ * into a variation. Open, so dashed, in the movement's ink; the mark's selection and linking
+ * reach it, since it belongs to the mark.
+ */
+[data-tail] {
+  --tag-ink: var(--copy-blue-ink);
+  text-decoration: underline 1.5px dashed var(--tag-ink);
+  text-underline-offset: 0.3em;
+  text-decoration-skip-ink: none;
+  transition: background-color 150ms ease-out;
+}
+/* Only the source's tails are pressable; echoes elsewhere stay a dashed underline. */
+[data-annotated] span[data-tail] {
+  cursor: pointer;
+}
+[data-annotated] span[data-tail]:hover,
+[data-annotated] span[data-tail][data-linked] {
+  background: color-mix(in oklch, var(--copy-blue) 45%, transparent);
+}
+[data-annotated] span[data-tail][data-selected] {
+  outline: 1.5px dashed var(--tag-ink);
+  outline-offset: 1px;
+}
+
+/*
+ * The variation ladder in the inspector: ruled rungs, one per variation, picked by key. The best
+ * fit is Chalk's offer, so open: a dashed movement-ink outline, no fill.
+ */
+[data-rung] {
+  --tag: var(--copy-blue);
+  --tag-ink: var(--copy-blue-ink);
+  transition:
+    background-color 150ms ease-out,
+    outline-color 150ms ease-out;
+}
+[data-rung]:hover {
+  background: color-mix(in oklch, var(--tag) 55%, transparent);
+}
+[data-rung][data-best] {
+  outline: 1.5px dashed var(--tag-ink);
+  outline-offset: -3px;
+}
+[data-rung]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+[data-rung]:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+/* The words of a variation's name the leftovers matched: inked like the mark they finish. */
+[data-match] {
+  font-weight: 700;
+  box-shadow: inset 0 -0.125rem 0 var(--copy-blue-ink);
+}
+/* What a pick taught, resolved: solid ink stroke. Not saved: still open, dashed box edge. */
+[data-receipt] {
+  border: 1px solid var(--foreground);
+  background: var(--card);
+}
+[data-receipt][data-unsaved] {
+  border: 1.5px dashed var(--input);
+}
+/* A movement's family on its sheet; the movement itself takes the selection double outline. */
+[data-variation-row][data-selected] {
+  outline: 3px double var(--foreground);
+  outline-offset: -4px;
+}

@@ -6,6 +6,8 @@ import {
   makeMovementMatcher,
   splitLines,
   suggestSpans,
+  trailingWords,
+  variationLadder,
   type ImportCheck,
   type ImportIssue,
   type CatalogMovement,
@@ -54,7 +56,7 @@ import { asPlanned, planTitle, withPlannedLoad } from "../../lib/plan.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
 import { resultDefaults } from "../../lib/resultDraft.ts";
 import { chooseOption, chosenOption, stationOptions } from "../../lib/station.ts";
-import { localIsoDate } from "../../lib/utils.ts";
+import { isTyping, localIsoDate } from "../../lib/utils.ts";
 import { SAVE_REACTIVITY_KEYS, saveImportAtom } from "../../state/imports.ts";
 import { PLANS_REACTIVITY_KEY, savePlanAtom } from "../../state/plans.ts";
 import { AnnotatedText, type TextRange } from "./AnnotatedText.tsx";
@@ -72,10 +74,6 @@ type SaveStatus =
   | { readonly type: "saving" }
   | { readonly type: "error"; readonly message: string }
   | { readonly type: "conflict"; readonly existing: ImportSummary };
-
-const isTyping = (target: EventTarget | null) =>
-  target instanceof HTMLElement &&
-  (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
 
 /** Fresh suggestion ids: unique within the document, distinct from the editor's "e" ids. */
 export const suggestDocument = (
@@ -302,6 +300,15 @@ export function ImportWorkbench({
     ...linkedIds(state.spans, pointed),
     ...(pointed === undefined ? [] : (complexes.get(pointed)?.members ?? [])),
   ]);
+  // Words left after a movement with a family ("o. line" after "Burpee"): maybe a variation.
+  const tails = new Map(
+    state.spans.flatMap((span) => {
+      if (span._tag !== "movement" || span.movementId === undefined) return [];
+      if (variationLadder(span.movementId, catalog, undefined) === undefined) return [];
+      const tail = trailingWords(state.text, span, state.spans);
+      return tail === undefined ? [] : [[span.id, tail] as const];
+    }),
+  );
   const hasDateSpan = state.spans.some((span) => span._tag === "date");
   const lines = splitLines(state.text);
   const lineOf = (id: SpanId) => {
@@ -378,6 +385,18 @@ export function ImportWorkbench({
     if (event.key === "j" || event.key === "k") {
       event.preventDefault();
       step(event.key === "j" ? 1 : -1);
+      return;
+    }
+    if (event.key === "v" && tails.size > 0) {
+      event.preventDefault();
+      // The next mark with words left over, after the selected one, wrapping round.
+      const open = state.spans
+        .filter((span) => tails.has(span.id))
+        .sort((left, right) => left.start - right.start);
+      const from = selected === undefined ? -1 : selected.start;
+      const next = open.find((span) => span.start > from) ?? open[0]!;
+      setSelection(undefined);
+      dispatch({ type: "select", id: next.id });
       return;
     }
     if (event.key === "p" && !planning && selected?._tag === "movement" && selected.plan) {
@@ -695,6 +714,7 @@ export function ImportWorkbench({
               onSelectText={setSelection}
               onClickSpan={handleClickSpan}
               flaggedLines={flaggedLines}
+              tails={tails}
             />
           </div>
         </section>
@@ -751,6 +771,7 @@ export function ImportWorkbench({
                 onHover: setHovered,
                 lineOf,
                 rulerOnSelectedOnly: outcomeFirst,
+                tailOf: (id) => tails.get(id)?.text,
               }}
             />
             {planning ? (
@@ -838,6 +859,21 @@ export function ImportWorkbench({
                 onUpdate={(span) => dispatch({ type: "update", span })}
                 onRemove={(id) => dispatch({ type: "remove", id })}
                 onPick={(mode) => dispatch({ type: "pick", mode })}
+                tail={tails.get(selected.id)}
+                onVariationPicked={(span, movementId, end, learned) => {
+                  const { movementId: _old, ...open } = span;
+                  dispatch({
+                    type: "update",
+                    span:
+                      movementId === undefined ? { ...open, end } : { ...span, movementId, end },
+                  });
+                  if (learned && movementId !== undefined)
+                    dispatch({
+                      type: "tagPhrase",
+                      phrase: state.text.slice(span.start, end),
+                      movementId,
+                    });
+                }}
                 onMovementPicked={(span, movementId, learned) => {
                   dispatch({ type: "update", span: { ...span, movementId } });
                   if (learned)
@@ -1010,6 +1046,20 @@ function KeyReference({
           Attach numbers to a movement, or link an alternative
         </p>
         <p className="flex items-center gap-2.5 text-sm">
+          <span className="flex items-center gap-1">
+            <kbd data-key>1</kbd>–<kbd data-key>8</kbd>
+          </span>
+          Pick a variation for the words left over
+        </p>
+        <p className="flex items-center gap-2.5 text-sm">
+          <kbd data-key>0</kbd>
+          Take the words as the movement itself, and learn them
+        </p>
+        <p className="flex items-center gap-2.5 text-sm">
+          <kbd data-key>v</kbd>
+          Next mark with words left over
+        </p>
+        <p className="flex items-center gap-2.5 text-sm">
           <kbd data-key>del</kbd>
           Remove the mark
         </p>
@@ -1033,6 +1083,12 @@ function KeyReference({
             {sample.label}
           </p>
         ))}
+        <p className="flex items-center gap-3 text-sm">
+          <span className="font-mono">
+            <mark data-tag="movement">Burpee</mark> <span data-tail>o. line</span>
+          </span>
+          Words left over
+        </p>
       </div>
     </div>
   );

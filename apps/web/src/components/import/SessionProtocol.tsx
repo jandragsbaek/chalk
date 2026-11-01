@@ -49,6 +49,8 @@ export interface ProtocolEditor {
   readonly lineOf: (id: SpanId) => number | undefined;
   /** Planning or logging a plan: only the selected row draws its level ruler. */
   readonly rulerOnSelectedOnly?: boolean;
+  /** Words left after the row's mark that may name a variation ("o. line"). */
+  readonly tailOf?: (id: SpanId) => string | undefined;
 }
 
 /** Row state the editor reads: selected, lit by a hovered mark. */
@@ -117,6 +119,7 @@ function OptionRow({
     item.plan,
   ]);
   const grade = names.gradeOf(item.spanId);
+  const tail = editor?.tailOf?.(item.spanId);
   const lead = full ? leadOf(item, names, sex) : undefined;
   const content = (
     <>
@@ -137,7 +140,14 @@ function OptionRow({
         ) : (
           <span className="grid min-w-0 leading-5">
             <span className="truncate font-semibold">{name}</span>
-            {core === undefined ? null : (
+            {tail !== undefined ? (
+              <span className="flex min-w-0 items-baseline gap-1.5">
+                <span data-tail className="truncate font-mono text-xs font-bold">
+                  {tail}
+                </span>
+                <span className="form-label shrink-0 text-muted-foreground">variation?</span>
+              </span>
+            ) : core === undefined ? null : (
               <span className="form-label truncate text-muted-foreground">{core} variation</span>
             )}
           </span>

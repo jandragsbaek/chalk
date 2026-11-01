@@ -55,6 +55,18 @@ core. Migration `004_VariationsAndIntent` links the seeded power and hang power 
 Creating a movement whose name was an alias ("Squat snatch" meant Snatch) moves the phrase to
 the new movement.
 
+**Words left over (built).** The matcher only knows whole phrases, so a variation the board
+writes a new way ("Burpee lateral over DB") is marked as its core with words after it.
+`trailingWords` reads up to four words after a movement mark, stopping at a number, a separator
+(`@ ( , + / ; :`), a stop word ("or", "rest", "max", ...) or the next mark. For a movement with a
+family the importer prints them as a dashed tail and `variationLadder` ranks the core and its
+variations by them: a word counts when it is, or starts, a word of the option's name or aliases
+beyond the core's, with board shorthand read out ("o." over, "DB" dumbbell, "SA" single arm).
+Picking one (keys 1 to 8, 0 keeps the movement, `v` walks to the next tail) runs the mark on over
+the words, saves the whole phrase as an alias and re-tags its other lines, so the next session
+reads it. Without leftovers the inspector offers the family as one-click swaps, and the
+Movements page lists a movement's family with the phrases the board writes each one as.
+
 Later fields:
 
 - `measure`: what one unit of the movement is: `reps`, `distance_m`, `calories`, `seconds`.
