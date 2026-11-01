@@ -2,6 +2,7 @@ import {
   BENCHMARK_MOVEMENT_IDS,
   BENCHMARKS,
   benchmarkMovementIds,
+  makeMovementMatcher,
   MovementId,
   normalizeMovementPhrase,
 } from "@chalk/contracts";
@@ -60,6 +61,33 @@ describe("CatalogStore", () => {
             byId.get(movement.variationOf)?.variationOf !== undefined,
         ),
       ).toEqual([]);
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("seeds the weightlifting pulls as accessories of the lift, not variations of it", () =>
+    Effect.gen(function* () {
+      const store = yield* CatalogStore.CatalogStore;
+      const catalog = yield* store.list();
+      const byId = new Map(catalog.map((movement) => [movement.id, movement]));
+      const snatchPull = byId.get(MovementId.make("snatch-pull"));
+      expect(snatchPull).toMatchObject({
+        category: "barbell",
+        accessory: true,
+        supports: ["bb-snatch"],
+      });
+      expect(snatchPull?.variationOf).toBeUndefined();
+      expect(snatchPull?.levelFamily).toBeUndefined();
+      expect(byId.get(MovementId.make("deficit-clean-pull"))?.variationOf).toBe("clean-pull");
+
+      const matcher = makeMovementMatcher(catalog);
+      const line = "1 Snatch pull + 1 snatch + 2 overhead squat";
+      expect(matcher.find(line).map((match) => match.movementId)).toEqual([
+        "snatch-pull",
+        "snatch",
+        "overhead-squat",
+      ]);
+      expect(matcher.lookup("SGDL")).toBe("snatch-deadlift");
+      expect(matcher.lookup("CL pulls")).toBe("clean-pull");
     }).pipe(Effect.provide(layer)),
   );
 

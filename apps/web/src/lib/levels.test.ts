@@ -26,6 +26,11 @@ const MOVEMENTS = [
     complements: ["horizontal_pull", "lats"],
     supports: ["pull-ups"],
   }),
+  movement("snatch-pull", undefined, {
+    accessory: true,
+    complements: ["hinge", "upper_back"],
+    supports: ["bb-snatch"],
+  }),
 ];
 
 const kg = (m: number): Quantity => ({ measure: "load_kg", amount: { min: m, max: m } });
@@ -117,8 +122,8 @@ describe("summarizeFamilies", () => {
 });
 
 describe("summarizeAccessories", () => {
-  it("lists accessories with their load from first to latest", () => {
-    const [gorilla] = summarizeAccessories(
+  it("lists accessories trained in the window with their load from first to latest", () => {
+    const [gorilla, ...rest] = summarizeAccessories(
       MOVEMENTS,
       [
         item("w1", "2026-09-01", "gorilla-row", [kg(20)], { performance: { implements: 2 } }),
@@ -134,5 +139,7 @@ describe("summarizeAccessories", () => {
       latestKg: 24,
       dual: true,
     });
+    // Snatch pulls are tagged but never done: no row.
+    expect(rest).toEqual([]);
   });
 });

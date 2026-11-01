@@ -229,8 +229,8 @@ function AccessoryTable({
   if (accessories.length === 0)
     return (
       <p className="px-6 py-10 text-sm text-muted-foreground">
-        No accessories yet. In the importer, pick a movement and mark it as an accessory under
-        Levels, with what it complements.
+        No accessories trained in this window. Snatch and clean pulls, deadlifts and drills are
+        tagged already; mark any other movement in the importer, under Levels.
       </p>
     );
   const familyName = (id: string) => LEVEL_FAMILIES.find((family) => family.id === id)?.name ?? id;
