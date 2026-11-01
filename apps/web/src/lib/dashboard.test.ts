@@ -90,10 +90,22 @@ describe("consistency", () => {
       dates.map((date) => workout(date)),
       [],
     );
-    const numbers = consistency(days, today, 365);
+    const numbers = consistency(days, today, "2025-10-27");
     expect(numbers).toMatchObject({ thisWeek: 0, lastWeek: 1, runWeeks: 3, bestRunWeeks: 3 });
     expect(numbers.last30Days).toBe(3);
     expect(numbers.lastYear).toBe(5);
+  });
+
+  it("counts only days the grid shows, and none still to come", () => {
+    const days = trainingDays(
+      [workout("2025-10-26"), workout("2025-10-27"), workout("2026-10-31"), workout("2026-11-05")],
+      [],
+    );
+    // Sunday 2025-10-26 is the day before the grid's first Monday; Nov 5 has not happened.
+    expect(consistency(days, today, "2025-10-27")).toMatchObject({
+      lastYear: 2,
+      thisWeek: 1,
+    });
   });
 
   it("counts days, not sessions, in a week", () => {
@@ -101,7 +113,7 @@ describe("consistency", () => {
       [workout("2026-10-26"), workout("2026-10-26"), workout("2026-10-27")],
       [],
     );
-    expect(consistency(days, today, 365)).toMatchObject({ thisWeek: 2, runWeeks: 1 });
+    expect(consistency(days, today, "2025-10-27")).toMatchObject({ thisWeek: 2, runWeeks: 1 });
   });
 });
 
@@ -114,6 +126,17 @@ describe("liftRecords", () => {
     ]);
     expect(records).toEqual([
       expect.objectContaining({ performedOn: "2026-09-08", reps: 5, loadKg: 105, previousKg: 100 }),
+    ]);
+  });
+
+  it("measures a day's sets against the record that stood when the day began", () => {
+    const records = liftRecords([
+      lift("2026-09-01", 1, 95),
+      lift("2026-09-08", 1, 100),
+      lift("2026-09-08", 1, 102),
+    ]);
+    expect(records).toEqual([
+      expect.objectContaining({ performedOn: "2026-09-08", loadKg: 102, previousKg: 95 }),
     ]);
   });
 

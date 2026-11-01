@@ -60,7 +60,7 @@ export function WeekColumn({
               data-day-row
               data-today={isToday || undefined}
               data-active={(activeDay === iso && !isToday) || undefined}
-              onPointerEnter={() => onActivate(iso)}
+              onPointerEnter={() => onActivate(iso <= todayIso ? iso : null)}
               onPointerLeave={() => onActivate(null)}
               className="grid min-h-12 grid-cols-[3.5rem_minmax(0,1fr)] border-b"
             >

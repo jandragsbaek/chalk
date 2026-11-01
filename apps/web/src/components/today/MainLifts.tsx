@@ -109,8 +109,13 @@ function Trace({
   readonly today: Date;
   readonly windowDays: number;
 }) {
-  const end = today.getTime();
-  const start = end - windowDays * 864e5;
+  // Sessions sit at local midnight: the window runs from its first midnight to today's.
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const start = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate() - windowDays,
+  ).getTime();
   const values = [...lift.sessions, ...lift.best].map((point) => point.e1rm);
   if (values.length === 0) return <span data-empty aria-label="No sessions in the window" />;
   const low = Math.min(...values);

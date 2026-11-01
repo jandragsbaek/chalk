@@ -39,7 +39,11 @@ export function RecentRecords({
           <ol>
             {records.map((record) => (
               <li
-                key={`${record.kind}|${record.kind === "lift" ? record.movementId : record.benchmarkId}|${record.performedOn}`}
+                key={
+                  record.kind === "lift"
+                    ? `lift|${record.movementId}|${record.performedOn}`
+                    : `benchmark|${record.benchmarkId}|${record.workoutId}`
+                }
                 className="grid h-14 grid-cols-[3.75rem_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3"
               >
                 <time dateTime={record.performedOn} className="text-xs text-muted-foreground">

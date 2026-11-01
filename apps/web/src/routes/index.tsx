@@ -10,6 +10,7 @@ import { RecentRecords } from "../components/today/RecentRecords.tsx";
 import { WeekColumn } from "../components/today/WeekColumn.tsx";
 import { GRID_WEEKS, YearGrid } from "../components/today/YearGrid.tsx";
 import {
+  calendarWeeks,
   consistency,
   latestWorkouts,
   mainLifts,
@@ -48,7 +49,8 @@ function TodayPage() {
     onSuccess: ({ value: { workouts, liftSets, movements, results } }) => {
       const todayIso = localIsoDate(today);
       const days = trainingDays(workouts, liftSets);
-      const numbers = consistency(days, today, GRID_WEEKS * 7);
+      const since = calendarWeeks(today, GRID_WEEKS)[0]?.[0] ?? todayIso;
+      const numbers = consistency(days, today, since);
       const names = new Map<MovementId, string>(
         movements.map((movement: Movement) => [movement.id, movement.name]),
       );

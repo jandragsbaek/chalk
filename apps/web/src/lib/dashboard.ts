@@ -97,7 +97,7 @@ export interface Consistency {
   readonly thisWeek: number;
   readonly lastWeek: number;
   readonly last30Days: number;
-  /** Days trained in the grid's year (`yearDays` days ending today). */
+  /** Days trained from the grid's first day (`since`) to today. */
   readonly lastYear: number;
   /**
    * Consecutive weeks with at least one training day, ending this week. A week still under way
@@ -113,10 +113,13 @@ const countDays = (days: ReadonlyMap<string, TrainingDay>, isos: ReadonlyArray<s
 export function consistency(
   days: ReadonlyMap<string, TrainingDay>,
   today: Date,
-  yearDays: number,
+  since: string,
 ): Consistency {
   const todayIso = localIsoDate(today);
-  const thisWeek = countDays(days, weekDays(today));
+  const thisWeek = countDays(
+    days,
+    weekDays(today).filter((iso) => iso <= todayIso),
+  );
   const lastWeek = countDays(days, weekDays(addDays(today, -7)));
   const lastN = (n: number) =>
     Array.from({ length: n }, (_, index) => localIsoDate(addDays(today, -index)));
@@ -146,7 +149,9 @@ export function consistency(
     thisWeek,
     lastWeek,
     last30Days: countDays(days, lastN(30)),
-    lastYear: countDays(days, lastN(yearDays)),
+    lastYear: [...days.values()].filter(
+      (day) => day.sessions > 0 && day.iso >= since && day.iso <= todayIso,
+    ).length,
     runWeeks,
     bestRunWeeks,
   };
@@ -169,6 +174,7 @@ export type PersonalRecord =
       readonly kind: "benchmark";
       readonly performedOn: string;
       readonly benchmarkId: string;
+      readonly workoutId: string;
       readonly name: string;
       readonly score: string;
       readonly previousScore: string;
@@ -185,10 +191,15 @@ export function liftRecords(liftSets: ReadonlyArray<LiftSet>): ReadonlyArray<Per
   );
   const standing = new Map<MovementId, Map<number, number>>();
   const byLiftDay = new Map<string, PersonalRecord & { kind: "lift" }>();
+  // Records as they stood when each lift's day began: a day's sets compete with the old record,
+  // not with each other.
+  const dayStart = new Map<string, Map<number, number>>();
   for (const set of ordered) {
     const records = standing.get(set.movementId) ?? new Map<number, number>();
     standing.set(set.movementId, records);
-    const before = new Map(records);
+    const key = `${set.movementId}|${set.performedOn}`;
+    const before = dayStart.get(key) ?? new Map(records);
+    dayStart.set(key, before);
     const beaten = REP_MAX_TARGETS.filter((target) => {
       const record = before.get(target);
       return target <= set.reps && record !== undefined && set.loadKg > record;
@@ -211,7 +222,6 @@ export function liftRecords(liftSets: ReadonlyArray<LiftSet>): ReadonlyArray<Per
       implied: reps !== set.reps,
       previousKg,
     };
-    const key = `${set.movementId}|${set.performedOn}`;
     const kept = byLiftDay.get(key);
     if (!kept || record.loadKg / record.previousKg > kept.loadKg / kept.previousKg)
       byLiftDay.set(key, record);
@@ -243,6 +253,7 @@ export function benchmarkRecords(
           kind: "benchmark",
           performedOn: result.performedOn,
           benchmarkId: id,
+          workoutId: result.workoutId,
           name: benchmark.name,
           score: result.score,
           previousScore: best.result.score,
