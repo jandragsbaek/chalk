@@ -1,5 +1,6 @@
 import {
   classMarks,
+  dayCoaching,
   PlanId,
   WorkoutId,
   type CatalogMovement,
@@ -14,11 +15,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Schema from "effect/Schema";
 import { Highlighter } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
-import { BoardPull } from "../components/bookingboard/BoardPull.tsx";
+import { BoardPull, useBoardPull } from "../components/bookingboard/BoardPull.tsx";
+import { BacklogRail, useBacklog } from "../components/import/BacklogRail.tsx";
 import { ImportedList } from "../components/import/ImportedList.tsx";
 import { ImportWorkbench, suggestDocument } from "../components/import/ImportWorkbench.tsx";
+import { nextOpenDay } from "../lib/backlog.ts";
 import { formatDay, localIsoDate } from "../lib/utils.ts";
 import { catalogAtom, importsAtom, storedImportAtom } from "../state/imports.ts";
 import { planAtom } from "../state/plans.ts";
@@ -93,18 +96,62 @@ const yesterday = () => {
   return localIsoDate(day);
 };
 
+/** The rail of class days beside the paste box, each scrolling on its own, like /workouts. */
+const DESK = "grid h-[calc(100dvh-3rem)] grid-cols-[25rem_minmax(0,1fr)]";
+
+type Saved = { readonly summary: ImportSummary; readonly next: string | undefined };
+
 function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovement> }) {
   const [text, setText] = useState("");
   const [draft, setDraft] = useState<Draft | undefined>();
-  const [saved, setSaved] = useState<ImportSummary | undefined>();
+  const [saved, setSaved] = useState<Saved | undefined>();
   const [today] = useState(() => localIsoDate(new Date()));
   const [boardDay, setBoardDay] = useState(yesterday);
+  // A day picked from the class days: saving it moves on to the next one to log.
+  const [fromBacklog, setFromBacklog] = useState(false);
   // The pulled class's day, coach and type: board text has none, so the draft carries them.
   const [pulled, setPulled] = useState<
     { readonly on: string; readonly marks: SessionMarks } | undefined
   >();
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const source = useBacklog();
+
+  /** Into the text, at its end, ready for the results. */
+  function focusText() {
+    requestAnimationFrame(() => {
+      const field = textRef.current;
+      if (!field) return;
+      field.focus();
+      field.setSelectionRange(field.value.length, field.value.length);
+    });
+  }
+
+  const puller = useBoardPull({
+    onPulled: (entry, on) => {
+      setText(entry.text);
+      setPulled({ on, marks: classMarks(entry) });
+      focusText();
+    },
+    // Open gym or nothing posted: what gets typed still lands on that day, solo.
+    onNoProgram: (day) => {
+      const coaching = dayCoaching(day);
+      setPulled({ on: day.date, marks: coaching === undefined ? {} : { coaching } });
+      focusText();
+    },
+  });
   const imported = AsyncResult.getOrElse(useAtomValue(importsAtom), () => []);
   const importedOnDay = imported.find((entry) => entry.performedOn === boardDay);
+
+  function pick(date: string) {
+    setBoardDay(date);
+    setFromBacklog(true);
+    setText("");
+    setPulled(undefined);
+    void puller.run(date);
+    requestAnimationFrame(() =>
+      document.querySelector(`[data-backlog-pull="${date}"]`)?.scrollIntoView({ block: "nearest" }),
+    );
+  }
 
   function handleSuggest(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -118,6 +165,20 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
     });
   }
 
+  function handleSaved(summary: ImportSummary) {
+    setDraft(undefined);
+    setText("");
+    setPulled(undefined);
+    // Oldest first: on to the next class day still to log, already pulled.
+    const next =
+      fromBacklog && source._tag === "ready"
+        ? nextOpenDay(source.backlog, summary.performedOn)
+        : undefined;
+    setSaved({ summary, next: next?.date });
+    if (next !== undefined) pick(next.date);
+    else setFromBacklog(false);
+  }
+
   if (draft)
     return (
       <ImportWorkbench
@@ -125,96 +186,115 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
         initial={draft.document}
         replace={undefined}
         catalog={catalog}
-        onSaved={(summary) => {
-          setSaved(summary);
+        onSaved={handleSaved}
+        onDiscard={() => {
           setDraft(undefined);
-          setText("");
-          setPulled(undefined);
+          focusText();
         }}
-        onDiscard={() => setDraft(undefined)}
       />
     );
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl content-start gap-x-10 gap-y-8 px-6 py-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-      <form className="grid content-start gap-4" onSubmit={handleSuggest}>
-        <div className="grid gap-2 border-b-2 border-foreground pb-3">
-          <h1 className="protocol-title text-4xl">Import a session</h1>
-          <p className="max-w-prose text-sm text-muted-foreground">
-            Paste one session as written in your notes. Chalk marks the date, formats, movements and
-            numbers; you correct the marks until the protocol reads like the whiteboard.
-          </p>
+    <div className={DESK}>
+      <BacklogRail source={source} selectedDay={boardDay} onPick={pick} />
+      <div className="min-h-0 overflow-y-auto">
+        <div className="grid max-w-5xl gap-12 px-10 py-6">
+          <form className="grid content-start gap-4" onSubmit={handleSuggest}>
+            <div className="grid gap-2 border-b-2 border-foreground pb-3">
+              <h1 className="protocol-title text-4xl">Import a session</h1>
+              <p className="max-w-prose text-sm text-muted-foreground">
+                Paste one session as written in your notes, or pull a class day and add your
+                results. Chalk marks the date, formats, movements and numbers; you correct the marks
+                until the protocol reads like the whiteboard.
+              </p>
+            </div>
+            {saved ? (
+              <div role="status" className="flex items-center gap-3 border bg-card px-3 py-2.5">
+                <span data-lamps aria-hidden className="flex items-center gap-1.5 px-2 py-1.5">
+                  <span data-lamp="good" />
+                  <span data-lamp="good" />
+                  <span data-lamp="good" />
+                </span>
+                <p className="text-sm">
+                  <span className="font-semibold">Saved {saved.summary.name}</span> (
+                  {formatDay(saved.summary.performedOn)}):{" "}
+                  {saved.summary.itemCount === 1
+                    ? "1 movement"
+                    : `${saved.summary.itemCount} movements`}
+                  ,{" "}
+                  {saved.summary.liftSetCount === 1
+                    ? "1 lift set"
+                    : `${saved.summary.liftSetCount} lift sets`}
+                  .{" "}
+                  {saved.next === undefined
+                    ? "Paste the next one."
+                    : `Next to log: ${formatDay(saved.next)}, pulled below.`}
+                </p>
+              </div>
+            ) : null}
+            <div className="grid gap-1.5">
+              <Label htmlFor="board-day">Class on</Label>
+              <div className="flex flex-wrap items-start gap-3">
+                <Input
+                  id="board-day"
+                  type="date"
+                  className="w-auto"
+                  value={boardDay}
+                  max={today}
+                  onChange={(event) => {
+                    setBoardDay(event.target.value);
+                    setFromBacklog(false);
+                    puller.reset();
+                  }}
+                />
+                <BoardPull date={boardDay} disabled={boardDay === ""} puller={puller} />
+              </div>
+              {importedOnDay ? (
+                <p className="text-xs text-muted-foreground">
+                  {formatDay(boardDay)} already has {importedOnDay.name} imported; saving another
+                  session that day asks before replacing it.
+                </p>
+              ) : null}
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="session-text">Session text</Label>
+              <div className="font-mono">
+                <Textarea
+                  ref={textRef}
+                  id="session-text"
+                  value={text}
+                  onChange={(event) => {
+                    setText(event.target.value);
+                    if (event.target.value.trim() === "") setPulled(undefined);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                      event.preventDefault();
+                      event.currentTarget.form?.requestSubmit();
+                    }
+                  }}
+                  aria-keyshortcuts="Control+Enter"
+                  placeholder="Paste a session, org or plain text, from its Session line down to its notes, or pull a class day and add your results"
+                  className="min-h-96"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit" disabled={text.trim() === ""}>
+                <Highlighter />
+                Suggest marks
+              </Button>
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <kbd data-key>Ctrl</kbd>
+                <kbd data-key>Enter</kbd>
+                in the text does the same. Nothing is saved until you press Save on the next screen.
+              </span>
+            </div>
+          </form>
+          <ImportedList />
         </div>
-        {saved ? (
-          <div role="status" className="flex items-center gap-3 border bg-card px-3 py-2.5">
-            <span data-lamps aria-hidden className="flex items-center gap-1.5 px-2 py-1.5">
-              <span data-lamp="good" />
-              <span data-lamp="good" />
-              <span data-lamp="good" />
-            </span>
-            <p className="text-sm">
-              <span className="font-semibold">Saved {saved.name}</span> ({saved.performedOn}):{" "}
-              {saved.itemCount === 1 ? "1 movement" : `${saved.itemCount} movements`},{" "}
-              {saved.liftSetCount === 1 ? "1 lift set" : `${saved.liftSetCount} lift sets`}. Paste
-              the next one.
-            </p>
-          </div>
-        ) : null}
-        <div className="grid gap-1.5">
-          <Label htmlFor="board-day">Class on</Label>
-          <div className="flex flex-wrap items-start gap-3">
-            <Input
-              id="board-day"
-              type="date"
-              className="w-auto"
-              value={boardDay}
-              max={today}
-              onChange={(event) => setBoardDay(event.target.value)}
-            />
-            <BoardPull
-              key={boardDay}
-              date={boardDay}
-              disabled={boardDay === ""}
-              onPulled={(entry) => {
-                setText(entry.text);
-                setPulled({ on: boardDay, marks: classMarks(entry) });
-              }}
-            />
-          </div>
-          {importedOnDay ? (
-            <p className="text-xs text-muted-foreground">
-              {formatDay(boardDay)} already has {importedOnDay.name} imported; saving another
-              session that day asks before replacing it.
-            </p>
-          ) : null}
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="session-text">Session text</Label>
-          <div className="font-mono">
-            <Textarea
-              id="session-text"
-              value={text}
-              onChange={(event) => {
-                setText(event.target.value);
-                if (event.target.value.trim() === "") setPulled(undefined);
-              }}
-              placeholder="Paste a session, org or plain text, from its Session line down to its notes, or pull a class from bookingboard and add your results"
-              className="min-h-96"
-              autoFocus
-            />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={text.trim() === ""}>
-            <Highlighter />
-            Suggest marks
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            Nothing is saved until you press Save on the next screen.
-          </span>
-        </div>
-      </form>
-      <ImportedList />
+      </div>
     </div>
   );
 }

@@ -1,13 +1,17 @@
 import {
+  ATTENDED_STATUSES,
   BookingboardNotConnectedError,
   BookingboardTokenExpiredError,
   BookingboardTokenInvalidError,
   BookingboardUnavailableError,
+  type BookingboardAttendance,
+  type BookingboardAttendanceInput,
   type BookingboardClass,
   type BookingboardDay,
   type BookingboardStatus,
   type ConnectBookingboardInput,
   type IsoDate,
+  type SkipBookingboardDayInput,
 } from "@chalk/contracts";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
@@ -17,21 +21,41 @@ import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Layer from "effect/Layer";
+import * as Ref from "effect/Ref";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 
-import { boxLocal, dayBefore, programText, tokenExpiry } from "./program.ts";
+import { boxLocal, dayBefore, daysBefore, programText, tokenExpiry } from "./program.ts";
 
-/** Box 7100's bookingboard API, as its own web app calls it. */
+/** Box 7100's mobile API, as its app calls it: class programs. */
 export const BOOKINGBOARD_API = "https://box7100.mobile.api.bookingboard.io/api";
 
-/** A day further back pulls every class since, gym-wide: tens of megabytes. */
-const REQUEST_TIMEOUT = Duration.seconds(60);
+/** Box 7100's web API, as its site calls it: the account, and the athlete's own classes. */
+export const BOOKINGBOARD_WEB_API = "https://box7100.bookingboard.io/api";
+
+const REQUEST_TIMEOUT = Duration.seconds(30);
+
+/** `/account/{id}/classes` pages; the site asks for 100. A year of classes is two pages. */
+const PAGE_SIZE = 100;
+/** A runaway guard: 5000 classes is more than a decade of training. */
+const MAX_PAGES = 50;
 
 /** Statuses bookingboard gives a booking the athlete pulled out of; any other one counts. */
-const CANCELLED_STATUSES = new Set(["OptedOut"]);
+const CANCELLED_STATUSES = new Set(["OptedOut", "OptedOutTooLate", "Cancelled"]);
+
+const ATTENDED = new Set(ATTENDED_STATUSES);
+
+/**
+ * The attendance copy: the whole history on the first read (two pages a year), then at most
+ * every half hour on its own (every minute when asked), from a few days before the last read,
+ * as check-ins land after the class.
+ */
+const STALE_AFTER_MS = 30 * 60_000;
+const MIN_GAP_MS = 60_000;
+const RECHECK_DAYS = 3;
 
 export class BookingboardPersistenceError extends Schema.TaggedError<BookingboardPersistenceError>()(
   "BookingboardPersistenceError",
@@ -40,6 +64,9 @@ export class BookingboardPersistenceError extends Schema.TaggedError<Bookingboar
       "load the bookingboard connection",
       "save the bookingboard connection",
       "remove the bookingboard connection",
+      "read the attendance copy",
+      "save the attendance copy",
+      "skip a day",
     ]),
     cause: Schema.Defect(),
   },
@@ -50,17 +77,20 @@ export class BookingboardPersistenceError extends Schema.TaggedError<Bookingboar
 }
 
 /**
- * One booking. `/participations` answers with every member's bookings since `from`; only the
- * athlete's own are kept, and nothing else from it is stored or logged.
+ * One of the athlete's bookings from `/account/{id}/classes`, newest first. The answer also
+ * carries their name and email; only these fields are read, and nothing else is kept or logged.
  */
-const Participation = Schema.Struct({
+const AccountClass = Schema.Struct({
   classId: Schema.Int,
   className: Schema.String,
   status: Schema.String,
-  begins: Schema.String,
-  participantId: Schema.Int,
+  classBegins: Schema.String,
+  onWaitingList: Schema.optional(Schema.NullOr(Schema.Boolean)),
 });
-const decodeParticipations = Schema.decodeUnknownEffect(Schema.Array(Participation));
+const decodeAccountClasses = Schema.decodeUnknownEffect(Schema.Array(AccountClass));
+
+/** The account the token belongs to; its id is the participant id. */
+const decodeAccount = Schema.decodeUnknownEffect(Schema.Struct({ id: Schema.Int }));
 
 const OptionalText = Schema.optional(Schema.NullOr(Schema.String));
 
@@ -92,6 +122,37 @@ const ConnectionRow = Schema.Struct({
 });
 type ConnectionRow = typeof ConnectionRow.Type;
 
+/** What the attendance copy covers, and as of when. */
+const LedgerRow = Schema.Struct({
+  participantId: Schema.Int,
+  coveredFrom: Schema.String,
+  checkedAt: Schema.String,
+});
+
+/** One of the athlete's bookings in the copy: a participation without whose it is. */
+const BookingRow = Schema.Struct({
+  classId: Schema.Int,
+  className: Schema.String,
+  status: Schema.String,
+  begins: Schema.String,
+});
+type BookingRow = typeof BookingRow.Type;
+
+const CopyRow = Schema.Struct({
+  ...BookingRow.fields,
+  day: Schema.String,
+  title: Schema.NullOr(Schema.String),
+  coach: Schema.NullOr(Schema.String),
+});
+
+/** A past class as read once; `text` '' for a class without a program. */
+const CachedClassRow = Schema.Struct({
+  title: Schema.String,
+  begins: Schema.String,
+  coach: Schema.NullOr(Schema.String),
+  text: Schema.String,
+});
+
 const statusOf = (row: ConnectionRow | undefined): BookingboardStatus =>
   row === undefined
     ? { _tag: "disconnected" }
@@ -121,6 +182,20 @@ export class Bookingboard extends Context.Service<
       BookingboardDay,
       BookingboardNotConnectedError | ReadError | BookingboardPersistenceError
     >;
+    /**
+     * The classes the athlete attended, from Chalk's copy of their bookings, read from
+     * bookingboard only when it is stale (see `BookingboardAttendanceInput`). A failed read with a
+     * copy in hand is reported on it; without one, it fails.
+     */
+    readonly attendance: (
+      input: BookingboardAttendanceInput,
+    ) => Effect.Effect<
+      BookingboardAttendance,
+      BookingboardNotConnectedError | ReadError | BookingboardPersistenceError
+    >;
+    readonly skipDay: (
+      input: SkipBookingboardDayInput,
+    ) => Effect.Effect<void, BookingboardPersistenceError>;
   }
 >()("chalk/bookingboard/Bookingboard") {}
 
@@ -149,13 +224,70 @@ const make = Effect.gen(function* () {
     ),
   );
 
+  const failedTo = (operation: BookingboardPersistenceError["operation"]) => (cause: unknown) =>
+    new BookingboardPersistenceError({ operation, cause });
+
+  const selectLedger = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: LedgerRow,
+    execute: () => sql`
+      SELECT participant_id AS "participantId", covered_from AS "coveredFrom",
+        checked_at AS "checkedAt"
+      FROM bookingboard_ledger
+      WHERE id = 1
+    `,
+  });
+  const loadLedger = selectLedger(undefined).pipe(
+    Effect.map((rows) => rows[0]),
+    Effect.mapError(failedTo("read the attendance copy")),
+  );
+
+  const selectCopyOn = SqlSchema.findAll({
+    Request: Schema.String,
+    Result: BookingRow,
+    execute: (day) => sql`
+      SELECT class_id AS "classId", class_name AS "className", status, begins
+      FROM bookingboard_bookings
+      WHERE day = ${day}
+    `,
+  });
+
+  const selectCopyFrom = SqlSchema.findAll({
+    Request: Schema.String,
+    Result: CopyRow,
+    execute: (from) => sql`
+      SELECT b.class_id AS "classId", b.class_name AS "className", b.status, b.begins, b.day,
+        c.title, c.coach
+      FROM bookingboard_bookings b
+      LEFT JOIN bookingboard_classes c ON c.class_id = b.class_id
+      WHERE b.day >= ${from}
+      ORDER BY b.day
+    `,
+  });
+
+  const selectSkippedFrom = SqlSchema.findAll({
+    Request: Schema.String,
+    Result: Schema.Struct({ day: Schema.String }),
+    execute: (from) => sql`
+      SELECT day FROM bookingboard_skipped_days WHERE day >= ${from} ORDER BY day
+    `,
+  });
+
+  const selectCachedClass = SqlSchema.findAll({
+    Request: Schema.Int,
+    Result: CachedClassRow,
+    execute: (classId) => sql`
+      SELECT title, begins, coach, text FROM bookingboard_classes WHERE class_id = ${classId}
+    `,
+  });
+
   const unavailable = (reason: string) => new BookingboardUnavailableError({ reason });
 
   /** GET only. A 401/403 is an expired token; a 404 is `undefined`. Bodies are never logged. */
-  const getJson = (token: string, path: string, params: Record<string, string> = {}) =>
+  const getJson = (token: string, url: string, params: Record<string, string> = {}) =>
     http
       .execute(
-        HttpClientRequest.get(`${BOOKINGBOARD_API}${path}`).pipe(
+        HttpClientRequest.get(url).pipe(
           HttpClientRequest.bearerToken(token),
           HttpClientRequest.acceptJson,
           HttpClientRequest.setUrlParams(params),
@@ -187,34 +319,78 @@ const make = Effect.gen(function* () {
       return yield* new BookingboardTokenExpiredError();
   });
 
-  /** The athlete's bookings on the box-local `date`, one per class. */
-  const bookingsOn = Effect.fn("Bookingboard.bookingsOn")(function* (
-    connection: ConnectionRow,
-    date: IsoDate,
-  ) {
-    // `from` is a lower bound (`to` is ignored) read in UTC; a day early catches the box's
-    // midnight hour, and the day itself is picked out below in box time.
-    const body = yield* getJson(connection.token, "/participations", { from: dayBefore(date) });
-    const all = yield* decodeParticipations(body ?? []).pipe(
-      Effect.mapError(() => unavailable("its bookings came back in a shape Chalk does not know.")),
+  /** A read with the stored token; one past its expiry fails without calling. */
+  const read = (connection: ConnectionRow, url: string, params: Record<string, string> = {}) =>
+    failIfExpired(connection.expiresAt).pipe(
+      Effect.andThen(getJson(connection.token, url, params)),
     );
-    const mine = new Map<number, typeof Participation.Type>();
-    for (const booking of all)
-      if (
-        booking.participantId === connection.participantId &&
-        !CANCELLED_STATUSES.has(booking.status) &&
-        boxLocal(booking.begins).date === date &&
-        !mine.has(booking.classId)
-      )
-        mine.set(booking.classId, booking);
+
+  /**
+   * The athlete's bookings (not opted out, not wait-listed) between two instants, one per class,
+   * with their box-local day; `from` left out reads from the start. Page by page, newest first.
+   */
+  const bookingsBetween = Effect.fn("Bookingboard.bookingsBetween")(function* (
+    connection: ConnectionRow,
+    window: { readonly from?: string; readonly to: string },
+    keep: (day: string) => boolean,
+  ) {
+    const url = `${BOOKINGBOARD_WEB_API}/account/${connection.participantId}/classes`;
+    const mine = new Map<number, BookingRow & { readonly day: string }>();
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const body = yield* read(connection, url, {
+        ...window,
+        page: String(page),
+        pageSize: String(PAGE_SIZE),
+      });
+      const rows = yield* decodeAccountClasses(body ?? []).pipe(
+        Effect.mapError(() =>
+          unavailable("your classes came back in a shape Chalk does not know."),
+        ),
+      );
+      for (const row of rows) {
+        if (CANCELLED_STATUSES.has(row.status) || row.onWaitingList || mine.has(row.classId))
+          continue;
+        const day = boxLocal(row.classBegins).date;
+        if (keep(day))
+          mine.set(row.classId, {
+            classId: row.classId,
+            className: row.className,
+            status: row.status,
+            begins: row.classBegins,
+            day,
+          });
+      }
+      if (rows.length < PAGE_SIZE) break;
+    }
     return [...mine.values()];
   });
 
+  const fromCachedClass = (booking: BookingRow, cached: typeof CachedClassRow.Type) =>
+    cached.text === ""
+      ? ("openGym" as const)
+      : ({
+          classId: booking.classId,
+          title: cached.title,
+          startsAt: boxLocal(cached.begins).time,
+          coach: cached.coach,
+          status: booking.status,
+          text: cached.text,
+        } satisfies BookingboardClass);
+
+  /** A class's program; a class from before `today` is read once and kept, as it is done. */
   const classOf = Effect.fn("Bookingboard.classOf")(function* (
-    token: string,
-    booking: typeof Participation.Type,
+    connection: ConnectionRow,
+    booking: BookingRow,
+    today: string,
   ) {
-    const body = yield* getJson(token, `/classes/${booking.classId}`);
+    const past = boxLocal(booking.begins).date < today;
+    if (past) {
+      const [cached] = yield* selectCachedClass(booking.classId).pipe(
+        Effect.mapError(failedTo("read the attendance copy")),
+      );
+      if (cached !== undefined) return fromCachedClass(booking, cached);
+    }
+    const body = yield* read(connection, `${BOOKINGBOARD_API}/classes/${booking.classId}`);
     if (body === undefined) {
       yield* Effect.logWarning(`Bookingboard class ${booking.classId} is gone; skipping it.`);
       return undefined;
@@ -222,19 +398,29 @@ const make = Effect.gen(function* () {
     const detail = yield* decodeClass(body).pipe(
       Effect.mapError(() => unavailable("a class came back in a shape Chalk does not know.")),
     );
-    const text = programText(detail.program?.workouts ?? []);
-    if (text === "") return "openGym" as const;
     const coaches = (detail.instructors ?? []).flatMap((instructor) =>
       instructor.name?.trim() ? [instructor.name.trim()] : [],
     );
-    return {
-      classId: booking.classId,
+    const cached = {
       title: detail.title?.trim() || booking.className,
-      startsAt: boxLocal(detail.begins ?? booking.begins).time,
+      begins: detail.begins ?? booking.begins,
       coach: coaches.length === 0 ? null : coaches.join(", "),
-      status: booking.status,
-      text,
-    } satisfies BookingboardClass;
+      text: programText(detail.program?.workouts ?? []),
+    };
+    if (past)
+      yield* sql`
+        INSERT INTO bookingboard_classes (class_id, title, begins, coach, text, fetched_at)
+        VALUES (${booking.classId}, ${cached.title}, ${cached.begins}, ${cached.coach},
+          ${cached.text}, ${DateTime.formatIso(yield* DateTime.now)})
+        ON CONFLICT (class_id) DO NOTHING
+      `.pipe(Effect.mapError(failedTo("save the attendance copy")));
+    return fromCachedClass(booking, cached);
+  });
+
+  /** Forgets the attendance copy: on disconnect, or a connection for someone else. */
+  const forgetCopy = Effect.gen(function* () {
+    yield* sql`DELETE FROM bookingboard_bookings`;
+    yield* sql`DELETE FROM bookingboard_ledger`;
   });
 
   const status = Effect.fn("Bookingboard.status")(function* () {
@@ -246,15 +432,25 @@ const make = Effect.gen(function* () {
     if (expiresAt === undefined) return yield* new BookingboardTokenInvalidError();
     yield* failIfExpired(expiresAt);
     const now = yield* DateTime.now;
-    // The smallest read there is: bookings from today on, about a week of the box's schedule.
-    yield* getJson(input.token, "/participations", {
-      from: boxLocal(DateTime.formatIso(now)).date,
-    });
+    // The smallest read there is, and it names the account: its id is the participant id, so a
+    // mistyped one is put right here.
+    const account = yield* getJson(input.token, `${BOOKINGBOARD_WEB_API}/account`).pipe(
+      Effect.flatMap((body) => decodeAccount(body)),
+      Effect.mapError((error) =>
+        error instanceof BookingboardTokenExpiredError ||
+        error instanceof BookingboardUnavailableError
+          ? error
+          : unavailable("your account came back in a shape Chalk does not know."),
+      ),
+    );
     const row: ConnectionRow = {
       token: input.token,
-      participantId: input.participantId,
+      participantId: account.id,
       expiresAt,
     };
+    const ledger = yield* loadLedger;
+    if (ledger !== undefined && ledger.participantId !== row.participantId)
+      yield* forgetCopy.pipe(Effect.mapError(failedTo("save the bookingboard connection")));
     yield* sql`
       INSERT INTO bookingboard_connection (id, token, participant_id, expires_at, updated_at)
       VALUES (1, ${row.token}, ${row.participantId}, ${row.expiresAt}, ${DateTime.formatIso(now)})
@@ -276,7 +472,11 @@ const make = Effect.gen(function* () {
   });
 
   const disconnect = Effect.fn("Bookingboard.disconnect")(function* () {
-    yield* sql`DELETE FROM bookingboard_connection WHERE id = 1`.pipe(
+    yield* Effect.gen(function* () {
+      yield* sql`DELETE FROM bookingboard_connection WHERE id = 1`;
+      yield* forgetCopy;
+    }).pipe(
+      sql.withTransaction,
       Effect.mapError(
         (cause) =>
           new BookingboardPersistenceError({
@@ -287,13 +487,25 @@ const make = Effect.gen(function* () {
     );
   });
 
+  const boxToday = Effect.map(DateTime.now, (now) => boxLocal(DateTime.formatIso(now)).date);
+
   const day = Effect.fn("Bookingboard.day")(function* (date: IsoDate) {
     const connection = yield* loadConnection;
     if (connection === undefined) return yield* new BookingboardNotConnectedError();
-    yield* failIfExpired(connection.expiresAt);
-    const bookings = yield* bookingsOn(connection, date);
+    const today = yield* boxToday;
+    // A day the copy holds and that was over when it was read needs no bookings download.
+    const ledger = yield* loadLedger;
+    const bookings =
+      ledger !== undefined && date >= ledger.coveredFrom && date < boxLocal(ledger.checkedAt).date
+        ? yield* selectCopyOn(date).pipe(Effect.mapError(failedTo("read the attendance copy")))
+        : // Noon UTC the day before to the day's end in UTC spans the box-local day either side.
+          yield* bookingsBetween(
+            connection,
+            { from: `${dayBefore(date)}T12:00:00.000Z`, to: `${date}T23:59:59.999Z` },
+            (day) => day === date,
+          );
     const classes = yield* Effect.forEach(bookings, (booking) =>
-      classOf(connection.token, booking),
+      classOf(connection, booking, today),
     );
     return {
       date,
@@ -304,7 +516,150 @@ const make = Effect.gen(function* () {
     } satisfies BookingboardDay;
   });
 
-  return Bookingboard.of({ status, connect, disconnect, day });
+  // One read of bookingboard at a time; whoever waited finds the copy fresh and reads nothing.
+  const reading = yield* Semaphore.make(1);
+  // The last read attempted, so a failing bookingboard is not asked again on every page view.
+  const lastAttempt = yield* Ref.make<
+    { readonly at: number; readonly failed: string | null } | undefined
+  >(undefined);
+
+  /**
+   * Reads the athlete's bookings into the copy, replacing what it held: from the box-local day
+   * `from` on, or the whole history (`from` undefined), which starts the copy at its first class.
+   */
+  const refreshCopy = Effect.fn("Bookingboard.refreshCopy")(function* (
+    connection: ConnectionRow,
+    from: IsoDate | undefined,
+  ) {
+    const now = yield* DateTime.now;
+    const checkedAt = DateTime.formatIso(now);
+    const mine = yield* bookingsBetween(
+      connection,
+      from === undefined
+        ? { to: checkedAt }
+        : { from: `${dayBefore(from)}T12:00:00.000Z`, to: checkedAt },
+      (day) => from === undefined || day >= from,
+    );
+    const coveredFrom =
+      from ??
+      mine.reduce(
+        (first, booking) => (booking.day < first ? booking.day : first),
+        boxLocal(checkedAt).date,
+      );
+    yield* Effect.gen(function* () {
+      yield* sql`DELETE FROM bookingboard_bookings WHERE day >= ${coveredFrom}`;
+      for (const booking of mine)
+        yield* sql`
+          INSERT INTO bookingboard_bookings (class_id, day, begins, class_name, status)
+          VALUES (${booking.classId}, ${booking.day}, ${booking.begins}, ${booking.className},
+            ${booking.status})
+          ON CONFLICT (class_id) DO UPDATE SET
+            day = excluded.day, begins = excluded.begins, class_name = excluded.class_name,
+            status = excluded.status
+        `;
+      yield* sql`
+        INSERT INTO bookingboard_ledger (id, participant_id, covered_from, checked_at)
+        VALUES (1, ${connection.participantId}, ${coveredFrom}, ${checkedAt})
+        ON CONFLICT (id) DO UPDATE SET
+          participant_id = excluded.participant_id,
+          covered_from = MIN(bookingboard_ledger.covered_from, excluded.covered_from),
+          checked_at = excluded.checked_at
+      `;
+    }).pipe(sql.withTransaction, Effect.mapError(failedTo("save the attendance copy")));
+  });
+
+  /**
+   * What to read into the copy: `history` the first time, a day to read from once it is stale,
+   * or undefined when it is fresh enough to read nothing.
+   */
+  const readFrom = (
+    input: BookingboardAttendanceInput,
+    ledger: typeof LedgerRow.Type | undefined,
+    attemptedAt: number | undefined,
+    now: number,
+  ): { readonly from: IsoDate | undefined } | undefined => {
+    if (ledger === undefined) return { from: undefined };
+    const sinceRead = now - Date.parse(ledger.checkedAt);
+    const sinceAttempt = attemptedAt === undefined ? Infinity : now - attemptedAt;
+    const fresh =
+      sinceAttempt < MIN_GAP_MS ||
+      sinceRead < (input.check === "now" ? MIN_GAP_MS : STALE_AFTER_MS);
+    if (fresh) return undefined;
+    const recheck = daysBefore(boxLocal(ledger.checkedAt).date, RECHECK_DAYS);
+    return { from: recheck > ledger.coveredFrom ? recheck : ledger.coveredFrom };
+  };
+
+  const attendance = Effect.fn("Bookingboard.attendance")(function* (
+    input: BookingboardAttendanceInput,
+  ) {
+    const connection = yield* loadConnection;
+    if (connection === undefined) return yield* new BookingboardNotConnectedError();
+    return yield* Semaphore.withPermit(
+      reading,
+      Effect.gen(function* () {
+        const now = yield* Clock.currentTimeMillis;
+        const before = yield* loadLedger;
+        const attempt = yield* Ref.get(lastAttempt);
+        const toRead = readFrom(input, before, attempt?.at, now);
+        if (toRead !== undefined) {
+          const failed = yield* refreshCopy(connection, toRead.from).pipe(
+            Effect.as(null),
+            Effect.catch((error) =>
+              // A copy in hand still answers; without one there is nothing to show.
+              before !== undefined &&
+              (error instanceof BookingboardTokenExpiredError ||
+                error instanceof BookingboardUnavailableError)
+                ? Effect.succeed(error.message)
+                : Effect.fail(error),
+            ),
+          );
+          yield* Ref.set(lastAttempt, { at: now, failed });
+        }
+        const ledger = yield* loadLedger;
+        if (ledger === undefined) return yield* new BookingboardNotConnectedError();
+        const latest = yield* Ref.get(lastAttempt);
+        const rows = yield* selectCopyFrom(ledger.coveredFrom).pipe(
+          Effect.mapError(failedTo("read the attendance copy")),
+        );
+        const skipped = yield* selectSkippedFrom(ledger.coveredFrom).pipe(
+          Effect.mapError(failedTo("read the attendance copy")),
+        );
+        return {
+          coveredFrom: ledger.coveredFrom,
+          checkedAt: ledger.checkedAt,
+          classes: rows
+            .filter((row) => ATTENDED.has(row.status))
+            .map((row) => ({
+              classId: row.classId,
+              date: row.day,
+              startsAt: boxLocal(row.begins).time,
+              title: row.title ?? row.className,
+              coach: row.coach,
+            }))
+            .sort((a, b) => a.date.localeCompare(b.date) || a.startsAt.localeCompare(b.startsAt)),
+          skippedDays: skipped.map((row) => row.day),
+          checkFailed:
+            latest?.failed != null && latest.at > Date.parse(ledger.checkedAt)
+              ? latest.failed
+              : null,
+        } satisfies BookingboardAttendance;
+      }),
+    );
+  });
+
+  const skipDay = Effect.fn("Bookingboard.skipDay")(function* (input: SkipBookingboardDayInput) {
+    const now = DateTime.formatIso(yield* DateTime.now);
+    yield* (
+      input.skipped
+        ? sql`
+            INSERT INTO bookingboard_skipped_days (day, skipped_at) VALUES (${input.date}, ${now})
+            ON CONFLICT (day) DO NOTHING
+          `
+        : sql`DELETE FROM bookingboard_skipped_days WHERE day = ${input.date}`
+    ).pipe(Effect.mapError(failedTo("skip a day")));
+  });
+
+  return Bookingboard.of({ status, connect, disconnect, day, attendance, skipDay });
 });
 
 /** Needs an `HttpClient`: fetch in the server, a fake in tests. */

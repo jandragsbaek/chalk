@@ -632,6 +632,88 @@ kbd[data-key] {
   outline: 3px double var(--foreground);
   outline-offset: 1px;
 }
+/*
+ * The import rail's class days, by stroke form: a day still to log is an open dashed ink box, a
+ * logged one solid ink, a skipped one a pale box. The picked day takes the double outline.
+ */
+[data-tally] {
+  display: block;
+}
+[data-tally="open"] {
+  border: 1px dashed var(--foreground);
+  background: var(--card);
+}
+[data-tally="logged"] {
+  background: var(--foreground);
+}
+[data-tally="skipped"] {
+  border: 1px solid var(--input);
+  background: var(--muted);
+}
+[data-tally-month] {
+  transition: background-color 150ms ease-out;
+}
+[data-tally-month]:hover {
+  background: var(--muted);
+}
+[data-tally-month]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+[data-tally-month][data-current] {
+  outline: 3px double var(--foreground);
+  outline-offset: 1px;
+}
+[data-rail-tab] {
+  color: var(--muted-foreground);
+  box-shadow: inset 0 -2px 0 transparent;
+  transition:
+    color 150ms ease-out,
+    box-shadow 150ms ease-out;
+}
+[data-rail-tab]:hover {
+  color: var(--foreground);
+}
+[data-rail-tab][aria-selected="true"] {
+  color: var(--foreground);
+  box-shadow: inset 0 -2px 0 var(--foreground);
+}
+[data-rail-tab]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+[data-backlog-row] {
+  transition: background-color 150ms ease-out;
+}
+[data-backlog-row]:has([data-backlog-pull]):hover {
+  background: var(--muted);
+}
+[data-backlog-row] [data-backlog-pull]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+[data-backlog-row][data-selected] {
+  background: var(--muted);
+  outline: 3px double var(--foreground);
+  outline-offset: -4px;
+}
+[data-backlog-row][data-state="skipped"] {
+  color: var(--muted-foreground);
+}
+[data-open-box] {
+  border: 1.5px dashed var(--foreground);
+  background: var(--card);
+}
+/* A day's Skip shows when the row is pointed at, focused or picked. */
+[data-backlog-row] [data-row-control] {
+  opacity: 0;
+  transition: opacity 150ms;
+}
+[data-backlog-row]:hover [data-row-control],
+[data-backlog-row]:focus-within [data-row-control],
+[data-backlog-row][data-selected] [data-row-control] {
+  opacity: 1;
+}
 [data-day-row][data-today] {
   outline: 3px double var(--foreground);
   outline-offset: -4px;

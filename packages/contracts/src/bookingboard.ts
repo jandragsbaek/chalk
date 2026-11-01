@@ -55,6 +55,55 @@ export const BookingboardDay = Schema.Struct({
 }).annotate({ identifier: "BookingboardDay" });
 export type BookingboardDay = typeof BookingboardDay.Type;
 
+/** Bookingboard statuses for a booking the athlete turned up to; any other one was booked only. */
+export const ATTENDED_STATUSES: ReadonlyArray<string> = ["OnTime", "TooLate"];
+
+/** One class the athlete checked in to, as Chalk's copy of their bookings has it. */
+export const BookingboardAttendedClass = Schema.Struct({
+  classId: Schema.Int,
+  /** Box-local day. */
+  date: IsoDate,
+  /** Start, box-local "HH:MM". */
+  startsAt: Schema.String,
+  /** The class type as the box names it: "WOD", "Open Gym". */
+  title: Schema.String,
+  /** Known once the class has been pulled; `null` before that, or when it names nobody. */
+  coach: Schema.NullOr(Schema.String),
+}).annotate({ identifier: "BookingboardAttendedClass" });
+export type BookingboardAttendedClass = typeof BookingboardAttendedClass.Type;
+
+/**
+ * The classes the athlete attended, from Chalk's own copy of their bookings: their whole history
+ * on the first read, then read again at most every half hour (every minute when asked). The
+ * athlete's sessions are matched against it in the browser.
+ */
+export const BookingboardAttendance = Schema.Struct({
+  /** The day of the athlete's first booking: the copy holds everything since. */
+  coveredFrom: IsoDate,
+  /** When bookingboard was last read for it. */
+  checkedAt: IsoDateTime,
+  /** Attended classes from `coveredFrom` on, oldest first. */
+  classes: Schema.Array(BookingboardAttendedClass),
+  /** Days the athlete said they will not log, oldest first. */
+  skippedDays: Schema.Array(IsoDate),
+  /** Why the last read failed (an expired token, bookingboard down); the copy is as it was. */
+  checkFailed: Schema.NullOr(Schema.String),
+}).annotate({ identifier: "BookingboardAttendance" });
+export type BookingboardAttendance = typeof BookingboardAttendance.Type;
+
+/** `ifStale` reads bookingboard when the copy is half an hour old; `now` when a minute old. */
+export const BookingboardAttendanceInput = Schema.Struct({
+  check: Schema.Literals(["ifStale", "now"]),
+}).annotate({ identifier: "BookingboardAttendanceInput" });
+export type BookingboardAttendanceInput = typeof BookingboardAttendanceInput.Type;
+
+/** Marks a day as one the athlete will not log, or takes the mark back. */
+export const SkipBookingboardDayInput = Schema.Struct({
+  date: IsoDate,
+  skipped: Schema.Boolean,
+}).annotate({ identifier: "SkipBookingboardDayInput" });
+export type SkipBookingboardDayInput = typeof SkipBookingboardDayInput.Type;
+
 /** A pulled class's coach; none when bookingboard names nobody for it. */
 export const classCoaching = (entry: BookingboardClass): Coaching | undefined =>
   entry.coach === null ? undefined : { _tag: "coached", coach: entry.coach };

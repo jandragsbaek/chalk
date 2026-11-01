@@ -137,6 +137,10 @@ export const layer = ChalkRpcGroup.toLayer(
       [RPC_METHODS.garminSync]: () => garmin.sync().pipe(Effect.catchTags(onGarminError)),
       [RPC_METHODS.garminDisconnect]: () =>
         garmin.disconnect().pipe(Effect.catchTags(onGarminError)),
+      [RPC_METHODS.bookingboardAttendance]: (input) =>
+        bookingboard.attendance(input).pipe(Effect.catchTags(onBookingboardError)),
+      [RPC_METHODS.bookingboardSkipDay]: (input) =>
+        bookingboard.skipDay(input).pipe(Effect.catchTags(onBookingboardError)),
       [RPC_METHODS.restDaysList]: () => restDays.list().pipe(Effect.catchTags(onRestDayError)),
       [RPC_METHODS.restDaysMark]: (input) =>
         restDays.mark(input, "athlete").pipe(Effect.catchTags(onRestDayError)),
