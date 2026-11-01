@@ -40,6 +40,10 @@ export const layerWorkouts = HttpApiBuilder.group(
         store.sessions().pipe(Effect.catchTags({ WorkoutPersistenceError: reportStorageError })),
       similar: () =>
         store.similar().pipe(Effect.catchTags({ WorkoutPersistenceError: reportStorageError })),
+      similarToPlan: ({ payload }) =>
+        store
+          .similarToPlan(payload)
+          .pipe(Effect.catchTags({ WorkoutPersistenceError: reportStorageError })),
       remove: ({ params }) =>
         store
           .remove(params.id)

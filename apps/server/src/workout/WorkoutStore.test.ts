@@ -1,7 +1,9 @@
 import {
   BenchmarkId,
+  deriveSession,
   makeMovementMatcher,
   MovementId,
+  plannedPart,
   suggestSpans,
   WorkoutId,
   type LogWorkoutInput,
@@ -333,6 +335,58 @@ describe("WorkoutStore", () => {
         headline: { format: "amrap", params: { durationSeconds: 720 } },
         movementIds: ["thruster", "bar-facing-burpee"],
       });
+    }).pipe(Effect.provide(layer)),
+  );
+  it.effect("compares a plan's parts with the saved parts, never with other plans", () =>
+    Effect.gen(function* () {
+      const store = yield* WorkoutStore.WorkoutStore;
+      const imports = yield* ImportStore.ImportStore;
+      const catalog = yield* (yield* CatalogStore.CatalogStore).list();
+      const document = (text: string) => {
+        let next = 0;
+        return {
+          text,
+          spans: suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`),
+        };
+      };
+      const metcon = (minutes: number) => `**** Workout
+- Amrap ${minutes}
+- 12 Thrusters @40/25
+- 10 Burpee over barbell`;
+      const saved = yield* imports.save({
+        document: document(`** Session 150 <2026-09-01 ti>
+${metcon(15)}
+*** Notes
+- Thrusters 3x12 @ 40 kg`),
+      });
+      const plan = deriveSession(
+        document(`${metcon(15)}\n**** Strength\n- Deadlift 5x3`),
+        () => "",
+      );
+
+      const { parts, echoes } = yield* store.similarToPlan({
+        plannedOn: "2026-11-01",
+        parts: plan.parts.map(plannedPart),
+      });
+      expect(
+        echoes.map((echo) => ({
+          position: echo.position,
+          matches: echo.matches.map((match) => [match.other, match.kind]),
+          total: echo.total,
+        })),
+      ).toEqual([{ position: 0, matches: [[parts[0]?.id, "repeat"]], total: 1 }]);
+      expect(parts).toMatchObject([
+        { workoutId: saved.workoutId, top: { movementId: "thruster", reps: 12, loadKg: 40 } },
+      ]);
+
+      const another = yield* store.similarToPlan({
+        plannedOn: "2026-11-01",
+        parts: [...plan.parts, ...plan.parts].map(plannedPart),
+      });
+      expect(another.echoes.map((echo) => [echo.position, echo.total])).toEqual([
+        [0, 1],
+        [2, 1],
+      ]);
     }).pipe(Effect.provide(layer)),
   );
 });

@@ -53,12 +53,14 @@ import { gradeSession } from "../../lib/levelGrades.ts";
 import { asPlanned, planTitle, withPlannedLoad } from "../../lib/plan.ts";
 import { resultDefaults } from "../../lib/resultDraft.ts";
 import { chooseOption, chosenOption, stationOptions } from "../../lib/station.ts";
+import { localIsoDate } from "../../lib/utils.ts";
 import { SAVE_REACTIVITY_KEYS, saveImportAtom } from "../../state/imports.ts";
 import { PLANS_REACTIVITY_KEY, savePlanAtom } from "../../state/plans.ts";
 import { AnnotatedText, type TextRange } from "./AnnotatedText.tsx";
 import { DebriefSheet } from "./DebriefSheet.tsx";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { FieldBox } from "../FieldBox.tsx";
+import { SimilarSessions, usePlanEchoes } from "../sessions/SimilarSessions.tsx";
 import { SessionProtocol } from "./SessionProtocol.tsx";
 import { SpanInspector, type ComplexInspection } from "./SpanInspector.tsx";
 import { KeySwatch, TAG_ACTIONS, TagBar } from "./TagBar.tsx";
@@ -734,7 +736,9 @@ export function ImportWorkbench({
                 rulerOnSelectedOnly: outcomeFirst,
               }}
             />
-            {planning ? null : (
+            {planning ? (
+              <PlanSimilar session={session} nameOf={(id) => names.get(id) ?? id} />
+            ) : (
               <DebriefSheet
                 debrief={state.debrief}
                 scores={session.parts.flatMap((part) =>
@@ -834,6 +838,30 @@ export function ImportWorkbench({
         </aside>
       </div>
     </div>
+  );
+}
+
+/**
+ * Planning: where each part was done before and how it went, to plan the scaling from. A row
+ * opens that session in a new tab, so the plan being entered stays.
+ */
+function PlanSimilar({
+  session,
+  nameOf,
+}: {
+  readonly session: DerivedSession;
+  readonly nameOf: (id: MovementId) => string;
+}) {
+  const [today] = useState(() => localIsoDate(new Date()));
+  const groups = usePlanEchoes(session, session.performedOn ?? today);
+  return (
+    <SimilarSessions
+      groups={groups}
+      nameOf={nameOf}
+      onOpen={(workoutId) =>
+        window.open(`/workouts?session=${encodeURIComponent(workoutId)}`, "_blank", "noopener")
+      }
+    />
   );
 }
 

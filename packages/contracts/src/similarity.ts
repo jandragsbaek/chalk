@@ -8,6 +8,7 @@ import {
   WorkoutId,
 } from "./baseSchemas.ts";
 import { BlockFormat, BlockParams, Quantity } from "./sessionImport.ts";
+import type { DerivedPart } from "./sessionImport/derive.ts";
 
 /**
  * Saved sessions compared part by part. A repeat has the same blocks, formats, movements and
@@ -101,6 +102,62 @@ export const SimilarParts = Schema.Struct({
   echoes: Schema.Array(PartEchoes),
 }).annotate({ identifier: "SimilarParts" });
 export type SimilarParts = typeof SimilarParts.Type;
+
+/**
+ * A planned part as a saved one would store it: blocks with their format and parameters, and
+ * the programmed movements with their numbers per written line. Alternatives are left out.
+ */
+export const PlannedPart = Schema.Struct({
+  benchmarkId: Schema.optionalKey(BenchmarkId),
+  blocks: Schema.Array(
+    Schema.Struct({
+      format: Schema.NullOr(BlockFormat),
+      params: BlockParams,
+      items: Schema.Array(
+        Schema.Struct({ movementId: MovementId, sets: Schema.Array(Schema.Array(Quantity)) }),
+      ),
+    }),
+  ),
+}).annotate({ identifier: "PlannedPart" });
+export type PlannedPart = typeof PlannedPart.Type;
+
+/** A plan's parts, to compare with the saved sessions before it is done. */
+export const SimilarToPlanInput = Schema.Struct({
+  plannedOn: IsoDate,
+  parts: Schema.Array(PlannedPart),
+}).annotate({ identifier: "SimilarToPlanInput" });
+export type SimilarToPlanInput = typeof SimilarToPlanInput.Type;
+
+/** A planned part (by its position in the plan) and the saved parts it repeats or resembles. */
+export const PlannedPartEchoes = Schema.Struct({
+  position: Schema.Int,
+  /** Repeats first, then the closest; nearest in time on a tie. At most `MAX_MATCHES`. */
+  matches: Schema.Array(PartMatch),
+  /** Every match, shown or not. */
+  total: Schema.Int,
+}).annotate({ identifier: "PlannedPartEchoes" });
+export type PlannedPartEchoes = typeof PlannedPartEchoes.Type;
+
+/** Each planned part with a match, and the saved parts those matches name. */
+export const PlanSimilarity = Schema.Struct({
+  parts: Schema.Array(PartRef),
+  echoes: Schema.Array(PlannedPartEchoes),
+}).annotate({ identifier: "PlanSimilarity" });
+export type PlanSimilarity = typeof PlanSimilarity.Type;
+
+/** A derived part as saving it would store it, for comparing a plan with saved sessions. */
+export const plannedPart = (part: DerivedPart): PlannedPart => ({
+  ...(part.benchmarkId === undefined ? {} : { benchmarkId: part.benchmarkId }),
+  blocks: part.blocks.map((block) => ({
+    format: block.format ?? null,
+    params: block.params,
+    items: block.items.flatMap((item) =>
+      item.movementId === undefined
+        ? []
+        : [{ movementId: item.movementId, sets: item.sets.map((set) => set.quantities) }],
+    ),
+  })),
+});
 
 /** One programmed movement as the comparison reads it; alternatives are left out. */
 export interface ShapeItem {
