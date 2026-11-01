@@ -268,9 +268,11 @@ Carbonless copies. Each tint is a pair: a pale fill and the ink that edges it.
 
 ## Layout
 
-The app is a form under a header band. A sticky 48px ink band carries the wordmark and uppercase tabs; a 2px paper-coloured underline marks the active tab. Below it, list and entry pages sit in a centred column (max 72rem for lists, 80rem for the paste page) with a 24px gutter and 32px top padding; the paste page splits 3:2 on large screens.
+Chalk is desktop-only: layouts target desktop browser widths.
 
-The import workbench owns the viewport below the band (100dvh minus 48px from 64rem up) and its panes scroll independently. A protocol header strip of boxed fields runs across the top, boxes divided by 1px vertical rules, referee panel and actions pushed right. Below it, three columns divided by rules: source and protocol as equal fractions, inspector fixed at 18rem (22rem from 80rem). Under 64rem the columns stack.
+The app is a form under a header band. A sticky 48px ink band carries the wordmark and uppercase tabs; a 2px paper-coloured underline marks the active tab. Below it, list and entry pages sit in a centred column (max 72rem for lists, 80rem for the paste page) with a 24px gutter and 32px top padding; the paste page splits 3:2.
+
+The import workbench owns the viewport below the band (100dvh minus 48px) and its panes scroll independently. A protocol header strip of boxed fields runs across the top, boxes divided by 1px vertical rules, referee panel and actions pushed right. Below it, three columns divided by rules: source and protocol as equal fractions, inspector fixed at 18rem (22rem from 80rem).
 
 Pane headers are 36px strips with a label on the left and meta on the right. Rows use 16px horizontal and 6px vertical padding; protocol rows align on a 13rem name column. The source pane prints a 2.25rem line-number gutter behind a 1px rule, text indented 3.25rem.
 
@@ -329,13 +331,13 @@ Printed and decisive: square, semi-bold, no gradient.
 
 ### Inputs / Fields
 
-- **Style:** fresh-sheet fill, 1px box-edge stroke, square, 36px tall, 10px horizontal padding; 1rem on phones, 0.875rem from 40rem. Native selects keep the platform picker.
+- **Style:** fresh-sheet fill, 1px box-edge stroke, square, 36px tall, 10px horizontal padding, 0.875rem text. Native selects keep the platform picker.
 - **Focus:** border turns ballpoint blue with a 2px ring at 30%.
 - **Hover:** border darkens to ink.
 
 ### Navigation
 
-- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Log, Strength, Benchmarks, Levels, Workouts, Import); the tab row scrolls sideways on narrow screens. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
+- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Log, Strength, Benchmarks, Levels, Workouts, Import). Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
 
 ### Protocol Field Box
 

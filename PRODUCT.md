@@ -8,9 +8,9 @@ web
 
 ## Users
 
-One person: Jan, who trains CrossFit at a box and logs every session. Uses the web app to log
-workouts and strength sets, and its desk pages (Workouts, Import) at a desktop for admin work,
-mainly importing roughly 170 past sessions from org-mode text, one paste at a time.
+One person: Jan, who trains CrossFit at a box and logs every session. Uses the web app only at a
+desktop browser: logging workouts and strength sets, and admin work on the desk pages (Workouts,
+Import), mainly importing roughly 170 past sessions from org-mode text, one paste at a time.
 
 ## Product Purpose
 
