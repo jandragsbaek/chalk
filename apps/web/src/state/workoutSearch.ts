@@ -1,9 +1,7 @@
 import * as Atom from "effect/reactivity/Atom";
 
 import { AdminClient } from "../api/client.ts";
-
-/** Every workout read registers this key; mutations pass it so reads refetch after a write. */
-export const WORKOUTS_REACTIVITY_KEY = "workouts";
+import { WORKOUTS_REACTIVITY_KEY } from "./workouts.ts";
 
 /** One cached query atom per search term; an empty term lists everything. */
 export const workoutSearchAtom = Atom.family((q: string) =>

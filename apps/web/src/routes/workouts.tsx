@@ -8,7 +8,7 @@ import { WorkoutTable } from "../components/WorkoutTable.tsx";
 /** The search term lives in the URL, so a result list can be linked and survives reload. */
 const WorkoutsSearch = Schema.Struct({ q: Schema.optional(Schema.String) });
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/workouts")({
   validateSearch: Schema.toStandardSchemaV1(WorkoutsSearch),
   component: WorkoutsPage,
 });

@@ -9,8 +9,8 @@ web
 ## Users
 
 One person: Jan, who trains CrossFit at a box and logs every session. Uses the web app to log
-workouts and strength sets, and the backoffice at a desktop for admin work, mainly importing
-roughly 170 past sessions from org-mode text, one paste at a time.
+workouts and strength sets, and its desk pages (Workouts, Import) at a desktop for admin work,
+mainly importing roughly 170 past sessions from org-mode text, one paste at a time.
 
 ## Product Purpose
 
@@ -30,15 +30,14 @@ truth and lets the user correct highlights until the structure reads like the wh
 - Box whiteboard vocabulary: AMRAP, EMOM, for time, rounds, Rx, M/F loads, % of 1RM, DU, T2B.
 - Source material: org-mode notes (`** Session 167 <2026-10-28 on>`, `**** Workout #1`,
   `*** Notes` with results like "Back squat 1RM: 150 kg"), mixed English and Danish.
-- Backoffice is repetitive bulk work: paste, review suggestions, correct, save, next. Keyboard
+- Importing is repetitive bulk work: paste, review suggestions, correct, save, next. Keyboard
   shortcuts matter.
 
 ## Capabilities and Constraints
 
-- Monorepo: `apps/web` (user app), `apps/backoffice` (admin), `apps/server`, shared
-  `packages/contracts` and `packages/ui` (shadcn on Base UI, tokens in `theme.css`, shared by
-  both apps).
-- Backoffice: workouts list with search and stats; session import workbench (highlight text,
+- Monorepo: `apps/web` (the one app, user and desk pages), `apps/server`, shared
+  `packages/contracts` and `packages/ui` (shadcn on Base UI, tokens in `theme.css`).
+- Desk pages: workouts list with search and stats; session import workbench (highlight text,
   tag with keys, pick/create movements, aliases learned, live structured preview, issues, save
   with conflict/replace); imported sessions list.
 - Lint constraints: kit components are not restyled via className (layout only); no raw colors

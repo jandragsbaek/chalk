@@ -2,7 +2,7 @@ import { useAtomValue } from "@effect/atom-react";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 import { WORKOUT_KIND_LABELS } from "../lib/workoutKinds.ts";
-import { workoutStatsAtom } from "../state/workouts.ts";
+import { workoutStatsAtom } from "../state/workoutSearch.ts";
 import { FieldBox } from "./FieldBox.tsx";
 
 export function WorkoutStatsStrip() {

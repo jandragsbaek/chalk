@@ -4,29 +4,15 @@ service: chalk
 image: chalk
 
 servers:
-  # The app: Effect RPC + the web SPA.
+  # One process: the app RPC, the admin API and the SPA.
   web:
     hosts:
       - lab-chalk-01
-    env:
-      clear:
-        CHALK_MODE: api
     proxy:
       host: lab-chalk-01.llama-burbot.ts.net
       app_port: 4300
-  # The backoffice: admin HttpApi + backoffice SPA. Caddy's :8443 site rewrites Host to chalk-admin.
-  admin:
-    hosts:
-      - lab-chalk-01
-    env:
-      clear:
-        CHALK_MODE: admin
-        CHALK_WEB_DIST: /app/apps/backoffice/dist
-    proxy:
-      host: chalk-admin
-      app_port: 4301
 
-# Tailnet only: Chalk has no login. Caddy holds the Tailscale :443/:8443 and forwards to
+# Tailnet only: Chalk has no login. Caddy holds the Tailscale :443 and forwards to
 # kamal-proxy on loopback. No ssl: here.
 proxy:
   healthcheck:
@@ -38,7 +24,7 @@ proxy:
 registry:
   server: localhost:5555
 
-# SQLite (WAL) shared by both roles. A named volume takes /data's ownership (node) from the image.
+# SQLite (WAL). A named volume takes /data's ownership (node) from the image.
 volumes:
   - chalk_data:/data
 

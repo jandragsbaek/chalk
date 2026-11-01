@@ -15,8 +15,8 @@ const TEST_FILES = [
   "**/{test,tests,testkit,testing,fixtures,integration}/**",
 ];
 
-/** React SPAs: compiled by the React Compiler and held to the shadcn design-system rules. */
-const REACT_APP_SOURCES = ["apps/web/src/**", "apps/backoffice/src/**"];
+/** React SPA: compiled by the React Compiler and held to the shadcn design-system rules. */
+const REACT_APP_SOURCES = ["apps/web/src/**"];
 /** Shared shadcn (Base UI) kit; it owns the class recipes the apps must not restyle. */
 const UI_KIT_SOURCES = "packages/ui/src/**";
 const REACT_SOURCES = [...REACT_APP_SOURCES, UI_KIT_SOURCES];

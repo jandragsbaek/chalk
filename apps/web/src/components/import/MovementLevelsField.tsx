@@ -15,7 +15,8 @@ import * as Exit from "effect/Exit";
 import { Check, X } from "lucide-react";
 import { useState } from "react";
 
-import { CATALOG_REACTIVITY_KEY, setLevelsAtom } from "../../state/imports.ts";
+import { setLevelsAtom } from "../../state/imports.ts";
+import { CATALOG_REACTIVITY_KEY } from "../../state/strength.ts";
 
 const familyName = (id: LevelFamilyId) =>
   LEVEL_FAMILIES.find((family) => family.id === id)?.name ?? id;

@@ -29,14 +29,14 @@ const layerServices = Layer.mergeAll(
   LevelStore.layer.pipe(Layer.provide(CatalogStore.layer)),
 ).pipe(Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)));
 
-/** `api` mode: the app's RPC endpoint. */
+/** The app's RPC endpoint. */
 const layerRpcRoute = RpcServer.layerHttp({
   group: ChalkRpcGroup,
   path: RPC_PATH,
   protocol: "http",
 }).pipe(Layer.provide(Rpc.layer), Layer.provide(RpcSerialization.layerJson));
 
-/** `admin` mode: only the admin HttpApi, plus its OpenAPI document. */
+/** The admin HttpApi (workout search, catalog edits, imports), plus its OpenAPI document. */
 const layerAdminApiRoute = HttpApiBuilder.layer(ChalkAdminApi, {
   openapiPath: `${ADMIN_API_PREFIX}/openapi.json`,
 }).pipe(
@@ -45,7 +45,7 @@ const layerAdminApiRoute = HttpApiBuilder.layer(ChalkAdminApi, {
   ),
 );
 
-/** In production the server also serves the mode's built SPA, so one origin hosts everything. */
+/** In production the server also serves the built SPA, so one origin hosts everything. */
 const layerSpaRoute = Layer.unwrap(
   Effect.gen(function* () {
     const { webDistDir } = yield* ServerConfig.ServerConfig;
@@ -56,21 +56,6 @@ const layerSpaRoute = Layer.unwrap(
   }),
 );
 
-/** Either mode's routes; it needs whatever either one needs. */
-type LayerModeRoutes = Layer.Layer<
-  never,
-  never,
-  Layer.Services<typeof layerAdminApiRoute> | Layer.Services<typeof layerRpcRoute>
->;
-
-const layerModeRoutes = Layer.unwrap(
-  Effect.gen(function* () {
-    const { mode } = yield* ServerConfig.ServerConfig;
-    const routes: LayerModeRoutes = mode === "admin" ? layerAdminApiRoute : layerRpcRoute;
-    return routes;
-  }),
-);
-
 const layerHttpServer = Layer.unwrap(
   Effect.gen(function* () {
     const { host, port } = yield* ServerConfig.ServerConfig;
@@ -78,7 +63,9 @@ const layerHttpServer = Layer.unwrap(
   }),
 );
 
-export const layer = HttpRouter.serve(Layer.mergeAll(layerModeRoutes, layerSpaRoute)).pipe(
+export const layer = HttpRouter.serve(
+  Layer.mergeAll(layerRpcRoute, layerAdminApiRoute, layerSpaRoute),
+).pipe(
   Layer.provide(layerServices),
   Layer.provide(layerHttpServer),
   Layer.provide(ServerConfig.layer),

@@ -7,7 +7,7 @@ import { Search } from "lucide-react";
 
 /** Remount with `key={query}` to reset the field when the URL changes (back/forward). */
 export function WorkoutSearch({ query }: { readonly query: string }) {
-  const navigate = useNavigate({ from: "/" });
+  const navigate = useNavigate({ from: "/workouts" });
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

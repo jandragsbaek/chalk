@@ -115,10 +115,10 @@ export const AdminImportsGroup = HttpApiGroup.make("imports")
   )
   .prefix("/imports");
 
-/** Mount point of the admin API on the admin host, and the backoffice dev proxy. */
+/** Mount point of the admin API, next to `RPC_PATH` on the same origin. */
 export const ADMIN_API_PREFIX = "/api/admin";
 
-/** Request/response API for the backoffice. Served only by the server's `admin` mode. */
+/** Request/response API for the desk pages (workout search, import). Served next to the RPC. */
 export class ChalkAdminApi extends HttpApi.make("chalk-admin")
   .add(AdminWorkoutsGroup)
   .add(AdminMovementsGroup)

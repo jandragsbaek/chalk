@@ -15,11 +15,8 @@ import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { Trash2 } from "lucide-react";
 
 import { WORKOUT_KIND_LABELS } from "../lib/workoutKinds.ts";
-import {
-  removeWorkoutAtom,
-  WORKOUTS_REACTIVITY_KEY,
-  workoutSearchAtom,
-} from "../state/workouts.ts";
+import { removeWorkoutAtom, workoutSearchAtom } from "../state/workoutSearch.ts";
+import { WORKOUTS_REACTIVITY_KEY } from "../state/workouts.ts";
 
 function RemoveWorkoutButton({ workout }: { readonly workout: Workout }) {
   const removeWorkout = useAtomSet(removeWorkoutAtom, { mode: "promiseExit" });

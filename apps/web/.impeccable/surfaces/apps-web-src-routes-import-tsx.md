@@ -1,14 +1,14 @@
 ---
 version: 1
-slug: "apps-backoffice-src-routes-import-tsx"
-primary_target: "apps/backoffice/src/routes/import.tsx"
-related_targets: ["apps/backoffice/src/routes/__root.tsx", "apps/backoffice/src/routes/index.tsx"]
+slug: "apps-web-src-routes-import-tsx"
+primary_target: "apps/web/src/routes/import.tsx"
+related_targets: ["apps/web/src/routes/__root.tsx", "apps/web/src/routes/workouts.tsx"]
 ---
 
-# Backoffice: session import workbench and shell
+# Import: session import workbench and shell
 
-Scope: apps/backoffice shell, workouts list, Import route and its components; shared tokens in
-packages/ui/theme.css (the web app inherits them). Mode: Operate.
+Scope: the app shell (header band), workouts list (`/workouts`), Import route and its components;
+shared tokens in packages/ui/theme.css. Formerly the separate backoffice app. Mode: Operate.
 
 Audience/job: Jan alone, at a desktop, importing ~170 org-mode sessions one paste at a time.
 Top priority (confirmed): confidence the structure is right before saving, then keyboard speed.
