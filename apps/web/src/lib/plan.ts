@@ -96,8 +96,9 @@ export function planTitle(
 }
 
 /**
- * The movement span with its plan taken as done. A plan's load also becomes the lift result when
- * the board gives sets × reps ("5 x 3"), so the planned lift reaches rep maxes.
+ * The movement span with its plan taken as done. The planned load (or the board's, for a plan
+ * as written) also becomes the lift result when the board gives sets × reps ("5 x 3"), so the
+ * planned lift reaches rep maxes.
  */
 export const asPlanned = (
   span: SpanOf<"movement">,
@@ -105,7 +106,8 @@ export const asPlanned = (
 ): SpanOf<"movement"> => {
   if (span.plan === undefined) return span;
   const defaults = found === undefined ? undefined : resultDefaults(found.item, found.block);
-  const loadKg = span.plan.loadKg;
+  // "As written" plans no load of their own: the board's load is the one lifted.
+  const loadKg = span.plan.loadKg ?? defaults?.loadKg;
   const result =
     span.result === undefined &&
     loadKg !== undefined &&

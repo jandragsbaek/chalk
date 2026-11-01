@@ -1,4 +1,4 @@
-import { MovementId } from "@chalk/contracts";
+import { MovementId, type Quantity } from "@chalk/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { asPlanned, describePlan, planTitle } from "./plan.ts";
@@ -94,7 +94,7 @@ describe("asPlanned", () => {
     measure,
     amount: { min: value, max: value },
   });
-  const found = (quantities: ReadonlyArray<ReturnType<typeof exact>>) => ({
+  const found = (quantities: ReadonlyArray<Quantity>) => ({
     item: {
       spanId: "m",
       movementId: MovementId.make("back-squat"),
@@ -130,6 +130,20 @@ describe("asPlanned", () => {
       ...span,
       performance: { loadKg: 110 },
       result: { _tag: "fixed", sets: 5, reps: 3, loadKg: 110 },
+    });
+  });
+
+  it("lifts the board's load for a plan as written", () => {
+    const board = [
+      exact("sets", 5),
+      exact("reps", 3),
+      { measure: "load_kg" as const, amount: { min: 60, max: 60 } },
+    ];
+    expect(asPlanned({ ...span, plan: {} }, found(board)).result).toEqual({
+      _tag: "fixed",
+      sets: 5,
+      reps: 3,
+      loadKg: 60,
     });
   });
 

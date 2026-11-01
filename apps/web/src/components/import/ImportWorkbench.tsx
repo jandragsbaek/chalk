@@ -211,11 +211,11 @@ export function ImportWorkbench({
           span._tag === "movement" && span.plan !== undefined && span.performance === undefined,
       );
 
-  function takeAsPlanned(spans: ReadonlyArray<SpanOf<"movement">>) {
+  function takeAsPlanned(spans: ReadonlyArray<SpanOf<"movement">>, undoable = false) {
     const applied = spans.map((span) => asPlanned(span, findItem(session, span.id)));
     for (const span of applied) dispatch({ type: "update", span });
     setRevision((count) => count + 1);
-    if (spans.length > 1) setUndo({ previous: spans, applied });
+    if (undoable) setUndo({ previous: spans, applied });
   }
 
   // "All as planned" can be taken back until one of the rows it filled is edited.
@@ -641,7 +641,7 @@ export function ImportWorkbench({
                       variant="outline"
                       size="sm"
                       title="Record every planned movement as done as planned"
-                      onClick={() => takeAsPlanned(unloggedPlans)}
+                      onClick={() => takeAsPlanned(unloggedPlans, true)}
                     >
                       <ListChecks />
                       All {unloggedPlans.length} as planned
