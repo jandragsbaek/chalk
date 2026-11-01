@@ -420,6 +420,31 @@ the year grid) until logged.
   stays readable for a coach.
 - Plans never logged stay on `/plan` under "Not logged" until deleted.
 
+## Bookingboard (built)
+
+The box (Box 7100) runs bookings on bookingboard.io, and its classes carry the day's program.
+Chalk reads it so the plan and the importer start from what the box posted, not a paste.
+Read-only: GET requests only, never booking or check-in.
+
+- **Connection**: on `/settings`, the athlete pastes the site's `jwt` cookie (a 30-day JWT) and
+  their participant id (the token does not carry it). `bookingboard.connect` checks the token
+  has an `exp`, reads bookingboard once with it, then keeps it in `bookingboard_connection`
+  (one row, migration `014_Bookingboard`). The browser only ever gets `BookingboardStatus`
+  (participant id, expiry), never the token. A 401/403, or a stored token past its `exp`, is
+  `BookingboardTokenExpiredError`: paste a new one.
+- **A day** (`bookingboard.day`): `GET /participations?from=<day before>` returns every
+  member's bookings from that day on (`to` is ignored; a day long ago downloads tens of MB).
+  The server keeps only the athlete's, not opted out, whose start is on the day in
+  Europe/Copenhagen (bookingboard mixes `+00:00` and local offsets), and discards the rest
+  without storing or logging it. Each class's `GET /classes/{id}` gives `program.workouts`
+  (HTML `text`, else `description`); classes without one (open gym) are left out.
+- **Program text** (`program.ts`): the workouts as the athlete's org notes write them
+  (`*** Workout`, `**** <title>`, `- <line>`), so `suggestSpans` marks them like a pasted
+  session. Lines keep their leading `*` (a coach comment, read as intent).
+- Web: "Pull from bookingboard" on `/plan` (today) and on `/import` (a picked day, yesterday by
+  default). It fills the text box; several classes on a day ask which one. On `/import` the
+  draft takes the picked day as its date, since board text has no date line.
+
 - Load: kilograms everywhere in storage and contracts.
 - Dates: `performedOn` is the athlete's local calendar day (`IsoDate`); `createdAt` is an instant.
 - Durations: seconds as integers.

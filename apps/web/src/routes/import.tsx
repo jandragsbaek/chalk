@@ -6,7 +6,7 @@ import {
   type ImportSummary,
 } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
-import { Label, Textarea } from "@chalk/ui/components/field.tsx";
+import { Input, Label, Textarea } from "@chalk/ui/components/field.tsx";
 import { useAtomValue } from "@effect/atom-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
@@ -14,9 +14,11 @@ import * as Schema from "effect/Schema";
 import { Highlighter } from "lucide-react";
 import { useState } from "react";
 
+import { BoardPull } from "../components/bookingboard/BoardPull.tsx";
 import { ImportedList } from "../components/import/ImportedList.tsx";
 import { ImportWorkbench, suggestDocument } from "../components/import/ImportWorkbench.tsx";
-import { catalogAtom, storedImportAtom } from "../state/imports.ts";
+import { formatDay, localIsoDate } from "../lib/utils.ts";
+import { catalogAtom, importsAtom, storedImportAtom } from "../state/imports.ts";
 import { planAtom } from "../state/plans.ts";
 
 /**
@@ -82,18 +84,32 @@ function ImportEditor({
 
 type Draft = { readonly key: number; readonly document: ImportDocument };
 
+/** Yesterday, the usual day to backfill from bookingboard. */
+const yesterday = () => {
+  const day = new Date();
+  day.setDate(day.getDate() - 1);
+  return localIsoDate(day);
+};
+
 function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovement> }) {
   const [text, setText] = useState("");
   const [draft, setDraft] = useState<Draft | undefined>();
   const [saved, setSaved] = useState<ImportSummary | undefined>();
+  const [today] = useState(() => localIsoDate(new Date()));
+  const [boardDay, setBoardDay] = useState(yesterday);
+  // The day of the pulled program: board text has no date line, so the draft carries it.
+  const [pulledOn, setPulledOn] = useState<string | undefined>();
+  const imported = AsyncResult.getOrElse(useAtomValue(importsAtom), () => []);
+  const importedOnDay = imported.find((entry) => entry.performedOn === boardDay);
 
   function handleSuggest(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (text.trim() === "") return;
     setSaved(undefined);
+    const document = suggestDocument(text.replace(/\r\n/g, "\n").trimEnd(), catalog);
     setDraft({
       key: Date.now(),
-      document: suggestDocument(text.replace(/\r\n/g, "\n").trimEnd(), catalog),
+      document: pulledOn === undefined ? document : { ...document, performedOn: pulledOn },
     });
   }
 
@@ -108,6 +124,7 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
           setSaved(summary);
           setDraft(undefined);
           setText("");
+          setPulledOn(undefined);
         }}
         onDiscard={() => setDraft(undefined)}
       />
@@ -139,13 +156,44 @@ function PasteFlow({ catalog }: { readonly catalog: ReadonlyArray<CatalogMovemen
           </div>
         ) : null}
         <div className="grid gap-1.5">
+          <Label htmlFor="board-day">Class on</Label>
+          <div className="flex flex-wrap items-start gap-3">
+            <Input
+              id="board-day"
+              type="date"
+              className="w-auto"
+              value={boardDay}
+              max={today}
+              onChange={(event) => setBoardDay(event.target.value)}
+            />
+            <BoardPull
+              key={boardDay}
+              date={boardDay}
+              disabled={boardDay === ""}
+              onPulled={(entry) => {
+                setText(entry.text);
+                setPulledOn(boardDay);
+              }}
+            />
+          </div>
+          {importedOnDay ? (
+            <p className="text-xs text-muted-foreground">
+              {formatDay(boardDay)} already has {importedOnDay.name} imported; saving another
+              session that day asks before replacing it.
+            </p>
+          ) : null}
+        </div>
+        <div className="grid gap-1.5">
           <Label htmlFor="session-text">Session text</Label>
           <div className="font-mono">
             <Textarea
               id="session-text"
               value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Paste a session, from its ** Session heading down to its notes"
+              onChange={(event) => {
+                setText(event.target.value);
+                if (event.target.value.trim() === "") setPulledOn(undefined);
+              }}
+              placeholder="Paste a session, from its ** Session heading down to its notes, or pull a class from bookingboard and add your results"
               className="min-h-96"
               autoFocus
             />
