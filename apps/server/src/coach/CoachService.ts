@@ -119,7 +119,12 @@ const systemPrompt = (today: string) =>
       "medical advice.",
   ].join("\n\n");
 
-/** The thread title: the first line of the first message, cut at a word. */
+/** Sent once when the model ends a turn with no text and no reads, so the athlete gets an answer. */
+const EMPTY_TURN_NUDGE =
+  "You ended your turn without writing anything, so I saw no answer. Answer me now in plain " +
+  "text from what you have read. If my log cannot answer it, say so and ask me one question.";
+
+/** The thread title:the first line of the first message, cut at a word. */
 const titleOf = (text: string) => {
   const line = text.split("\n")[0]?.trim() ?? text;
   if (line.length <= 80) return line;
@@ -224,16 +229,32 @@ const make = Effect.gen(function* () {
     const texts: Array<string> = [];
     let stopped: CoachTurn["stopped"];
     const loop = Effect.gen(function* () {
+      let prompt: string | [] = [];
+      let nudged = false;
       for (let step = 0; step < MAX_STEPS; step++) {
         const last = step === MAX_STEPS - 1;
         const response = yield* chat.generateText({
-          prompt: [],
+          prompt,
           toolkit,
           toolChoice: last ? "none" : "auto",
         });
-        if (response.text.trim() !== "") texts.push(response.text.trim());
-        if (response.toolCalls.length === 0) return;
-        if (last) stopped = "step-limit";
+        prompt = [];
+        const said = response.text.trim();
+        if (said !== "") texts.push(said);
+        if (response.toolCalls.length > 0) {
+          if (last) stopped = "step-limit";
+          continue;
+        }
+        if (said !== "" || nudged || last) return;
+        // Models (Claude especially) sometimes end the turn empty right after a tool result.
+        // Resending the same transcript tends to repeat that; a fresh user message gets the answer.
+        yield* Effect.logWarning("Coach model ended its turn without an answer; asking again", {
+          model: options.model.slug,
+          step,
+          finishReason: response.finishReason,
+        });
+        nudged = true;
+        prompt = EMPTY_TURN_NUDGE;
       }
     }).pipe(
       Effect.provideService(LanguageModel.LanguageModel, options.model.languageModel),

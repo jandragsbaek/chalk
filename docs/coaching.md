@@ -15,14 +15,17 @@ Two ways to talk to the coach, on the Coach page (`/coach`):
 
 - **Tools** (`apps/server/src/coach/tools.ts`): `list_movements`, `list_workouts`,
   `list_lift_sets`, `get_rep_maxes` (with the best estimated 1RM, Epley with its spread, the
-  same formulas as the Strength page) and `list_benchmark_results`. Each is an Effect `Tool`
+  same formulas as the Strength page), `list_benchmarks` (the catalog of named workouts, with
+  scoring and the posted prescription, by category or name) and `list_benchmark_results`. Each is an Effect `Tool`
   with Schema parameters and results; a failure (unknown movement, storage) goes back to the
   model as a message instead of breaking the reply. Free-text notes are not sent.
 - **Loop** (`CoachService`): the thread's transcript (the `Chat` export, tool calls and results
   included) is stored with the thread, so a reply resumes with everything read before. Per
   reply: at most 8 reads (past that a read answers "budget spent"), 5 model calls (the last may
   not call tools) and 120 s. A reply that hits a limit or a model error is still saved, marked
-  `stopped`, so the thread stays whole.
+  `stopped`, so the thread stays whole. A model call that ends with no text and no reads (Claude
+  sometimes does this right after a tool result) gets one follow-up user message asking for the
+  answer, instead of saving an empty reply.
 - **Transport**: `coach.send` is a streamed RPC: the saved athlete turn, each read as it starts
   and finishes, then the saved reply. The RPC endpoint speaks newline-delimited JSON so the
   stream reaches the browser as it happens. `coach.status`, `coach.threads` and `coach.thread`
