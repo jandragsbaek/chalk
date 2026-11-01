@@ -47,6 +47,9 @@ builder:
 
 ssh:
   user: semaphore
+  # Fleet nodes' ansible key. Kamal's SSH (net-ssh) ignores ~/.ssh/config `Match user` blocks.
+  keys:
+    - ~/.ssh/t3code_ansible
 
 aliases:
   logs: app logs -f
