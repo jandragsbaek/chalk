@@ -54,6 +54,8 @@ pnpm start:admin  # http://127.0.0.1:4301 (backoffice + admin API)
 | `CHALK_DB_PATH`  | `data/chalk.sqlite` | SQLite database file                        |
 | `CHALK_WEB_DIST` | unset               | Built SPA to serve; `start*` scripts set it |
 
+Deploying: [docs/deploy.md](docs/deploy.md) (Docker image, Kamal, a tailnet-only lab VM).
+
 Other commands: `pnpm openapi` (regenerate `packages/contracts/openapi/admin.json`; a test fails when it is stale), `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm fmt`, and `pnpm check` (everything CI runs). The toolchain is [Vite+](https://viteplus.dev) (`vp`): one root `vite.config.ts` configures tests, Oxlint (with the local `oxlint-plugin-chalk/` rules and `@shadcn/lint`), Oxfmt, and the pre-commit hook, which formats and lints staged files with `vp staged`. `@effect/vitest` is patched (`patches/`) to import `vite-plus/test` instead of `vitest`. The lint setup and the rules in `oxlint-plugin-chalk/` are adapted from [T3 Code](https://github.com/pingdotgg/t3code) under its MIT license (`oxlint-plugin-chalk/LICENSE`).
 
 ## How it fits together
