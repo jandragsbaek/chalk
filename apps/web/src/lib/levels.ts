@@ -289,7 +289,10 @@ export interface AccessorySummary {
 const groupOrder = (group: Complement | undefined) =>
   group === undefined ? Infinity : ComplementSchema.literals.indexOf(group);
 
-/** Accessories with their load from the first to the latest session in the window. */
+/**
+ * Accessories trained in the window, with their load from the first to the latest session. The
+ * catalog seeds accessories (snatch pulls, clean deadlifts), so a tag alone does not make a row.
+ */
 export function summarizeAccessories(
   movements: ReadonlyArray<CatalogMovement>,
   items: ReadonlyArray<LevelItem>,
@@ -300,7 +303,7 @@ export function summarizeAccessories(
   const current = items.filter(inWindow(since));
   return movements
     .filter((movement) => movement.accessory === true)
-    .map((movement) => {
+    .flatMap((movement): ReadonlyArray<AccessorySummary> => {
       const own = current.filter((item) => item.movementId === movement.id);
       const loads = [
         ...own.flatMap((item) => {
@@ -312,6 +315,7 @@ export function summarizeAccessories(
           .filter((set) => set.movementId === movement.id)
           .map((set) => ({ day: set.performedOn, kg: set.loadKg })),
       ].sort((left, right) => left.day.localeCompare(right.day));
+      if (own.length === 0 && loads.length === 0) return [];
       const graded = own
         .map((item) => gradeItem(item, byId)?.performed)
         .filter((grade) => grade !== undefined)
@@ -320,16 +324,18 @@ export function summarizeAccessories(
           undefined,
         );
       const complements = movement.complements ?? [];
-      return {
-        movement,
-        group:
-          COMPLEMENT_PATTERNS.find((pattern) => complements.includes(pattern)) ?? complements[0],
-        sessions: new Set(own.map((item) => item.workoutId)).size,
-        firstKg: loads[0]?.kg,
-        latestKg: loads.at(-1)?.kg,
-        dual: own.some((item) => item.performance?.implements === 2),
-        graded,
-      };
+      return [
+        {
+          movement,
+          group:
+            COMPLEMENT_PATTERNS.find((pattern) => complements.includes(pattern)) ?? complements[0],
+          sessions: new Set(own.map((item) => item.workoutId)).size,
+          firstKg: loads[0]?.kg,
+          latestKg: loads.at(-1)?.kg,
+          dual: own.some((item) => item.performance?.implements === 2),
+          graded,
+        },
+      ];
     })
     .sort(
       (left, right) =>

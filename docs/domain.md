@@ -110,7 +110,15 @@ muscle-up). The sheet is data in `packages/contracts/src/levels.ts` (`LEVEL_FAMI
 - **Accessory**: `movements.accessory`, with `complements` (a fixed vocabulary of patterns and
   muscles: `horizontal_pull`, `single_leg`, `lats`, ...) and `supports` (the families it builds
   toward). An accessory with a natural row (Bulgarian split squats on DB squats, lunges) is
-  graded too.
+  graded too. The Levels board lists only accessories trained in the window.
+- **Weightlifting accessories**: pulls, deadlifts and drills (snatch and clean pulls and high
+  pulls, snatch and clean deadlifts, snatch balance, drop, muscle and tall snatch, jerk dip
+  squat) are barbell accessories that support the lift's row, never variations of it: a pull
+  has no catch, so its reps are not snatch reps, and its loads run past the snatch 1RM. Not
+  graded (no sheet row); rep maxes stay their own. Deficit pulls are variations of the pull.
+  Seeded with whiteboard aliases ("SN pull", "SGDL") by migration `012_LiftingAccessories`.
+  Later: a `percentOf` movement for "snatch pull @ 110 %" (of the snatch 1RM), since
+  `supports` names sheet rows, not movements.
 - Not graded: wall walks (hand distance not recorded), D-ball and sandbag, endurance. Box
   height is not recorded, so box jumps stop at Scaled.
 
