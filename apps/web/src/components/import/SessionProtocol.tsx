@@ -1,4 +1,5 @@
 import {
+  describeBlock,
   benchmarkById,
   formatPerformed,
   formatQuantity,
@@ -16,7 +17,7 @@ import {
 import { LevelBadge } from "@chalk/ui/components/level-ruler.tsx";
 import type { ReactNode } from "react";
 
-import { describeBlock, formatKg } from "../../lib/blockLabels.ts";
+import { formatKg } from "../../lib/blockLabels.ts";
 import { describePlan } from "../../lib/plan.ts";
 import { chosenOption } from "../../lib/station.ts";
 import { LevelLine, type GradeSide, type LevelLead } from "./LevelVerdict.tsx";

@@ -14,3 +14,5 @@ export * from "./sessionImport/index.ts";
 export * from "./benchmarks/index.ts";
 export * from "./estimate.ts";
 export * from "./similarity.ts";
+export * from "./blockLabels.ts";
+export * from "./similarityWords.ts";

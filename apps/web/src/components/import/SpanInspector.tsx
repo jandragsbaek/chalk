@@ -1,4 +1,5 @@
 import {
+  BLOCK_FORMAT_LABELS,
   BENCHMARK_CATEGORY_NAMES,
   BENCHMARKS,
   benchmarkById,
@@ -31,7 +32,7 @@ import { Link2, Plus, Trash2, X } from "lucide-react";
 import { Fragment } from "react";
 
 import { parseAmount, toNumber } from "../../lib/amount.ts";
-import { BLOCK_FORMAT_LABELS, MEASURE_LABELS } from "../../lib/blockLabels.ts";
+import { MEASURE_LABELS } from "../../lib/blockLabels.ts";
 import type { PickMode } from "../../lib/importEditor.ts";
 import type { ResultDefaults } from "../../lib/resultDraft.ts";
 import { CoreMovementField } from "./CoreMovementField.tsx";

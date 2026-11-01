@@ -16,7 +16,10 @@ Two ways to talk to the coach, on the Coach page (`/coach`):
 - **Tools** (`apps/server/src/coach/tools.ts`): `list_movements`, `list_workouts`,
   `list_lift_sets`, `get_rep_maxes` (with the best estimated 1RM, Epley with its spread, the
   same formulas as the Strength page), `list_benchmarks` (the catalog of named workouts, with
-  scoring and the posted prescription, by category or name) and `list_benchmark_results`. Each is an Effect `Tool`
+  scoring and the posted prescription, by category or name), `list_benchmark_results` and
+  `find_similar_sessions` (a session's, or a date range's, repeats and look-alikes from
+  `WorkoutStore.similar()`: both sides' date, result or heaviest set, and the differences in
+  the sheet's words; at most 10 sessions and 3 matches per part). Each is an Effect `Tool`
   with Schema parameters and results; a failure (unknown movement, storage) goes back to the
   model as a message instead of breaking the reply. Free-text notes are not sent.
 - **Loop** (`CoachService`): the thread's transcript (the `Chat` export, tool calls and results
