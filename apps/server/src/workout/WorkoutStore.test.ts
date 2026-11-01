@@ -264,4 +264,75 @@ describe("WorkoutStore", () => {
       expect(entries[2]?._tag === "workout" && entries[2].workout.id).toBe(cindy.id);
     }).pipe(Effect.provide(layer)),
   );
+  it.effect("compares every saved part with the other sessions' parts", () =>
+    Effect.gen(function* () {
+      const store = yield* WorkoutStore.WorkoutStore;
+      const imports = yield* ImportStore.ImportStore;
+      const catalog = yield* (yield* CatalogStore.CatalogStore).list();
+      const session = (number: number, day: string, minutes: number, squatKg: number) =>
+        `** Session ${number} <${day} ti>
+**** Workout #1
+- Back squat 5x5 @80%
+**** Workout #2
+- Amrap ${minutes}
+- 12 Thrusters @40/25
+- 10 Burpee over barbell
+*** Notes
+- Back squat 5x5 @ ${squatKg} kg`;
+      const save = (text: string) => {
+        let next = 0;
+        const spans = suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`);
+        return imports.save({ document: { text, spans } });
+      };
+      const older = yield* save(session(150, "2026-09-01", 15, 100));
+      const newer = yield* save(session(151, "2026-10-01", 12, 105));
+      yield* store.log(fran);
+
+      const { parts, echoes } = yield* store.similar();
+      const refOf = (id: string) => parts.find((part) => part.id === id);
+      expect(
+        echoes.map((echo) => {
+          const part = refOf(echo.part);
+          const [match] = echo.matches;
+          const other = refOf(match?.other ?? "");
+          return {
+            part: [part?.workoutId, part?.title, part?.top?.loadKg ?? null],
+            other: [other?.workoutId, other?.title, other?.top?.loadKg ?? null],
+            kind: match?.kind,
+            differences: match?.differences.map((difference) => difference._tag),
+          };
+        }),
+      ).toEqual([
+        {
+          part: [newer.workoutId, "Workout #1", 105],
+          other: [older.workoutId, "Workout #1", 100],
+          kind: "repeat",
+          differences: [],
+        },
+        {
+          part: [newer.workoutId, "Workout #2", null],
+          other: [older.workoutId, "Workout #2", null],
+          kind: "similar",
+          differences: ["format"],
+        },
+        {
+          part: [older.workoutId, "Workout #1", 100],
+          other: [newer.workoutId, "Workout #1", 105],
+          kind: "repeat",
+          differences: [],
+        },
+        {
+          part: [older.workoutId, "Workout #2", null],
+          other: [newer.workoutId, "Workout #2", null],
+          kind: "similar",
+          differences: ["format"],
+        },
+      ]);
+      expect(refOf(echoes[1]!.part)).toMatchObject({
+        sessionNumber: 151,
+        headline: { format: "amrap", params: { durationSeconds: 720 } },
+        movementIds: ["thruster", "bar-facing-burpee"],
+      });
+    }).pipe(Effect.provide(layer)),
+  );
 });

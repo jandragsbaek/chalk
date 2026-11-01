@@ -116,6 +116,38 @@
         }
       }
     },
+    "/api/admin/workouts/similar": {
+      "get": {
+        "tags": [
+          "workouts"
+        ],
+        "operationId": "workouts.similar",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "SimilarParts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarParts"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "WorkoutStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/workouts/{id}": {
       "delete": {
         "tags": [
@@ -2408,6 +2440,486 @@
         "required": [
           "_tag",
           "id"
+        ],
+        "additionalProperties": false
+      },
+      "SimilarParts": {
+        "type": "object",
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartRef"
+            }
+          },
+          "echoes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartEchoes"
+            }
+          }
+        },
+        "required": [
+          "parts",
+          "echoes"
+        ],
+        "additionalProperties": false
+      },
+      "PartEchoes": {
+        "type": "object",
+        "properties": {
+          "part": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartMatch"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "part",
+          "matches",
+          "total"
+        ],
+        "additionalProperties": false
+      },
+      "PartMatch": {
+        "type": "object",
+        "properties": {
+          "other": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "repeat",
+              "similar"
+            ]
+          },
+          "score": {
+            "type": "number"
+          },
+          "differences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartDifference"
+            }
+          }
+        },
+        "required": [
+          "other",
+          "kind",
+          "score",
+          "differences"
+        ],
+        "additionalProperties": false
+      },
+      "PartDifference": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "_tag": {
+                "type": "string",
+                "enum": [
+                  "format"
+                ]
+              },
+              "here": {
+                "$ref": "#/components/schemas/BlockHeadline"
+              },
+              "there": {
+                "$ref": "#/components/schemas/BlockHeadline"
+              }
+            },
+            "required": [
+              "_tag",
+              "here",
+              "there"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_tag": {
+                "type": "string",
+                "enum": [
+                  "swapped"
+                ]
+              },
+              "here": {
+                "type": "string",
+                "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                "minLength": 1
+              },
+              "there": {
+                "type": "string",
+                "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "_tag",
+              "here",
+              "there"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_tag": {
+                "type": "string",
+                "enum": [
+                  "extra"
+                ]
+              },
+              "movementId": {
+                "type": "string",
+                "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "_tag",
+              "movementId"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_tag": {
+                "type": "string",
+                "enum": [
+                  "missing"
+                ]
+              },
+              "movementId": {
+                "type": "string",
+                "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "_tag",
+              "movementId"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_tag": {
+                "type": "string",
+                "enum": [
+                  "numbers"
+                ]
+              },
+              "movementId": {
+                "type": "string",
+                "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                "minLength": 1
+              },
+              "here": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Quantity"
+                  }
+                }
+              },
+              "there": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Quantity"
+                  }
+                }
+              }
+            },
+            "required": [
+              "_tag",
+              "movementId",
+              "here",
+              "there"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "Quantity": {
+        "type": "object",
+        "properties": {
+          "measure": {
+            "type": "string",
+            "enum": [
+              "reps",
+              "sets",
+              "calories",
+              "distance_m",
+              "seconds",
+              "load_kg",
+              "percent_1rm",
+              "rpe"
+            ]
+          },
+          "amount": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "number",
+                "minimum": 0
+              },
+              "max": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ],
+            "additionalProperties": false
+          },
+          "female": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "number",
+                "minimum": 0
+              },
+              "max": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ],
+            "additionalProperties": false
+          },
+          "scheme": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuantityTier"
+            }
+          }
+        },
+        "required": [
+          "measure",
+          "amount"
+        ],
+        "additionalProperties": false
+      },
+      "BlockHeadline": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "amrap",
+                  "emom",
+                  "every",
+                  "intervals",
+                  "for_time",
+                  "strength",
+                  "rest",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "params": {
+            "type": "object",
+            "properties": {
+              "durationSeconds": {
+                "type": "number",
+                "minimum": 0
+              },
+              "intervalSeconds": {
+                "type": "number",
+                "minimum": 0
+              },
+              "workSeconds": {
+                "type": "number",
+                "minimum": 0
+              },
+              "restSeconds": {
+                "type": "number",
+                "minimum": 0
+              },
+              "rounds": {
+                "type": "object",
+                "properties": {
+                  "min": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "max": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "min",
+                  "max"
+                ],
+                "additionalProperties": false
+              },
+              "scheme": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "format",
+          "params"
+        ],
+        "additionalProperties": false
+      },
+      "PartRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "workoutId": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "workoutName": {
+            "type": "string"
+          },
+          "performedOn": {
+            "type": "string"
+          },
+          "sessionNumber": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "position": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "title": {
+            "type": "string"
+          },
+          "benchmarkId": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlockHeadline"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "movementIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+              "minLength": 1
+            }
+          },
+          "result": {
+            "type": "string"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "movementId": {
+                    "type": "string",
+                    "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                    "minLength": 1
+                  },
+                  "reps": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "loadKg": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "movementId",
+                  "reps",
+                  "loadKg"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "workoutId",
+          "workoutName",
+          "performedOn",
+          "sessionNumber",
+          "position",
+          "title",
+          "headline",
+          "movementIds",
+          "result",
+          "top"
         ],
         "additionalProperties": false
       },

@@ -32,6 +32,7 @@ import { useState } from "react";
 
 import { formatKg } from "../../lib/blockLabels.ts";
 import { gradeSession } from "../../lib/levelGrades.ts";
+import type { PartEchoGroup } from "../../lib/similar.ts";
 import { formatDay } from "../../lib/utils.ts";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
 import { IMPORTS_REACTIVITY_KEY, storedImportAtom } from "../../state/imports.ts";
@@ -40,6 +41,7 @@ import { LIFTS_REACTIVITY_KEY } from "../../state/strength.ts";
 import { WORKOUTS_REACTIVITY_KEY } from "../../state/workouts.ts";
 import { FieldBox } from "../FieldBox.tsx";
 import { SectionHeader, SessionProtocol } from "../import/SessionProtocol.tsx";
+import { SimilarSessions } from "./SimilarSessions.tsx";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
@@ -269,15 +271,22 @@ function LoggedResult({ workout }: { readonly workout: Workout }) {
 /**
  * One session, read-only, as a protocol sheet: a header strip of boxed fields, then what was
  * programmed and lifted. Imported sessions read their protocol back from the stored text; a
- * logged workout has its result; hand-logged lift sets that day close the sheet.
+ * logged workout has its result; then other sessions that repeat or resemble its parts;
+ * hand-logged lift sets that day close the sheet.
  */
 export function SessionSheet({
   entry,
   names,
+  similar,
+  onOpen,
   onDeleted,
 }: {
   readonly entry: SessionEntry;
   readonly names: Names;
+  /** The session's parts that repeat or resemble other sessions' parts. */
+  readonly similar: ReadonlyArray<PartEchoGroup>;
+  /** Opens another session in the sheet. */
+  readonly onOpen: (workoutId: string) => void;
   readonly onDeleted: () => void;
 }) {
   const day = entry._tag === "workout" ? entry.workout.performedOn : entry.performedOn;
@@ -352,6 +361,7 @@ export function SessionSheet({
         {entry._tag === "workout" && !entry.imported ? (
           <LoggedResult workout={entry.workout} />
         ) : null}
+        <SimilarSessions groups={similar} nameOf={names.nameOf} onOpen={onOpen} />
         {entry._tag === "workout" && entry.workout.notes.trim() !== "" ? (
           <TypedNotes title="Notes" text={entry.workout.notes} />
         ) : null}

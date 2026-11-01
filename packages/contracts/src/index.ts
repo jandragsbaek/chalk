@@ -13,3 +13,4 @@ export * from "./plan.ts";
 export * from "./sessionImport/index.ts";
 export * from "./benchmarks/index.ts";
 export * from "./estimate.ts";
+export * from "./similarity.ts";

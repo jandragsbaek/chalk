@@ -16,8 +16,9 @@ import {
   sessionYears,
   type SessionFilter,
 } from "../lib/sessions.ts";
+import { indexSimilar, type SimilarIndex } from "../lib/similar.ts";
 import { catalogAtom } from "../state/imports.ts";
-import { sessionsAtom } from "../state/sessions.ts";
+import { sessionsAtom, similarAtom } from "../state/sessions.ts";
 
 /** Filters and the open session live in the URL, so a view can be linked and survives reload. */
 const WorkoutsSearch = Schema.Struct({
@@ -77,6 +78,10 @@ function SessionDesk({
 }) {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/workouts" });
+  // Comparing sessions is extra: the desk works without it while it loads or if it fails.
+  const similarParts = AsyncResult.getOrElse(useAtomValue(similarAtom), () => undefined);
+  const similar: SimilarIndex | undefined =
+    similarParts === undefined ? undefined : indexSimilar(similarParts);
   const filter: SessionFilter = {
     query: search.q ?? "",
     movement: search.movement,
@@ -90,6 +95,8 @@ function SessionDesk({
   // The open session stays open when a filter hides it; with none open, the newest shown reads.
   const selected = entries.find((entry) => entryKey(entry) === search.session) ?? filtered[0];
   const selectedKey = selected === undefined ? undefined : entryKey(selected);
+  const selectedEchoes =
+    selected?._tag === "workout" ? (similar?.ofWorkout(selected.workout.id) ?? []) : [];
 
   const registerRef = useRef<HTMLDivElement>(null);
   const [readMonth, setReadMonth] = useState<string | undefined>(undefined);
@@ -205,6 +212,7 @@ function SessionDesk({
         years={sessionYears(entries)}
         selectedKey={selectedKey}
         nameOf={nameOf}
+        repeatsEarlier={(workoutId) => similar?.repeatsEarlier(workoutId)}
         scrollRef={registerRef}
         onScroll={readActiveMonth}
         onScrollByHand={() => {
@@ -225,6 +233,8 @@ function SessionDesk({
           key={selectedKey}
           entry={selected}
           names={{ nameOf, catalog }}
+          similar={selectedEchoes}
+          onOpen={(workoutId) => select(workoutId, true)}
           onDeleted={handleDeleted}
         />
       )}
