@@ -7,6 +7,7 @@ import {
   RestDayStorageError,
   RPC_METHODS,
   StrengthStorageError,
+  TrainingStorageError,
   WorkoutStorageError,
 } from "@chalk/contracts";
 import * as Effect from "effect/Effect";
@@ -18,6 +19,7 @@ import * as ProfileStore from "./profile/ProfileStore.ts";
 import * as PowerStore from "./power/PowerStore.ts";
 import * as RestDayStore from "./rest/RestDayStore.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
+import * as BlockStore from "./training/BlockStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
 // Persistence causes stay in the server log; clients only see which operation failed.
@@ -56,6 +58,11 @@ const reportRestDayStorageError = (error: RestDayStore.RestDayPersistenceError) 
     Effect.andThen(Effect.fail(new RestDayStorageError({ operation: error.operation }))),
   );
 
+const reportTrainingStorageError = (error: BlockStore.BlockPersistenceError) =>
+  Effect.logError(error.message, error.cause).pipe(
+    Effect.andThen(Effect.fail(new TrainingStorageError({ operation: error.operation }))),
+  );
+
 /** Thin transport: RpcServer decodes the payload, the handler calls one service method and maps errors. */
 export const layer = ChalkRpcGroup.toLayer(
   Effect.gen(function* () {
@@ -71,6 +78,8 @@ export const layer = ChalkRpcGroup.toLayer(
     const onBookingboardError = { BookingboardPersistenceError: reportBookingboardStorageError };
     const restDays = yield* RestDayStore.RestDayStore;
     const onRestDayError = { RestDayPersistenceError: reportRestDayStorageError };
+    const blocks = yield* BlockStore.BlockStore;
+    const onBlockError = { BlockPersistenceError: reportTrainingStorageError };
     return ChalkRpcGroup.of({
       [RPC_METHODS.workoutsList]: () =>
         store.list().pipe(Effect.catchTags({ WorkoutPersistenceError: reportStorageError })),
@@ -118,6 +127,19 @@ export const layer = ChalkRpcGroup.toLayer(
         restDays.mark(input, "athlete").pipe(Effect.catchTags(onRestDayError)),
       [RPC_METHODS.restDaysClear]: ({ day }) =>
         restDays.clear(day).pipe(Effect.catchTags(onRestDayError)),
+      [RPC_METHODS.blocksList]: () => blocks.list().pipe(Effect.catchTags(onBlockError)),
+      [RPC_METHODS.blocksSchedule]: ({ id }) =>
+        blocks.schedule(id).pipe(Effect.catchTags(onBlockError)),
+      [RPC_METHODS.blocksRemove]: ({ id }) =>
+        blocks.remove(id).pipe(Effect.catchTags(onBlockError)),
+      [RPC_METHODS.blocksSetTrainingMax]: ({ id, max }) =>
+        blocks.setTrainingMax(id, max).pipe(Effect.catchTags(onBlockError)),
+      [RPC_METHODS.sessionsMove]: ({ id, day }) =>
+        blocks.move(id, day).pipe(Effect.catchTags(onBlockError)),
+      [RPC_METHODS.sessionsTick]: ({ id, line, done }) =>
+        blocks.tick(id, line, done).pipe(Effect.catchTags(onBlockError)),
+      [RPC_METHODS.sessionsRemove]: ({ id }) =>
+        blocks.removeSession(id).pipe(Effect.catchTags(onBlockError)),
     });
   }),
 );

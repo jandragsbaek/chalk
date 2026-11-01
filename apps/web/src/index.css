@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "@chalk/ui/theme.css";
 
+/* A window tall enough for the calendar board to print two lines per card. */
+@custom-variant tall (@media (min-height: 860px));
+
 /*
  * Tags. Every tag owns a carbonless-copy fill and the ink that edges it; the importer's marks,
  * key caps and protocol rows, and every chip (importer and benchmarks), read them through data
@@ -672,4 +675,156 @@ kbd[data-key] {
 [data-coach-failed] {
   outline: 1.5px dashed var(--destructive);
   outline-offset: -1px;
+}
+
+/*
+ * Calendar. Programmed work keeps the stroke rule: a session in the calendar is a solid ink box,
+ * a draft is dashed in box edge, the open one takes the double outline; while a card is dragged
+ * its origin stays as a faded dashed carbon and the day it would land on is outlined dashed in
+ * ink. Box plans keep their dashed plan box, logged sessions a plain ruled box.
+ */
+[data-board-card] {
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+[data-board-card="session"] {
+  border-color: var(--foreground);
+  transition:
+    background-color 150ms ease-out,
+    opacity 150ms ease-out;
+}
+[data-board-card="session"]:hover {
+  background: var(--muted);
+}
+[data-board-card][data-draft] {
+  border: 1.5px dashed var(--input);
+}
+[data-board-card][data-selected] {
+  outline: 3px double var(--foreground);
+  outline-offset: 1px;
+}
+[data-board-card][data-carbon] {
+  opacity: 0.45;
+  border-style: dashed;
+}
+[data-board-day][data-today] {
+  outline: 3px double var(--foreground);
+  outline-offset: -4px;
+}
+[data-board-day][data-drop] {
+  background: var(--muted);
+  outline: 1.5px dashed var(--foreground);
+  outline-offset: -3px;
+}
+[data-lamp="off"] {
+  background: var(--lamp-off);
+}
+[data-lamps][data-size="sm"] [data-lamp] {
+  width: 0.6875rem;
+  height: 0.6875rem;
+}
+/* A day's rest pick, like a Today row's: there when the column is pointed at or focused. */
+[data-board-day] [data-rest-control] {
+  opacity: 0;
+  transition: opacity 150ms;
+}
+[data-board-day]:hover [data-rest-control],
+[data-board-day]:focus-within [data-rest-control],
+[data-board-day] [data-rest-control]:has([data-popup-open]) {
+  opacity: 1;
+}
+/* The calendar's panes scroll on their own: thin bars in box edge, no arrow buttons. */
+[data-cal-scroll] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--input) transparent;
+}
+
+/* Month grids: Today's heat cells, programmed days marked under the numeral. */
+[data-month-day] {
+  color: var(--foreground);
+}
+[data-month-day][data-heat="2"],
+[data-month-day][data-heat="3"] {
+  color: var(--background);
+}
+[data-month-day][data-heat="future"] {
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+[data-month-day][data-window] {
+  box-shadow: inset 0 0 0 1px var(--foreground);
+}
+[data-month-day][data-planned]::after,
+[data-legend="scheduled"],
+[data-legend="draft"] {
+  content: "";
+  position: absolute;
+  inset: auto 0.25rem 0.1875rem;
+  height: 0.1875rem;
+  background: var(--foreground);
+}
+[data-month-day][data-planned="draft"]::after,
+[data-legend="draft"] {
+  background: none;
+  border-top: 1.5px dashed var(--foreground);
+}
+[data-legend] {
+  position: relative;
+  display: inline-block;
+  inset: auto;
+  width: 0.75rem;
+  height: 0.1875rem;
+}
+[data-legend="window"] {
+  height: 0.75rem;
+  box-shadow: inset 0 0 0 1px var(--foreground);
+}
+[data-month-day][data-today] {
+  outline: 3px double var(--foreground);
+  outline-offset: 1px;
+  z-index: 1;
+}
+[data-month-day]:hover {
+  outline: 1px solid var(--foreground);
+}
+
+[data-block-progress] {
+  background: var(--muted);
+}
+[data-block-progress] > span {
+  background: var(--foreground);
+}
+
+/* The lanes ruler: blocks as lanes, a tick per session, the board's two weeks double-bracketed. */
+[data-ruler-week] {
+  border-color: var(--border);
+  transition: background-color 150ms ease-out;
+}
+[data-ruler-week]:hover {
+  background: var(--muted);
+}
+[data-ruler-week][data-window] {
+  background: var(--muted);
+}
+[data-lane] {
+  background: var(--card);
+  border: 1px solid var(--foreground);
+}
+[data-lane="draft"] {
+  border: 1.5px dashed var(--input);
+}
+[data-lane-tick] {
+  border-left: 1px solid var(--foreground);
+}
+[data-lane-tick="done"] {
+  background: var(--foreground);
+}
+[data-lane-tick="partial"] {
+  background: color-mix(in oklch, var(--foreground) 45%, var(--card));
+}
+[data-ruler-window] {
+  outline: 3px double var(--foreground);
+  outline-offset: -1px;
+}
+[data-ruler-today] {
+  background: var(--foreground);
 }

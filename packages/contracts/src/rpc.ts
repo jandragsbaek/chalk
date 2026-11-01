@@ -45,6 +45,16 @@ import {
   StrengthStorageError,
 } from "./strength.ts";
 import {
+  BlockId,
+  BlockNotFoundError,
+  ProgrammedSession,
+  ProgrammedSessionId,
+  ProgrammedSessionNotFoundError,
+  TrainingBlock,
+  TrainingMax,
+  TrainingStorageError,
+} from "./training.ts";
+import {
   BenchmarkResult,
   LogWorkoutInput,
   Workout,
@@ -79,6 +89,13 @@ export const RPC_METHODS = {
   restDaysList: "restDays.list",
   restDaysMark: "restDays.mark",
   restDaysClear: "restDays.clear",
+  blocksList: "blocks.list",
+  blocksSchedule: "blocks.schedule",
+  blocksRemove: "blocks.remove",
+  blocksSetTrainingMax: "blocks.setTrainingMax",
+  sessionsMove: "sessions.move",
+  sessionsTick: "sessions.tick",
+  sessionsRemove: "sessions.remove",
 } as const;
 
 /** Mount point for the RPC endpoint on the server, and the web dev proxy. */
@@ -246,6 +263,55 @@ const RestDaysClearRpc = Rpc.make(RPC_METHODS.restDaysClear, {
   error: Schema.Union([RestDayNotFoundError, RestDayStorageError]),
 });
 
+/** Every training block, drafts included, oldest first; each carries its sessions by day. */
+const BlocksListRpc = Rpc.make(RPC_METHODS.blocksList, {
+  success: Schema.Array(TrainingBlock),
+  error: TrainingStorageError,
+});
+
+/** Puts a draft in the calendar: its sessions stop being a proposal. */
+const BlocksScheduleRpc = Rpc.make(RPC_METHODS.blocksSchedule, {
+  payload: { id: BlockId },
+  success: TrainingBlock,
+  error: Schema.Union([BlockNotFoundError, TrainingStorageError]),
+});
+
+/** Removes a block and every session in it; a draft discarded, or a cycle abandoned. */
+const BlocksRemoveRpc = Rpc.make(RPC_METHODS.blocksRemove, {
+  payload: { id: BlockId },
+  error: Schema.Union([BlockNotFoundError, TrainingStorageError]),
+});
+
+/** Sets one lift's training max; every percent of it in the block rescales. */
+const BlocksSetTrainingMaxRpc = Rpc.make(RPC_METHODS.blocksSetTrainingMax, {
+  payload: { id: BlockId, max: TrainingMax },
+  success: TrainingBlock,
+  error: Schema.Union([BlockNotFoundError, TrainingStorageError]),
+});
+
+/** Moves one session to another day; the rest of its block stays put. */
+const SessionsMoveRpc = Rpc.make(RPC_METHODS.sessionsMove, {
+  payload: { id: ProgrammedSessionId, day: IsoDate },
+  success: ProgrammedSession,
+  error: Schema.Union([ProgrammedSessionNotFoundError, TrainingStorageError]),
+});
+
+/** Ticks one line done, or clears the tick. */
+const SessionsTickRpc = Rpc.make(RPC_METHODS.sessionsTick, {
+  payload: {
+    id: ProgrammedSessionId,
+    line: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+    done: Schema.Boolean,
+  },
+  success: ProgrammedSession,
+  error: Schema.Union([ProgrammedSessionNotFoundError, TrainingStorageError]),
+});
+
+const SessionsRemoveRpc = Rpc.make(RPC_METHODS.sessionsRemove, {
+  payload: { id: ProgrammedSessionId },
+  error: Schema.Union([ProgrammedSessionNotFoundError, TrainingStorageError]),
+});
+
 export const ChalkRpcGroup = RpcGroup.make(
   WorkoutsListRpc,
   WorkoutsLogRpc,
@@ -273,4 +339,11 @@ export const ChalkRpcGroup = RpcGroup.make(
   RestDaysListRpc,
   RestDaysMarkRpc,
   RestDaysClearRpc,
+  BlocksListRpc,
+  BlocksScheduleRpc,
+  BlocksRemoveRpc,
+  BlocksSetTrainingMaxRpc,
+  SessionsMoveRpc,
+  SessionsTickRpc,
+  SessionsRemoveRpc,
 );

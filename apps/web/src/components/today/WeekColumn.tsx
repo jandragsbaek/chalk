@@ -1,9 +1,16 @@
-import type { DerivedSession, MovementId, PlanId, RestDay } from "@chalk/contracts";
+import type {
+  DerivedSession,
+  MovementId,
+  PlanId,
+  ProgrammedSessionId,
+  RestDay,
+} from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Link } from "@tanstack/react-router";
 import type * as React from "react";
 
 import { isoWeek, weekDays, type Consistency, type TrainingDay } from "../../lib/dashboard.ts";
+import type { SessionState } from "../../lib/calendar.ts";
 import type { PlannedMovement } from "../../lib/plan.ts";
 import { toDate } from "../../lib/progress.ts";
 import { WORKOUT_KIND_LABELS } from "../../lib/workoutKinds.ts";
@@ -26,6 +33,13 @@ export interface DayPlan {
   readonly movements: ReadonlyArray<PlannedMovement>;
 }
 
+/** A programmed session from a block in the calendar, as a week row lists it. */
+export interface DayProgrammed {
+  readonly id: ProgrammedSessionId;
+  readonly title: string;
+  readonly state: SessionState;
+}
+
 /**
  * This week as the athlete's card: one row per day, Monday first, with what was trained, what is
  * planned and which days are rest; today double-outlined. A day with nothing logged can be marked
@@ -42,6 +56,7 @@ export function WeekColumn({
   activeDay,
   onActivate,
   plans,
+  programmed,
 }: {
   readonly today: Date;
   readonly todayIso: string;
@@ -53,6 +68,8 @@ export function WeekColumn({
   readonly onActivate: (iso: string | null) => void;
   /** Plans not logged yet, by the day they are planned for. */
   readonly plans: ReadonlyMap<string, ReadonlyArray<DayPlan>>;
+  /** Programmed sessions of blocks in the calendar, by day. */
+  readonly programmed: ReadonlyMap<string, ReadonlyArray<DayProgrammed>>;
 }) {
   const week = weekDays(today);
   const todayPlans = plans.get(todayIso) ?? [];
@@ -109,6 +126,7 @@ export function WeekColumn({
                     rest={rest}
                     names={names}
                     plans={plans.get(iso) ?? []}
+                    programmed={programmed.get(iso) ?? []}
                   />
                 </div>
                 {(day?.sessions ?? 0) === 0 ? <RestMark iso={iso} rest={rest} /> : null}
@@ -241,6 +259,29 @@ function PlanEntry({ plan, past }: { readonly plan: DayPlan; readonly past: bool
   );
 }
 
+const PROGRAMMED_WORDS: Record<SessionState, string> = {
+  open: "Programmed",
+  partial: "Partly done",
+  done: "Done",
+  missed: "Missed",
+};
+
+function ProgrammedEntry({ entry, day }: { readonly entry: DayProgrammed; readonly day: string }) {
+  return (
+    <span className="grid min-w-0">
+      <Link
+        to="/calendar"
+        search={{ session: entry.id, week: day }}
+        title={entry.title}
+        className="truncate text-sm font-medium underline decoration-input hover:decoration-foreground"
+      >
+        {entry.title}
+      </Link>
+      <span className="form-label text-muted-foreground">{PROGRAMMED_WORDS[entry.state]}</span>
+    </span>
+  );
+}
+
 function DayEntries({
   iso,
   todayIso,
@@ -248,6 +289,7 @@ function DayEntries({
   rest,
   names,
   plans,
+  programmed,
 }: {
   readonly iso: string;
   readonly todayIso: string;
@@ -257,10 +299,12 @@ function DayEntries({
   readonly names: ReadonlyMap<MovementId, string>;
   /** Plans for this day not logged yet. */
   readonly plans: ReadonlyArray<DayPlan>;
+  readonly programmed: ReadonlyArray<DayProgrammed>;
 }) {
-  const planned = plans.map((plan) => (
-    <PlanEntry key={plan.id} plan={plan} past={iso < todayIso} />
-  ));
+  const planned = [
+    ...plans.map((plan) => <PlanEntry key={plan.id} plan={plan} past={iso < todayIso} />),
+    ...programmed.map((entry) => <ProgrammedEntry key={entry.id} entry={entry} day={iso} />),
+  ];
   if (!day || day.sessions === 0) {
     // Rest is only what was marked: an unmarked day with nothing logged is just that.
     if (rest !== undefined)

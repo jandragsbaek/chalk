@@ -23,7 +23,9 @@ import * as ServerConfig from "../config.ts";
 import * as ImportStore from "../import/ImportStore.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
 import * as RestDayStore from "../rest/RestDayStore.ts";
+import * as PlanStore from "../plan/PlanStore.ts";
 import * as StrengthStore from "../strength/StrengthStore.ts";
+import * as BlockStore from "../training/BlockStore.ts";
 import * as WorkoutStore from "../workout/WorkoutStore.ts";
 import * as CoachService from "./CoachService.ts";
 import * as CoachStore from "./CoachStore.ts";
@@ -109,6 +111,8 @@ const layerWith = <E>(
         ImportStore.layer,
         CatalogStore.layer,
         RestDayStore.layer,
+        PlanStore.layer,
+        BlockStore.layer,
       ).pipe(
         Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)),
         Layer.provide(ServerConfig.layerTest()),
@@ -553,6 +557,93 @@ describe("CoachService", () => {
       }).pipe(Effect.flip);
       expect(error._tag).toBe("CoachThreadNotFoundError");
     }).pipe(Effect.provide(layerWith(failing.model))),
+  );
+
+  const smolovDay = (day: string, title: string, sets: number, reps: number, percent: number) => ({
+    day,
+    title,
+    lines: [{ movementId: "back-squat", name: "Back squat", sets, reps, percent }],
+  });
+
+  const plansACycle = scriptedModel((_options, call) =>
+    Effect.succeed(
+      call === 1
+        ? toolCalls([
+            {
+              name: "draft_block",
+              params: {
+                name: "Smolov Jr · back squat",
+                goal: "Squat volume around the box classes.",
+                trainingMaxes: [],
+                sessions: [smolovDay("2030-01-07", "Week 1 · Day 1", 6, 6, 70)],
+              },
+            },
+          ])
+        : call === 2
+          ? toolCalls([
+              {
+                name: "draft_block",
+                params: {
+                  name: "Smolov Jr · back squat",
+                  goal: "Squat volume around the box classes.",
+                  trainingMaxes: [{ movementId: "back-squat", kg: 150 }],
+                  sessions: [
+                    smolovDay("2030-01-07", "Week 1 · Day 1", 6, 6, 70),
+                    {
+                      day: "2030-01-08",
+                      title: "Prehab",
+                      lines: [{ name: "Band pull-apart", sets: 3, reps: 20, load: "light band" }],
+                    },
+                  ],
+                },
+              },
+            ])
+          : call === 3
+            ? toolCalls([
+                { name: "list_calendar", params: { from: "2030-01-07", to: "2030-01-13" } },
+              ])
+            : text("Drafted (R2); it waits on the Calendar page."),
+    ),
+  );
+
+  it.effect("drafts a block only when it holds together, and reads it back on the calendar", () =>
+    Effect.gen(function* () {
+      const events = yield* send({ text: "Plan me a Smolov Jr cycle" });
+      const receipts = events.flatMap((event) =>
+        event._tag === "ReadFinished" ? [event.receipt] : [],
+      );
+      expect(receipts.map((receipt) => [receipt.tool, receipt.status])).toEqual([
+        ["draft_block", "failed"],
+        ["draft_block", "ok"],
+        ["list_calendar", "ok"],
+      ]);
+      expect(receipts[0]?.summary).toMatch(/^Not saved: .*training max for back-squat/);
+      expect(receipts[1]?.summary).toBe("Drafted 2 sessions, waiting on the Calendar page");
+      expect(receipts[1]?.rows[0]).toEqual([
+        "7 Jan 2030",
+        "Week 1 · Day 1",
+        "Back squat 6 × 6 @ 70 % · 105 kg",
+      ]);
+      expect(receipts[2]?.rows).toEqual([
+        [
+          "7 Jan 2030",
+          "draft",
+          "Smolov Jr · back squat · Week 1 · Day 1",
+          "Back squat 6 × 6 @ 70 % · 105 kg; 0 of 1 done",
+        ],
+        [
+          "8 Jan 2030",
+          "draft",
+          "Smolov Jr · back squat · Prehab",
+          "Band pull-apart 3 × 20 · light band; 0 of 1 done",
+        ],
+      ]);
+
+      const blocks = yield* (yield* BlockStore.BlockStore).list();
+      expect(blocks.map(({ status, source }) => ({ status, source }))).toEqual([
+        { status: "draft", source: "coach" },
+      ]);
+    }).pipe(Effect.provide(layerWith(plansACycle.model))),
   );
 });
 
