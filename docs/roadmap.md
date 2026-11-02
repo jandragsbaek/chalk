@@ -72,13 +72,17 @@ coach.
   `/movements` desk.
 - kg / lb display preference.
 - Athlete profile (done): sex (M/F, picks the side of every M/F load; male until set), height,
-  optional arm and inseam lengths, bodyweight over time, on `/settings`. A plain settings page,
-  not a setup wizard. RPCs: `profile.get`, `profile.update`, `bodyweights.log`,
+  optional arm and inseam lengths on `/settings`, bodyweight over time on `/body`. A plain
+  settings page, not a setup wizard. RPCs: `profile.get`, `profile.update`, `bodyweights.log`,
   `bodyweights.delete`; migration `013_AthleteProfile`.
 - Garmin Connect (done): the smart scale's weigh-ins into bodyweight, from a token file made by
   `pnpm garmin:login`, on `/settings/connections` beside bookingboard. RPCs `garmin.status`,
-  `garmin.connect`, `garmin.sync`, `garmin.disconnect`; migration `018_Garmin`. Later: body fat
-  and muscle mass from the same scale.
+  `garmin.connect`, `garmin.sync`, `garmin.disconnect`; migration `018_Garmin`.
+- Body composition (done): body fat % and muscle mass from the same scale (and optionally typed)
+  on each weigh-in, leading a `/body` page above bodyweight: display numbers with their 30-day
+  change, fat mass derived, all three charted on one range. Same RPCs (`bodyweights.log` takes
+  both); migration `024_BodyComposition`, which re-reads Garmin from the import day to fill in
+  the scale days already imported.
 - Work and power (done): estimated work per session and block and average power, from the
   athlete's body and what each session asked (see domain.md). Session sheet, benchmark
   attempts, `/power` trend. RPC `power.sessions`. Later: % of 1RM loads from the estimated 1RM,
