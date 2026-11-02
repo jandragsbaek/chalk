@@ -12,6 +12,7 @@ type NavTarget =
   | "/levels"
   | "/movements"
   | "/power"
+  | "/volume"
   | "/body"
   | "/workouts"
   | "/import"
@@ -28,6 +29,7 @@ const NAV: ReadonlyArray<{ to: NavTarget; label: string; exact?: boolean }> = [
   { to: "/levels", label: "Levels" },
   { to: "/movements", label: "Movements" },
   { to: "/power", label: "Power" },
+  { to: "/volume", label: "Volume" },
   { to: "/body", label: "Body" },
   { to: "/workouts", label: "Workouts" },
   { to: "/import", label: "Import" },
@@ -42,6 +44,7 @@ const NAV: ReadonlyArray<{ to: NavTarget; label: string; exact?: boolean }> = [
  */
 const OWN_LAYOUT_PREFIXES = [
   "/calendar",
+  "/volume",
   "/movements",
   "/workouts",
   "/import",

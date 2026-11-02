@@ -13,9 +13,8 @@ import {
   estimateBlockWork,
   estimateSessionWork,
   workModelsFor,
-  type WorkBlock,
-  type WorkItem,
 } from "./estimate.ts";
+import type { WorkBlock, WorkItem } from "../volume/count.ts";
 
 const matcher = makeMovementMatcher(CATALOG);
 const nameOf = (id: MovementId) => CATALOG.find((movement) => movement.id === id)?.name;

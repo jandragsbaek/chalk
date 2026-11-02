@@ -48,10 +48,15 @@ coach.
   one-click "Scale to" in the importer and edited on `/movements`. Migration `021_Scalings`.
 - Per-movement scaling timeline ("banded → kipping → Rx").
 
-## 5. Volume grid
+## 5. Volume grid (done)
 
-- Reps (or meters, calories, seconds) per movement per ISO week; tonnage view.
-- Needs `measure` on movements (phase 3 adds it).
+- `movements.measure` (`reps`, `distance_m`, `calories`, `seconds`), seeded per catalog movement
+  by migration `025_MovementMeasure` and set on `/movements` ("Counted in").
+- `/volume`: reps (or metres, calories, seconds) per movement per ISO week as a ledger, each
+  cell shaded against the movement's own best week in view; tonnage view (reps × external load);
+  credit to what was done or to what the board wrote; 12 weeks, 26 weeks or all. RPC
+  `volume.weeks`. Counting is shared with work and power (`countBlock`).
+- Later: roll variations up to their core; the coach reading volume.
 
 ## 6. Coach
 

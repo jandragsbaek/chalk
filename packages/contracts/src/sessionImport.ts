@@ -13,7 +13,7 @@ import { ClassType, Coaching } from "./coaching.ts";
 import { Place } from "./place.ts";
 import { Debrief } from "./debrief.ts";
 import { Complement, Level, LevelFamilyId, Performance } from "./levels.ts";
-import { MovementCategory } from "./strength.ts";
+import { MovementCategory, MovementMeasure } from "./strength.ts";
 
 /**
  * Session import: the athlete pastes one session as text, Chalk suggests spans over it, the
@@ -235,6 +235,8 @@ export const CatalogMovement = Schema.Struct({
    * pull-ups for pull-ups, walk-outs for wall walks. See `scalingOptions`.
    */
   scalings: Schema.optionalKey(Schema.Array(MovementId)),
+  /** What one unit of it is, for its volume; absent is reps. */
+  measure: Schema.optionalKey(MovementMeasure),
 }).annotate({ identifier: "CatalogMovement" });
 export type CatalogMovement = typeof CatalogMovement.Type;
 
@@ -262,6 +264,10 @@ export type SetMovementLevelsInput = typeof SetMovementLevelsInput.Type;
 /** The movements a movement scales to, first offered first; empty clears them. */
 export const SetMovementScalingsInput = Schema.Struct({ scalings: Schema.Array(MovementId) });
 export type SetMovementScalingsInput = typeof SetMovementScalingsInput.Type;
+
+/** What one unit of a movement is: reps, metres, calories or seconds. */
+export const SetMovementMeasureInput = Schema.Struct({ measure: MovementMeasure });
+export type SetMovementMeasureInput = typeof SetMovementMeasureInput.Type;
 
 export const AddAliasInput = Schema.Struct({ alias: TrimmedNonEmptyString });
 export type AddAliasInput = typeof AddAliasInput.Type;

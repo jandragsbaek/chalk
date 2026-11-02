@@ -19,6 +19,13 @@ export const MovementCategory = Schema.Literals([
 ]);
 export type MovementCategory = typeof MovementCategory.Type;
 
+/**
+ * What one unit of a movement is, so its volume reads in it: reps, metres (rows, runs, carries),
+ * calories (bikes) or seconds (holds). A count written in another unit still counts in that one.
+ */
+export const MovementMeasure = Schema.Literals(["reps", "distance_m", "calories", "seconds"]);
+export type MovementMeasure = typeof MovementMeasure.Type;
+
 /** One entry in the movement catalog. Workouts, sets and scaling all point at these ids. */
 export const Movement = Schema.Struct({
   id: MovementId,

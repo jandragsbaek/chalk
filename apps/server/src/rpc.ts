@@ -9,6 +9,7 @@ import {
   RPC_METHODS,
   StrengthStorageError,
   TrainingStorageError,
+  VolumeStorageError,
   WorkoutStorageError,
 } from "@chalk/contracts";
 import * as Effect from "effect/Effect";
@@ -22,6 +23,7 @@ import * as PowerStore from "./power/PowerStore.ts";
 import * as RestDayStore from "./rest/RestDayStore.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as BlockStore from "./training/BlockStore.ts";
+import * as VolumeStore from "./volume/VolumeStore.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
 // Persistence causes stay in the server log; clients only see which operation failed.
@@ -48,6 +50,11 @@ const reportProfileStorageError = (error: ProfileStore.ProfilePersistenceError) 
 const reportPowerStorageError = (error: PowerStore.PowerPersistenceError) =>
   Effect.logError(error.message, error.cause).pipe(
     Effect.andThen(Effect.fail(new PowerStorageError({ operation: error.operation }))),
+  );
+
+const reportVolumeStorageError = (error: VolumeStore.VolumePersistenceError) =>
+  Effect.logError(error.message, error.cause).pipe(
+    Effect.andThen(Effect.fail(new VolumeStorageError({ operation: error.operation }))),
   );
 
 const reportBookingboardStorageError = (error: Bookingboard.BookingboardPersistenceError) =>
@@ -77,6 +84,7 @@ export const layer = ChalkRpcGroup.toLayer(
     const strength = yield* StrengthStore.StrengthStore;
     const levels = yield* LevelStore.LevelStore;
     const power = yield* PowerStore.PowerStore;
+    const volume = yield* VolumeStore.VolumeStore;
     const coach = yield* CoachService.CoachService;
     const profile = yield* ProfileStore.ProfileStore;
     const bookingboard = yield* Bookingboard.Bookingboard;
@@ -112,6 +120,8 @@ export const layer = ChalkRpcGroup.toLayer(
           .pipe(Effect.catchTags({ LevelPersistenceError: reportLevelStorageError })),
       [RPC_METHODS.powerSessions]: () =>
         power.sessions().pipe(Effect.catchTags({ PowerPersistenceError: reportPowerStorageError })),
+      [RPC_METHODS.volumeWeeks]: () =>
+        volume.weeks().pipe(Effect.catchTags({ VolumePersistenceError: reportVolumeStorageError })),
       [RPC_METHODS.coachStatus]: () => coach.status(),
       [RPC_METHODS.coachThreads]: () => coach.threads(),
       [RPC_METHODS.coachThread]: ({ id }) => coach.thread(id),

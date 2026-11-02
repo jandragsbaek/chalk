@@ -24,3 +24,4 @@ export * from "./similarity.ts";
 export * from "./blockLabels.ts";
 export * from "./similarityWords.ts";
 export * from "./power/index.ts";
+export * from "./volume/index.ts";

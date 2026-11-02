@@ -822,6 +822,84 @@
         }
       }
     },
+    "/api/admin/movements/{id}/measure": {
+      "put": {
+        "tags": [
+          "movements"
+        ],
+        "operationId": "movements.setMeasure",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "CatalogMovement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogMovement"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "CatalogNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogNotFoundErrorEncoded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "ImportStorageError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStorageErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "measure": {
+                    "type": "string",
+                    "enum": [
+                      "reps",
+                      "distance_m",
+                      "calories",
+                      "seconds"
+                    ]
+                  }
+                },
+                "required": [
+                  "measure"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/admin/imports": {
       "get": {
         "tags": [
@@ -2765,6 +2843,15 @@
               "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
               "minLength": 1
             }
+          },
+          "measure": {
+            "type": "string",
+            "enum": [
+              "reps",
+              "distance_m",
+              "calories",
+              "seconds"
+            ]
           }
         },
         "required": [

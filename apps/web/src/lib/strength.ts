@@ -1,16 +1,10 @@
-import type { Movement, MovementCategory, MovementId } from "@chalk/contracts";
+import type { Movement, MovementId } from "@chalk/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 import { movementsAtom } from "../state/strength.ts";
 
-export const MOVEMENT_CATEGORY_LABELS: Record<MovementCategory, string> = {
-  barbell: "Barbell",
-  dumbbell_kettlebell: "Dumbbell and kettlebell",
-  gymnastics: "Gymnastics",
-  monostructural: "Monostructural",
-  other: "Other",
-};
+export { MOVEMENT_CATEGORY_LABELS } from "./movementCategories.ts";
 
 const kgFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 

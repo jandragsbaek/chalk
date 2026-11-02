@@ -39,6 +39,7 @@ import {
 } from "./garmin.ts";
 import { LevelOverview, LevelStorageError } from "./levelOverview.ts";
 import { PowerSession, PowerStorageError } from "./power/history.ts";
+import { VolumeStorageError, VolumeWeek } from "./volume/model.ts";
 import {
   AthleteBody,
   AthleteProfile,
@@ -86,6 +87,7 @@ export const RPC_METHODS = {
   levelsList: "levels.list",
   benchmarksResults: "benchmarks.results",
   powerSessions: "power.sessions",
+  volumeWeeks: "volume.weeks",
   coachStatus: "coach.status",
   coachThreads: "coach.threads",
   coachThread: "coach.thread",
@@ -176,6 +178,12 @@ const BenchmarksResultsRpc = Rpc.make(RPC_METHODS.benchmarksResults, {
 const PowerSessionsRpc = Rpc.make(RPC_METHODS.powerSessions, {
   success: Schema.Array(PowerSession),
   error: PowerStorageError,
+});
+
+/** Every ISO week with something done, oldest first: each movement per session, counted as done. */
+const VolumeWeeksRpc = Rpc.make(RPC_METHODS.volumeWeeks, {
+  success: Schema.Array(VolumeWeek),
+  error: VolumeStorageError,
 });
 
 const CoachStatusRpc = Rpc.make(RPC_METHODS.coachStatus, { success: CoachStatus });
@@ -393,6 +401,7 @@ export const ChalkRpcGroup = RpcGroup.make(
   LevelsListRpc,
   BenchmarksResultsRpc,
   PowerSessionsRpc,
+  VolumeWeeksRpc,
   CoachStatusRpc,
   CoachThreadsRpc,
   CoachThreadRpc,
