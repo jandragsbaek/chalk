@@ -17,6 +17,8 @@ export interface RulerMarker {
   readonly kind: "performed" | "capability" | "estimate";
   /** Printed under the marker ("50"). */
   readonly label?: string;
+  /** Counted as done, not said: an open (dashed) square. */
+  readonly assumed?: boolean;
   /** Read by assistive tech and shown on hover. */
   readonly title: string;
 }
@@ -97,6 +99,7 @@ function LevelRuler({
           <span
             data-at
             data-marker={marker.kind}
+            data-assumed={marker.assumed ? "" : undefined}
             title={marker.title}
             style={at(marker.position)}
           />
@@ -111,20 +114,31 @@ function LevelRuler({
   );
 }
 
-/** A level as a printed badge: solid when done, dashed when it is what was asked for. */
+/**
+ * A level as a printed badge: solid when done, dashed when it is what was asked for. `assumed`
+ * keeps a done level's fill on a dashed edge: counted as done, though nobody said so.
+ */
 function LevelBadge({
   level,
   open,
+  assumed,
   children,
   title,
 }: {
   readonly level: RulerStop["level"] | "below";
   readonly open?: boolean;
+  readonly assumed?: boolean;
   readonly children: React.ReactNode;
   readonly title?: string;
 }) {
   return (
-    <span data-level-badge data-level={level} data-open={open ? "" : undefined} title={title}>
+    <span
+      data-level-badge
+      data-level={level}
+      data-open={open ? "" : undefined}
+      data-assumed={assumed ? "" : undefined}
+      title={title}
+    >
       {children}
     </span>
   );

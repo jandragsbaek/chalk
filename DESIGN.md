@@ -391,6 +391,10 @@ Logging, the time cap is set here only; the block inspector offers it while plan
 it opens a fresh-sheet strip under the header: the outcome switch ("Finished" or "Capped" for a
 for-time, the result-mode switch's vocabulary), the fields for it, the cap in minutes, Clear and
 Done, and one pencil-grey line saying how the score was counted. Enter or Escape closes it.
+Once scored, every station nobody marked counts as done (as planned, else as prescribed, the way
+a score on the board is Rx), and a pencil-grey note after the score box says so once: "Counted
+as prescribed", or "5 unmarked counted as prescribed" when some were marked. Those rows print no
+words of their own; their done level badge carries it.
 
 ### Variation Ladder
 
@@ -422,7 +426,11 @@ and a labelled marker on a rung prints its number in place of the rung's. Under 
 family, a share bar splits the reps by level in the ramp's fills. Level badges are square
 condensed caps on the ramp, solid when done and dashed when asked for. Used on the web
 `/levels` page (one row per family, tabs by group) and on importer protocol rows (small, no
-labels) and in the inspector.
+labels) and in the inspector. A done level that is only counted from a block's score keeps its
+ramp fill on a 1.5px dashed edge in the level's own ink (`data-assumed`): done, still open; its
+ruler marker is the same square, open on a 1.5px dashed ink edge. In
+the inspector the choice in effect ("As prescribed", or "As planned") prints as an outline button
+on a dashed ink border, "Scaled it" beside it; pressing it makes the choice the athlete's.
 
 ### Section Heads
 

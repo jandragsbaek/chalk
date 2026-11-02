@@ -79,14 +79,23 @@ export interface ScoredItem {
   readonly spanId?: SpanId | undefined;
   readonly sets: ReadonlyArray<{ readonly quantities: ReadonlyArray<Quantity> }>;
   readonly performance: Performance | undefined;
+  /** How it was planned; counts as done while nothing says how it went, as a score assumes. */
+  readonly plan?: Performance | undefined;
   readonly alternatives: ReadonlyArray<ScoredItem>;
 }
 
-/** The option a station was done by: an alternative only when it alone says how it went. */
-const doneOption = (item: ScoredItem): ScoredItem =>
-  item.performance === undefined
-    ? (item.alternatives.find((alternative) => alternative.performance !== undefined) ?? item)
-    : item;
+/**
+ * The option a station was done by: an alternative only when it alone says how it went. With
+ * nothing said, the planned option, as `deriveSession` assumes once the block is scored.
+ */
+const doneOption = (item: ScoredItem): ScoredItem => {
+  const options = [item, ...item.alternatives];
+  return (
+    options.find((option) => option.performance !== undefined) ??
+    options.find((option) => option.plan !== undefined) ??
+    item
+  );
+};
 
 /** True when `spanId` is the station or one of its options. */
 export const isStation = (item: ScoredItem, spanId: SpanId): boolean =>
@@ -114,7 +123,7 @@ export const stationCount = (
   sex: Sex | undefined,
 ): number | undefined => {
   const done = doneOption(item);
-  const perRound = done.performance?.perRound;
+  const perRound = (done.performance ?? done.plan)?.perRound;
   if (perRound !== undefined) return Math.round((perRound.min + perRound.max) / 2);
   let total: number | undefined;
   for (const set of done.sets) {
