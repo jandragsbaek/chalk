@@ -190,6 +190,83 @@ describe("suggestSpans", () => {
     ]);
   });
 
+  it("reads a slash between two movements as an alternative", () => {
+    const withJumpRope = makeMovementMatcher([
+      ...CATALOG,
+      { id: MovementId.make("single-under"), name: "Single-under", aliases: [] },
+      { id: MovementId.make("clean-and-jerk"), name: "Clean and jerk", aliases: ["Clean & jerk"] },
+    ]);
+    const text = [
+      "- 120 Double unders / 180 Single unders",
+      "- 15 Thrusters w/ 40kg",
+      "- 12 Wall ball 20/14",
+      "- 12 Clean & jerk @60/40kg",
+      "- 10 Burpees b/t 20 Thrusters",
+    ].join("\n");
+    let next = 0;
+    expect(
+      describeSpans(
+        text,
+        suggestSpans(text, withJumpRope, () => `s${++next}`),
+      ),
+    ).toEqual([
+      "movement Double unders = double-under",
+      "movement Single unders = single-under (or Double unders)",
+      "quantity 120 = 120 reps -> Double unders",
+      "quantity 180 = 180 reps -> Single unders",
+      "movement Thrusters = thruster",
+      "quantity 15 = 15 reps -> Thrusters",
+      "quantity 40kg = 40 kg -> Thrusters",
+      "movement Wall ball = wall-ball",
+      "quantity 12 = 12 reps -> Wall ball",
+      "quantity 20/14 = 20/14 reps -> Wall ball",
+      // A separator inside a movement's name splits nothing.
+      "movement Clean & jerk = clean-and-jerk",
+      "quantity 12 = 12 reps -> Clean & jerk",
+      "quantity @60/40kg = 60/40 kg -> Clean & jerk",
+      // "b/t" is an abbreviation, not a choice between the two.
+      "movement Burpees = burpee",
+      "movement Thrusters = thruster",
+      "quantity 10 = 10 reps -> Burpees",
+      "quantity 20 = 20 reps -> Thrusters",
+    ]);
+  });
+
+  it("reads a pause or tempo written around a lift as its catalog variation", () => {
+    const withVariations = makeMovementMatcher([
+      ...CATALOG,
+      { id: MovementId.make("clean"), name: "Clean", aliases: [] },
+      { id: MovementId.make("clean-pull"), name: "Clean pull", aliases: [] },
+      { id: MovementId.make("pause-clean"), name: "Pause clean", aliases: ["Paused clean"] },
+      { id: MovementId.make("tempo-clean-pull"), name: "Tempo clean pull", aliases: [] },
+    ]);
+    const text = [
+      "- 1 Tempo clean pull + 1 clean with 2 sec pause at knee + 1 clean",
+      "- 3 Back squat w/ 2-sec pause in the hole @70%",
+      "- 2 Paused clean",
+    ].join("\n");
+    let next = 0;
+    expect(
+      describeSpans(
+        text,
+        suggestSpans(text, withVariations, () => `s${++next}`),
+      ),
+    ).toEqual([
+      "movement Tempo clean pull = tempo-clean-pull",
+      "movement clean with 2 sec pause at knee = pause-clean",
+      "movement clean = clean",
+      "quantity 1 = 1 rep -> Tempo clean pull",
+      "quantity 1 = 1 rep -> clean with 2 sec pause at knee",
+      "quantity 1 = 1 rep -> clean",
+      // No pause back squat in the catalog: left open for the athlete, never a plain back squat.
+      "movement Back squat w/ 2-sec pause in the hole = undefined",
+      "quantity 3 = 3 reps -> Back squat w/ 2-sec pause in the hole",
+      "quantity @70% = 70 % -> Back squat w/ 2-sec pause in the hole",
+      "movement Paused clean = pause-clean",
+      "quantity 2 = 2 reps -> Paused clean",
+    ]);
+  });
+
   it("reads RPE on a movement line, and a line of only intensity as intent", () => {
     const text = "- Back squat 5x3 @RPE 8\n- Work up to RPE 9\n- 3 Deadlift @ 7-8 RPE";
     expect(describeSpans(text, suggest(text))).toEqual([

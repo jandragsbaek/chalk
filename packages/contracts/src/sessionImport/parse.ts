@@ -109,7 +109,11 @@ export const maskParentheses = (text: string): string =>
 
 interface Recognizer {
   readonly pattern: RegExp;
-  readonly read: (match: RegExpExecArray, text: string) => ReadonlyArray<QuantityMatch> | undefined;
+  /** The quantities read; `"claimed"` keeps the text from later recognizers but reads nothing. */
+  readonly read: (
+    match: RegExpExecArray,
+    text: string,
+  ) => ReadonlyArray<QuantityMatch> | "claimed" | undefined;
 }
 
 /** Counts a board may write per level ("18-15/15-12 cal"); loads and intensities never are. */
@@ -267,10 +271,13 @@ const RECOGNIZERS: ReadonlyArray<Recognizer> = [
       ),
   },
   {
-    // Durations of work. Caps ("max 50 sec") and rests describe the block, not the movement.
+    // Durations of work. Caps ("max 50 sec"), rests and pauses ("2 sec pause at knee") describe
+    // the block or the rep, not work on the movement.
     pattern: new RegExp(String.raw`(${R})\s*(sec(?:ond)?s?|s|min(?:ute)?s?)(?!\p{L})`, "giu"),
     read: (match, text) => {
       if (/\b(?:max|cap|rest|pause)\s*$/i.test(text.slice(0, match.index))) return [];
+      if (/^\s*(?:pause|paused|hvil|rest)\b/i.test(text.slice(match.index + match[0].length)))
+        return "claimed";
       return whole(match, quantityOf("seconds", match[1]!, undefined, timeFactor(match[2]!)));
     },
   },
@@ -328,7 +335,8 @@ export const parseQuantities = (
       const start = match.index;
       if (overlaps(taken, start, start + match[0].length)) continue;
       const read = recognizer.read(match as RegExpExecArray, text);
-      if (read && read.length > 0) take(read);
+      if (read === "claimed") taken.push([start, start + match[0].length]);
+      else if (read && read.length > 0) take(read);
     }
   }
   return found
