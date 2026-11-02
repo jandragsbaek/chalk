@@ -130,6 +130,22 @@ describe("deriveSession", () => {
     ]);
   });
 
+  it("reads an open-ended top percentage on an intent line as at least that percentage", () => {
+    const text = [
+      "Take 15 minutes to build to today's heavy 1-RM Push Press",
+      "Suggested loading:",
+      "*Set 5 - 1 @ 85-90%",
+      "*Set 6 - 1 @ 90+%",
+    ].join("\n");
+    const intents = deriveSession(documentOf(text), nameOf).parts.flatMap((part) =>
+      part.blocks.flatMap((block) => block.intents),
+    );
+    expect(intents.map((intent) => intent.quantities)).toEqual([
+      [{ measure: "percent_1rm", amount: { min: 85, max: 90 } }],
+      [{ measure: "percent_1rm", amount: { min: 90, max: 90 } }],
+    ]);
+  });
+
   it("keeps intent written between a movement and its format line, and drops it in the notes", () => {
     const text = "- Back squat\n- Build to RPE 9\n- Max out!\n- 3 reps\n*** Notes\n- Felt RPE 10";
     const at = (phrase: string) => ({
