@@ -1,6 +1,7 @@
 import {
   deriveSession,
   lineNumberOf,
+  loadUnitOf,
   makeMovementMatcher,
   scoresMovements,
   splitLines,
@@ -50,6 +51,7 @@ import {
 import { formatKg } from "../../lib/blockLabels.ts";
 import { findComplexes } from "../../lib/complexes.ts";
 import { gradeSession } from "../../lib/levelGrades.ts";
+import type { LoadUnit } from "../../lib/loadUnit.ts";
 import { asPlanned, withPlannedLoad } from "../../lib/plan.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
 import { resultDefaults } from "../../lib/resultDraft.ts";
@@ -67,6 +69,7 @@ import { SessionProtocol } from "./SessionProtocol.tsx";
 import { SessionTypeField } from "./SessionTypeField.tsx";
 import { SpanInspector, type ComplexInspection } from "./SpanInspector.tsx";
 import { KeySwatch, TAG_ACTIONS, TagBar } from "./TagBar.tsx";
+import { LoadUnitContext } from "./LoadUnitToggle.tsx";
 
 type SaveStatus =
   | { readonly type: "idle" }
@@ -176,6 +179,9 @@ export function ImportWorkbench({
   const [selection, setSelection] = useState<TextRange | undefined>();
   const [hovered, setHovered] = useState<SpanId | undefined>();
   const [status, setStatus] = useState<SaveStatus>({ type: "idle" });
+  /** Picked by the athlete; until then, the unit the pasted text lists its loads in. */
+  const [loadUnitPick, setLoadUnit] = useState<LoadUnit>();
+  const loadUnit = loadUnitPick ?? loadUnitOf(state.text);
   const saveImport = useAtomSet(saveImportAtom, { mode: "promiseExit" });
   const savePlan = useAtomSet(savePlanAtom, { mode: "promiseExit" });
   const editing = replace !== undefined || (planning && plan !== undefined);
@@ -842,78 +848,80 @@ export function ImportWorkbench({
           />
           <div className="min-h-0 flex-1 overflow-auto">
             {aside === "mark" && selected ? (
-              <SpanInspector
-                key={`${selected.id}:${revision}:${complexInspection?.shared ?? "single"}`}
-                span={selected}
-                mode={mode}
-                onAsPlanned={plan === undefined ? undefined : (spans) => takeAsPlanned(spans)}
-                complex={complexInspection}
-                text={state.text}
-                spans={state.spans}
-                catalog={catalog}
-                picking={state.picking}
-                programmed={
-                  programmed === undefined
-                    ? undefined
-                    : {
-                        item: programmed.item,
-                        defaults: withPlannedLoad(
-                          resultDefaults(programmed.item, programmed.block),
-                          selected?._tag === "movement" ? selected.plan : undefined,
-                        ),
-                        grade: grades.byItem.get(programmed.item.spanId),
-                        station: stationOptions(programmed.station),
-                        chosen: chosenOption(programmed.station, planning ? "planned" : "done")
-                          ?.spanId,
-                        scored: scoresMovements(programmed.block.format),
-                      }
-                }
-                onChooseOption={(chosen) => {
-                  if (programmed === undefined) return;
-                  const ids = new Set(
-                    stationOptions(programmed.station).map((option) => option.spanId),
-                  );
-                  const options = state.spans.filter(
-                    (span): span is SpanOf<"movement"> =>
-                      span._tag === "movement" && ids.has(span.id),
-                  );
-                  for (const span of chooseOption(
-                    options,
-                    chosen,
-                    planning ? "plan" : "performance",
-                  ))
-                    dispatch({ type: "update", span });
-                  dispatch({ type: "select", id: chosen });
-                  setRevision((count) => count + 1);
-                }}
-                onUpdate={(span) => dispatch({ type: "update", span })}
-                onRemove={(id) => dispatch({ type: "remove", id })}
-                onPick={(mode) => dispatch({ type: "pick", mode })}
-                tail={tails.get(selected.id)}
-                onVariationPicked={(span, movementId, end, learned) => {
-                  const { movementId: _old, ...open } = span;
-                  dispatch({
-                    type: "update",
-                    span:
-                      movementId === undefined ? { ...open, end } : { ...span, movementId, end },
-                  });
-                  if (learned && movementId !== undefined)
+              <LoadUnitContext value={{ unit: loadUnit, setUnit: setLoadUnit }}>
+                <SpanInspector
+                  key={`${selected.id}:${revision}:${complexInspection?.shared ?? "single"}`}
+                  span={selected}
+                  mode={mode}
+                  onAsPlanned={plan === undefined ? undefined : (spans) => takeAsPlanned(spans)}
+                  complex={complexInspection}
+                  text={state.text}
+                  spans={state.spans}
+                  catalog={catalog}
+                  picking={state.picking}
+                  programmed={
+                    programmed === undefined
+                      ? undefined
+                      : {
+                          item: programmed.item,
+                          defaults: withPlannedLoad(
+                            resultDefaults(programmed.item, programmed.block),
+                            selected?._tag === "movement" ? selected.plan : undefined,
+                          ),
+                          grade: grades.byItem.get(programmed.item.spanId),
+                          station: stationOptions(programmed.station),
+                          chosen: chosenOption(programmed.station, planning ? "planned" : "done")
+                            ?.spanId,
+                          scored: scoresMovements(programmed.block.format),
+                        }
+                  }
+                  onChooseOption={(chosen) => {
+                    if (programmed === undefined) return;
+                    const ids = new Set(
+                      stationOptions(programmed.station).map((option) => option.spanId),
+                    );
+                    const options = state.spans.filter(
+                      (span): span is SpanOf<"movement"> =>
+                        span._tag === "movement" && ids.has(span.id),
+                    );
+                    for (const span of chooseOption(
+                      options,
+                      chosen,
+                      planning ? "plan" : "performance",
+                    ))
+                      dispatch({ type: "update", span });
+                    dispatch({ type: "select", id: chosen });
+                    setRevision((count) => count + 1);
+                  }}
+                  onUpdate={(span) => dispatch({ type: "update", span })}
+                  onRemove={(id) => dispatch({ type: "remove", id })}
+                  onPick={(mode) => dispatch({ type: "pick", mode })}
+                  tail={tails.get(selected.id)}
+                  onVariationPicked={(span, movementId, end, learned) => {
+                    const { movementId: _old, ...open } = span;
                     dispatch({
-                      type: "tagPhrase",
-                      phrase: state.text.slice(span.start, end),
-                      movementId,
+                      type: "update",
+                      span:
+                        movementId === undefined ? { ...open, end } : { ...span, movementId, end },
                     });
-                }}
-                onMovementPicked={(span, movementId, learned) => {
-                  dispatch({ type: "update", span: { ...span, movementId } });
-                  if (learned)
-                    dispatch({
-                      type: "tagPhrase",
-                      phrase: state.text.slice(span.start, span.end),
-                      movementId,
-                    });
-                }}
-              />
+                    if (learned && movementId !== undefined)
+                      dispatch({
+                        type: "tagPhrase",
+                        phrase: state.text.slice(span.start, end),
+                        movementId,
+                      });
+                  }}
+                  onMovementPicked={(span, movementId, learned) => {
+                    dispatch({ type: "update", span: { ...span, movementId } });
+                    if (learned)
+                      dispatch({
+                        type: "tagPhrase",
+                        phrase: state.text.slice(span.start, span.end),
+                        movementId,
+                      });
+                  }}
+                />
+              </LoadUnitContext>
             ) : (
               <KeyReference selectedText={selectedText} onTag={tag} />
             )}

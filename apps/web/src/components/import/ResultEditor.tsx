@@ -10,10 +10,12 @@ import {
   draftFromResults,
   resultsFromDraft,
   switchMode,
+  switchUnit,
   type ResultDefaults,
   type ResultDraft,
   type ResultMode,
 } from "../../lib/resultDraft.ts";
+import { LoadUnitToggle, useLoadUnit } from "./LoadUnitToggle.tsx";
 
 /** "1 + 1" for a 1 + 2 complex: the last rep of the last movement missed. */
 const missedExample = (defaults: ReadonlyArray<ResultDefaults>) => {
@@ -73,7 +75,10 @@ export function ResultEditor({
 }) {
   const count = results.length;
   const complex = count > 1;
-  const [draft, setDraft] = useState(() => draftFromResults(results, defaults));
+  const { unit } = useLoadUnit();
+  const [typed, setDraft] = useState(() => draftFromResults(results, defaults, unit));
+  // Flipping the unit converts what is typed; the result stays the same.
+  const draft = typed.unit === unit ? typed : switchUnit(typed, unit);
 
   function edit(next: ResultDraft) {
     setDraft(next);
@@ -102,11 +107,16 @@ export function ResultEditor({
     <div className="grid gap-3 border-t pt-3">
       <div className="flex items-baseline justify-between gap-2">
         <span className="form-label text-muted-foreground">Sets lifted</span>
-        {draft.mode !== undefined ? (
-          <Button variant="ghost" size="sm" onClick={() => edit({ ...draft, mode: undefined })}>
-            Clear
-          </Button>
-        ) : null}
+        <span className="flex items-center gap-2">
+          {draft.mode !== undefined ? (
+            <>
+              <LoadUnitToggle />
+              <Button variant="ghost" size="sm" onClick={() => edit({ ...draft, mode: undefined })}>
+                Clear
+              </Button>
+            </>
+          ) : null}
+        </span>
       </div>
       <div role="radiogroup" aria-label="How the load moved" className="grid grid-cols-3 gap-1">
         {MODES.map(({ mode, label }) => (
@@ -140,7 +150,11 @@ export function ResultEditor({
             placeholder={repsHint}
             onChange={(reps) => edit({ ...draft, reps })}
           />
-          <Field label="Load kg" value={draft.load} onChange={(load) => edit({ ...draft, load })} />
+          <Field
+            label={`Load ${unit}`}
+            value={draft.load}
+            onChange={(load) => edit({ ...draft, load })}
+          />
         </div>
       ) : null}
 
@@ -154,14 +168,14 @@ export function ResultEditor({
             onChange={(reps) => edit({ ...draft, reps })}
           />
           <Field
-            label="First set kg"
+            label={`First set ${unit}`}
             value={draft.load}
             onChange={(load) => edit({ ...draft, load })}
           />
           <Field
-            label="Step kg"
+            label={`Step ${unit}`}
             value={draft.step}
-            placeholder="2.5"
+            placeholder={unit === "lb" ? "5" : "2.5"}
             onChange={(step) => edit({ ...draft, step })}
           />
         </div>
@@ -175,7 +189,7 @@ export function ResultEditor({
           >
             <span>Set</span>
             <span>Reps</span>
-            <span>Load kg</span>
+            <span>Load {unit}</span>
           </div>
           <ol className="grid gap-1">
             {draft.rows.map((row, index) => (
@@ -194,7 +208,7 @@ export function ResultEditor({
                 />
                 <Input
                   inputMode="decimal"
-                  aria-label={`Set ${index + 1} load in kg`}
+                  aria-label={`Set ${index + 1} load in ${unit}`}
                   value={row.load}
                   onChange={(event) => setRow(index, "load", event.target.value)}
                 />

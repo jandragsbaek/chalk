@@ -14,7 +14,14 @@ import {
   SNATCH_EMOM_PLAIN,
 } from "./fixtures/sessions.ts";
 import { makeMovementMatcher, normalizeMovementPhrase } from "./movementMatcher.ts";
-import { parseBlockFormat, parseRoundRest, quantityFromText } from "./parse.ts";
+import {
+  kgToPounds,
+  loadUnitOf,
+  parseBlockFormat,
+  parseRoundRest,
+  poundsToKg,
+  quantityFromText,
+} from "./parse.ts";
 import { suggestAttachment, suggestSpans } from "./suggest.ts";
 
 const matcher = makeMovementMatcher(CATALOG);
@@ -274,6 +281,42 @@ describe("parse helpers", () => {
       amount: { min: 90, max: 90 },
     });
     expect(quantityFromText("heavy", "load_kg")).toBeUndefined();
+  });
+
+  it("reads loads written in pounds however the board spells them", () => {
+    const text = [
+      "Deadlift 3x3 @225#",
+      "Thrusters 95/65 pounds",
+      "Front squat 5 x 3 @ 135 lbs",
+      "Back squat 3x5 @ 60 kilos",
+    ].join("\n");
+    expect(describeSpans(text, suggest(text)).filter((row) => row.startsWith("quantity"))).toEqual([
+      "quantity 3 = 3 sets -> Deadlift",
+      "quantity 3 = 3 reps -> Deadlift",
+      "quantity 225# = 102 kg -> Deadlift",
+      "quantity 95/65 pounds = 43/29.5 kg -> Thrusters",
+      "quantity 5 = 5 sets -> Front squat",
+      "quantity 3 = 3 reps -> Front squat",
+      "quantity 135 lbs = 61.25 kg -> Front squat",
+      "quantity 3 = 3 sets -> Back squat",
+      "quantity 5 = 5 reps -> Back squat",
+      "quantity 60 kilos = 60 kg -> Back squat",
+    ]);
+  });
+
+  it("tells the unit a session writes its loads in", () => {
+    expect(loadUnitOf("Deadlift 5x3 @225#\nThrusters 95/65 lb")).toBe("lb");
+    expect(loadUnitOf("Back squat 5x5 @100 kg\nDB snatch 50 lb")).toBe("kg");
+    expect(loadUnitOf("Back squat 5x5 @75%")).toBe("kg");
+  });
+
+  it("converts pounds to the quarter kilo and back to the pound typed", () => {
+    expect(poundsToKg(135)).toBe(61.25);
+    expect(kgToPounds(61.25)).toBe(135);
+    expect([95, 136, 225, 315].map((pounds) => kgToPounds(poundsToKg(pounds)))).toEqual([
+      95, 136, 225, 315,
+    ]);
+    expect(kgToPounds(60)).toBe(132.3);
   });
 
   it("normalizes movement phrases for alias lookups", () => {

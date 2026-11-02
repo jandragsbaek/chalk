@@ -48,6 +48,31 @@ const toNumber = (raw: string) => Number(raw.replace(",", "."));
 const LB_TO_KG = 0.45359237;
 const roundKg = (kg: number) => Math.round(kg * 4) / 4;
 
+/** Pounds as kilograms, to the quarter kilo; "135" lb is 61.25 kg. */
+export const poundsToKg = (pounds: number): number => roundKg(pounds * LB_TO_KG);
+
+/**
+ * Kilograms in pounds, as the athlete would have typed them: the whole pound that converts back
+ * to `kg` (61.25 kg is 135 lb), else to the tenth.
+ */
+export const kgToPounds = (kg: number): number => {
+  const whole = Math.round(kg / LB_TO_KG);
+  return poundsToKg(whole) === kg ? whole : Math.round((kg / LB_TO_KG) * 10) / 10;
+};
+
+/** A load's unit as written: "kg", "kgs", "kilo(s)", "lb(s)", "pound(s)", or the "#" of "225#". */
+const LOAD_UNIT = String.raw`(kgs?|kilos?|lbs?|pounds?|#)`;
+const isPounds = (unit: string | undefined) => /^(?:lb|pound|#)/i.test(unit ?? "");
+
+/**
+ * The unit the text writes its loads in: pounds when every load with a unit is in pounds, else
+ * kilograms. A session listed in pounds is entered in pounds.
+ */
+export const loadUnitOf = (text: string): "kg" | "lb" => {
+  const units = [...text.matchAll(new RegExp(String.raw`\d\s*${LOAD_UNIT}(?!\p{L})`, "giu"))];
+  return units.length > 0 && units.every((match) => isPounds(match[1])) ? "lb" : "kg";
+};
+
 /** "8-10" → 8..10, "18-15" → 15..18, "21-15-9" → a scheme summing to 45. */
 const parseRange = (raw: string): { amount: Amount; scheme?: ReadonlyArray<number> } => {
   const numbers = raw.split(/\s*-\s*/).map(toNumber);
@@ -152,7 +177,7 @@ const RECOGNIZERS: ReadonlyArray<Recognizer> = [
   {
     // "5x5", "3 x 8-10": sets then reps, unless the second number carries a unit.
     pattern: new RegExp(
-      String.raw`(?<![\p{L}\d])(\d+)\s*[x×]\s*(${R})(?![\d.,]|\s*(?:kg|lbs?|%|sec|s\b|min|m\b|cal))`,
+      String.raw`(?<![\p{L}\d])(\d+)\s*[x×]\s*(${R})(?![\d.,]|\s*(?:kg|kilo|lbs?|pound|#|%|sec|s\b|min|m\b|cal))`,
       "giu",
     ),
     read: (match) => {
@@ -178,10 +203,10 @@ const RECOGNIZERS: ReadonlyArray<Recognizer> = [
     read: (match) => whole(match, quantityOf("percent_1rm", (match[1] ?? match[2])!)),
   },
   {
-    // "@40/25", "@60/40 kg", "@95/65 lb": male/female loads.
-    pattern: new RegExp(String.raw`@\s*(${R})\s*\/\s*(${R})\s*(kg|kilo|lbs?)?(?!\p{L})`, "giu"),
+    // "@40/25", "@60/40 kg", "@95/65 lb", "@95/65#": male/female loads.
+    pattern: new RegExp(String.raw`@\s*(${R})\s*\/\s*(${R})\s*${LOAD_UNIT}?(?!\p{L})`, "giu"),
     read: (match) => {
-      const pounds = /^lb/i.test(match[3] ?? "");
+      const pounds = isPounds(match[3]);
       return whole(
         match,
         quantityOf(
@@ -195,9 +220,9 @@ const RECOGNIZERS: ReadonlyArray<Recognizer> = [
     },
   },
   {
-    pattern: new RegExp(String.raw`(${R})(?:\s*\/\s*(${R}))?\s*(kg|kilo|lbs?)(?!\p{L})`, "giu"),
+    pattern: new RegExp(String.raw`(${R})(?:\s*\/\s*(${R}))?\s*${LOAD_UNIT}(?!\p{L})`, "giu"),
     read: (match) => {
-      const pounds = /^lb/i.test(match[3]!);
+      const pounds = isPounds(match[3]);
       return whole(
         match,
         quantityOf(
@@ -212,7 +237,7 @@ const RECOGNIZERS: ReadonlyArray<Recognizer> = [
   },
   {
     // A bare "@60" is a load in kg.
-    pattern: new RegExp(String.raw`@\s*(${R})(?![\d.,%@\/]|\s*(?:\/|kg|lb))`, "gu"),
+    pattern: new RegExp(String.raw`@\s*(${R})(?![\d.,%@\/]|\s*(?:\/|kg|kilo|lb|pound|#))`, "gu"),
     read: (match) => whole(match, quantityOf("load_kg", match[1]!)),
   },
   {
@@ -251,7 +276,7 @@ const RECOGNIZERS: ReadonlyArray<Recognizer> = [
   },
   {
     // "150 kg x 3": reps after a load.
-    pattern: /(?<![\p{L}\d])[x×]\s*(\d+)(?![\d.,]|\s*(?:kg|lbs?|%))/giu,
+    pattern: /(?<![\p{L}\d])[x×]\s*(\d+)(?![\d.,]|\s*(?:kg|kilo|lbs?|pound|#|%))/giu,
     read: (match) => whole(match, quantityOf("reps", match[1]!)),
   },
 ];

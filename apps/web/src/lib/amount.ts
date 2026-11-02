@@ -1,5 +1,11 @@
 import type { Amount } from "@chalk/contracts";
 
+/** A typed number, "," as decimal point; `undefined` when blank or not a number. */
+export const readNumber = (raw: string): number | undefined => {
+  const value = Number(raw.trim().replace(",", "."));
+  return raw.trim() === "" || !Number.isFinite(value) ? undefined : value;
+};
+
 /** A typed number ("12", "2,5"); blank, negative or not a number is none. */
 export const toNumber = (raw: string): number | undefined => {
   const value = Number(raw.replace(",", "."));
