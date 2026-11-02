@@ -195,50 +195,67 @@ function OptionRow({
             no numbers
           </span>
         ) : (
-          item.sets.map((set) => (
-            <span key={set.line} data-attempt className="inline-flex gap-0.5 p-0.5">
-              {set.quantities.map((quantity) => {
-                const key = `${quantity.measure}-${quantity.amount.min}-${quantity.amount.max}`;
-                if (change === undefined || !isStruck(quantity, change, sex))
+          item.sets.map((set) => {
+            const from = set.carried === undefined ? undefined : editor?.lineOf(set.carried.from);
+            return (
+              <span key={set.line} data-attempt className="inline-flex gap-0.5 p-0.5">
+                {set.quantities.map((quantity) => {
+                  const key = `${quantity.measure}-${quantity.amount.min}-${quantity.amount.max}`;
+                  if (change === undefined || !isStruck(quantity, change, sex)) {
+                    // Written once on another line of this movement and held here: offered, so dashed.
+                    const carried = set.carried !== undefined && quantity.measure === "load_kg";
+                    return (
+                      <span
+                        key={key}
+                        data-chip
+                        data-measure={quantity.measure}
+                        data-derived={carried ? "" : undefined}
+                        title={
+                          carried
+                            ? `Written once${from === undefined ? "" : ` on L${from}`} and held for this line. Write a load on the line to change it.`
+                            : undefined
+                        }
+                        className="px-1.5 text-sm font-medium leading-6 tabular-nums"
+                      >
+                        {formatQuantity(quantity)}
+                        {carried && from !== undefined ? (
+                          <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">
+                            L{from}
+                          </span>
+                        ) : null}
+                      </span>
+                    );
+                  }
+                  // A changed attempt: the board's load struck, the one used written beside it.
+                  const board = formatQuantity({
+                    measure: quantity.measure,
+                    amount: loadSide(quantity, sex),
+                  });
                   return (
-                    <span
-                      key={key}
-                      data-chip
-                      data-measure={quantity.measure}
-                      className="px-1.5 text-sm font-medium leading-6 tabular-nums"
-                    >
-                      {formatQuantity(quantity)}
-                    </span>
+                    <Fragment key={key}>
+                      <del
+                        data-chip
+                        data-measure={quantity.measure}
+                        data-struck
+                        title={`The board wrote ${board}`}
+                        className="px-1.5 text-sm font-medium leading-6 tabular-nums"
+                      >
+                        {board}
+                      </del>
+                      <ins
+                        data-chip
+                        data-measure={quantity.measure}
+                        title={`Done at ${formatKg(change.doneKg)}`}
+                        className="px-1.5 text-sm font-medium leading-6 tabular-nums no-underline"
+                      >
+                        {formatKg(change.doneKg)}
+                      </ins>
+                    </Fragment>
                   );
-                // A changed attempt: the board's load struck, the one used written beside it.
-                const board = formatQuantity({
-                  measure: quantity.measure,
-                  amount: loadSide(quantity, sex),
-                });
-                return (
-                  <Fragment key={key}>
-                    <del
-                      data-chip
-                      data-measure={quantity.measure}
-                      data-struck
-                      title={`The board wrote ${board}`}
-                      className="px-1.5 text-sm font-medium leading-6 tabular-nums"
-                    >
-                      {board}
-                    </del>
-                    <ins
-                      data-chip
-                      data-measure={quantity.measure}
-                      title={`Done at ${formatKg(change.doneKg)}`}
-                      className="px-1.5 text-sm font-medium leading-6 tabular-nums no-underline"
-                    >
-                      {formatKg(change.doneKg)}
-                    </ins>
-                  </Fragment>
-                );
-              })}
-            </span>
-          ))
+                })}
+              </span>
+            );
+          })
         )}
         {change === undefined ? null : (
           <span className="flex h-7 items-center text-xs text-muted-foreground tabular-nums">

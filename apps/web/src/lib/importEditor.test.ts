@@ -1,7 +1,21 @@
-import { MovementId, makeMovementMatcher, suggestSpans, type Span } from "@chalk/contracts";
+import {
+  MovementId,
+  deriveSession,
+  makeMovementMatcher,
+  suggestSpans,
+  type Span,
+} from "@chalk/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { editorReducer, initialEditorState, type EditorState } from "./importEditor.ts";
+import {
+  carriedEchoes,
+  carriedLinks,
+  carriedLoadsOf,
+  editorReducer,
+  initialEditorState,
+  linkedIds,
+  type EditorState,
+} from "./importEditor.ts";
 
 const CATALOG = [
   { id: MovementId.make("double-under"), name: "Double-under", aliases: [] },
@@ -173,6 +187,50 @@ describe("editorReducer", () => {
       _tag: "block",
       format: "amrap",
       params: { durationSeconds: 900 },
+    });
+  });
+});
+
+describe("carried loads", () => {
+  const catalog = [
+    { id: MovementId.make("power-clean"), name: "Power clean", aliases: [] },
+    { id: MovementId.make("burpee"), name: "Burpee", aliases: [] },
+  ];
+  const text = "For time:\n21 Power cleans @ 60 kg\n15 Burpees\n15 Power cleans\n9 Power cleans";
+  let next = 0;
+  const document = {
+    text,
+    spans: suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`),
+  };
+  const session = deriveSession(document, (id) => catalog.find((m) => m.id === id)?.name);
+  const carried = carriedLoadsOf(session);
+  const load = document.spans.find(
+    (span) => span._tag === "quantity" && span.measure === "load_kg",
+  );
+  const [, second, third] = document.spans.filter(
+    (span) => span._tag === "movement" && span.movementId === "power-clean",
+  );
+  const lit = (pointed: string) => {
+    const pointedIds = linkedIds(document.spans, pointed);
+    return {
+      links: carriedLinks(carried, pointed, pointedIds),
+      echoes: [...carriedEchoes(carried, document, pointed, pointedIds)].map(
+        ([line, echo]) => `${line}: ${echo.text}${echo.linked ? " lit" : ""}`,
+      ),
+    };
+  };
+
+  it("lights a movement's load and its own echo, not another line holding the same load", () => {
+    expect(lit(second!.id)).toEqual({
+      links: [load!.id],
+      echoes: ["3: 60 kg · L2 lit", "4: 60 kg · L2"],
+    });
+  });
+
+  it("lights every movement holding a load, and their echoes, with the load", () => {
+    expect(lit(load!.id)).toEqual({
+      links: [second!.id, third!.id],
+      echoes: ["3: 60 kg · L2 lit", "4: 60 kg · L2 lit"],
     });
   });
 });

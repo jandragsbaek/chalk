@@ -31,6 +31,12 @@ import { lineIndexAt, parseQuantities, splitLines, type Line } from "./parse.ts"
 export interface DerivedSet {
   readonly line: number;
   readonly quantities: ReadonlyArray<Quantity>;
+  /**
+   * The set's load was not written on its line but carried from the load span `from`, written
+   * once on the same movement earlier (or later) in the block: "21 power cleans (61 kg) / 15
+   * power cleans".
+   */
+  readonly carried?: { readonly from: SpanId };
 }
 
 export interface DerivedItem {
@@ -324,6 +330,18 @@ const sessionTitle = (
 /** What the movements of a complex share when written once after the last: intensity, not load. */
 const SHARED_MEASURES: ReadonlySet<Quantity["measure"]> = new Set(["percent_1rm", "rpe"]);
 
+/**
+ * Blocks done round by round, where a load written once holds for the movement's every line. A
+ * strength block repeats a lift bare for another load ("build to a heavy 3"), so it keeps none.
+ */
+const CARRIES_LOAD: ReadonlySet<BlockFormat | undefined> = new Set([
+  "for_time",
+  "amrap",
+  "emom",
+  "every",
+  "intervals",
+]);
+
 /** "1) 18-15/15-12 cal row": a numbered line of a rotating EMOM. */
 const ROTATION_LINE = /^(\d{1,2})\)\s/;
 
@@ -596,24 +614,74 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     );
   };
 
-  const setsOf = (movement: SpanOf<"movement">): ReadonlyArray<DerivedSet> => {
+  /**
+   * The board writes a load once ("21 power cleans (60 kg) / 15 power cleans"): a bare line of the
+   * same movement takes it, or with several written, the nearest above. A line with its own load,
+   * %, or RPE keeps those. By the receiving movement's id, the load span it takes.
+   */
+  type CarriedLoads = ReadonlyMap<SpanId, SpanOf<"quantity">>;
+  const carriedLoadsOf = (movements: ReadonlyArray<SpanOf<"movement">>): CarriedLoads => {
+    const carried = new Map<SpanId, SpanOf<"quantity">>();
+    const byMovement = Map.groupBy(
+      movements.filter((movement) => movement.movementId !== undefined),
+      (movement) => movement.movementId!,
+    );
+    const loadKey = (load: SpanOf<"quantity">) =>
+      JSON.stringify([load.amount, load.female ?? null]);
+    for (const group of byMovement.values()) {
+      const loads = group
+        .flatMap((movement) =>
+          (quantitiesOf.get(movement.id) ?? []).filter((q) => q.measure === "load_kg"),
+        )
+        .sort((left, right) => left.start - right.start);
+      if (loads.length === 0) continue;
+      const single = new Set(loads.map(loadKey)).size === 1;
+      for (const movement of group) {
+        const own = quantitiesOf.get(movement.id) ?? [];
+        if (
+          own.some(
+            (q) => q.measure === "load_kg" || q.measure === "percent_1rm" || q.measure === "rpe",
+          ) ||
+          sharedOf(movement).length > 0
+        )
+          continue;
+        const from = single ? loads[0] : loads.findLast((load) => load.start < movement.start);
+        if (from !== undefined) carried.set(movement.id, from);
+      }
+    }
+    return carried;
+  };
+  const toQuantity = ({ measure, amount, female, scheme, tiers }: Quantity): Quantity => ({
+    measure,
+    amount,
+    ...(female === undefined ? {} : { female }),
+    ...(scheme === undefined ? {} : { scheme }),
+    ...(tiers === undefined ? {} : { tiers }),
+  });
+
+  const setsOf = (
+    movement: SpanOf<"movement">,
+    carriedLoads: CarriedLoads,
+  ): ReadonlyArray<DerivedSet> => {
     const sets = new Map<number, Array<Quantity>>();
     const own = quantitiesOf.get(movement.id) ?? [];
     const shared = movement.alternativeOf === undefined ? sharedOf(movement) : [];
     for (const quantity of [...own, ...shared].sort((left, right) => left.start - right.start)) {
       const line = lineOf(quantity.start);
-      const { measure, amount, female, scheme, tiers } = quantity;
       const list = sets.get(line) ?? [];
-      list.push({
-        measure,
-        amount,
-        ...(female === undefined ? {} : { female }),
-        ...(scheme === undefined ? {} : { scheme }),
-        ...(tiers === undefined ? {} : { tiers }),
-      });
+      list.push(toQuantity(quantity));
       sets.set(line, list);
     }
-    return Array.from(sets, ([line, quantities]) => ({ line, quantities }));
+    const carried = carriedLoads.get(movement.id);
+    if (carried === undefined)
+      return Array.from(sets, ([line, quantities]) => ({ line, quantities }));
+    // Every line of the movement lifts the load; a movement with no numbers lifts it once.
+    if (sets.size === 0) sets.set(lineOf(movement.start), []);
+    return Array.from(sets, ([line, quantities]) => ({
+      line,
+      quantities: [...quantities, toQuantity(carried)],
+      carried: { from: carried.id },
+    }));
   };
 
   const listedOf = (movement: SpanOf<"movement">): ReadonlyArray<PerformedSet> => {
@@ -652,18 +720,20 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     return undefined;
   };
 
-  const toItem = (movement: SpanOf<"movement">): DerivedItem => {
+  const toItem = (movement: SpanOf<"movement">, carriedLoads: CarriedLoads): DerivedItem => {
     const listed = listedOf(movement);
     return {
       spanId: movement.id,
       movementId: movement.movementId,
       text: slice(movement),
-      sets: setsOf(movement),
+      sets: setsOf(movement, carriedLoads),
       performed: listed.filter((set) => set.reps > 0),
       listed,
       performance: checkedPerformance(movement, movement.performance, ""),
       plan: checkedPerformance(movement, movement.plan, " (plan)"),
-      alternatives: (alternativesOf.get(movement.id) ?? []).map(toItem),
+      alternatives: (alternativesOf.get(movement.id) ?? []).map((alternative) =>
+        toItem(alternative, carriedLoads),
+      ),
     };
   };
   /**
@@ -1009,7 +1079,12 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     return {
       ...base,
       blocks: blocks.map((block, index) => {
-        const listed = block.items.map(toItem);
+        const carried = CARRIES_LOAD.has(block.format)
+          ? carriedLoadsOf(
+              block.items.flatMap((item) => [item, ...(alternativesOf.get(item.id) ?? [])]),
+            )
+          : new Map<SpanId, SpanOf<"quantity">>();
+        const listed = block.items.map((item) => toItem(item, carried));
         const rotation = rotationOf(block.spanId);
         const owner = block.spanId === undefined ? undefined : byId.get(block.spanId);
         const scored = resultFor(owner?._tag === "block" ? owner : undefined, {

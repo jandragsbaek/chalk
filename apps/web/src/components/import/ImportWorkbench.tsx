@@ -42,6 +42,9 @@ import { Highlighter, ListChecks, RotateCcw, Save, Undo2, X } from "lucide-react
 import { useEffect, useEffectEvent, useReducer, useRef, useState, type ReactNode } from "react";
 
 import {
+  carriedEchoes,
+  carriedLinks,
+  carriedLoadsOf,
   editorReducer,
   initialEditorState,
   linkedIds,
@@ -302,10 +305,14 @@ export function ImportWorkbench({
   }
   const pointed = hovered ?? state.selectedId;
   // A complex lights as one: its other movements go with the one pointed at.
-  const linked = new Set([
+  const pointedIds = new Set([
     ...linkedIds(state.spans, pointed),
     ...(pointed === undefined ? [] : (complexes.get(pointed)?.members ?? [])),
   ]);
+  // A load written once lights with every line holding it, and each of those with it.
+  const carried = carriedLoadsOf(session);
+  const linked = new Set([...pointedIds, ...carriedLinks(carried, pointed, pointedIds)]);
+  const echoes = carriedEchoes(carried, state, pointed, pointedIds);
   // Words left after a movement with a family ("o. line" after "Burpee"): maybe a variation.
   const tails = new Map(
     state.spans.flatMap((span) => {
@@ -315,8 +322,8 @@ export function ImportWorkbench({
       return tail === undefined ? [] : [[span.id, tail] as const];
     }),
   );
-  const hasDateSpan = state.spans.some((span) => span._tag === "date");
   const lines = splitLines(state.text);
+  const hasDateSpan = state.spans.some((span) => span._tag === "date");
   const lineOf = (id: SpanId) => {
     const span = state.spans.find((candidate) => candidate.id === id);
     return span === undefined ? undefined : lineNumberOf(lines, span.start);
@@ -707,6 +714,7 @@ export function ImportWorkbench({
               onClickSpan={handleClickSpan}
               flaggedLines={flaggedLines}
               tails={tails}
+              carried={echoes}
             />
           </div>
         </section>
@@ -852,6 +860,7 @@ export function ImportWorkbench({
                 <SpanInspector
                   key={`${selected.id}:${revision}:${complexInspection?.shared ?? "single"}`}
                   span={selected}
+                  carried={carried}
                   mode={mode}
                   onAsPlanned={plan === undefined ? undefined : (spans) => takeAsPlanned(spans)}
                   complex={complexInspection}
