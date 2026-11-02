@@ -122,7 +122,7 @@ export const sessionPowerRows = (
           ];
     }
     const work = estimateSessionWork(
-      deriveSession(session.document, (id) => nameById.get(id)),
+      deriveSession(session.document, (id) => nameById.get(id), { sex: body.sex }),
       body,
       modelOf,
     );

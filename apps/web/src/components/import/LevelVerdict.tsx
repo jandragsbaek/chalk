@@ -55,6 +55,7 @@ const markersOf = (
   grade: ItemGrade,
   nameOf: (id: MovementId) => string | undefined,
   side: GradeSide,
+  assumed = false,
 ) => {
   const markers: Array<RulerMarker> = [];
   const performed = grade.performed;
@@ -69,6 +70,7 @@ const markersOf = (
     markers.push({
       kind: "performed",
       position: performed.position,
+      assumed,
       ...(performed.loadKg === undefined ? {} : { label: kgFormat.format(performed.loadKg) }),
       title: `${WORDS[side].at} ${levelName(performed.level)}${performed.loadKg === undefined ? "" : `, ${kgFormat.format(performed.loadKg)} kg`}`,
     });
@@ -89,18 +91,25 @@ const segmentsOf = (grade: ItemGrade, shares: ReadonlyArray<LevelShare>, sex: Se
   }));
 
 /**
- * Board and done as two badges: dashed for what was asked, solid for what was done. `compact`
- * leaves out a side that is missing instead of saying so.
+ * Board and done as two badges: dashed for what was asked, solid for what was done (its fill on
+ * a dashed edge when only `assumed` from the block's score). `compact` leaves out a side that is
+ * missing instead of saying so.
  */
 function Badges({
   grade,
   side,
   compact = false,
+  assumed = false,
 }: {
   readonly grade: ItemGrade;
   readonly side: GradeSide;
   readonly compact?: boolean;
+  readonly assumed?: boolean;
 }) {
+  const doneTitle = (level: Parameters<typeof levelName>[0]) =>
+    assumed
+      ? `Counted as ${levelName(level)}: the block is scored and nothing says it was scaled`
+      : `${WORDS[side].at} ${levelName(level)}`;
   if (compact && (grade.prescribed === undefined || grade.performed === undefined))
     return grade.prescribed === undefined && grade.performed === undefined ? null : (
       <span className="inline-flex items-center gap-2">
@@ -115,7 +124,8 @@ function Badges({
         ) : (
           <LevelBadge
             level={levelKey(grade.performed.level)}
-            title={`${WORDS[side].at} ${levelName(grade.performed.level)}`}
+            assumed={assumed}
+            title={doneTitle(grade.performed.level)}
           >
             {levelName(grade.performed.level)}
           </LevelBadge>
@@ -143,7 +153,8 @@ function Badges({
       ) : (
         <LevelBadge
           level={levelKey(grade.performed.level)}
-          title={`${WORDS[side].at} ${levelName(grade.performed.level)}`}
+          assumed={assumed}
+          title={doneTitle(grade.performed.level)}
         >
           {levelName(grade.performed.level)}
         </LevelBadge>
@@ -162,12 +173,16 @@ export interface LevelLead {
   readonly note?: string | undefined;
 }
 
-/** One protocol row's level: its lead in words, board to done, a small ruler, any rep split. */
+/**
+ * One protocol row's level: its lead in words, board to done, a small ruler, any rep split. Done
+ * only by `assumed` (from the block's score) prints open, dashed, like a plan: nobody said so.
+ */
 export function LevelLine({
   grade,
   nameOf,
   side = "done",
   lead,
+  assumed = false,
   ruler = true,
   compact = false,
 }: {
@@ -175,6 +190,7 @@ export function LevelLine({
   readonly nameOf: (id: MovementId) => string | undefined;
   readonly side?: GradeSide;
   readonly lead?: LevelLead | undefined;
+  readonly assumed?: boolean | undefined;
   /** Off for rows that are not selected; the inspector keeps the full ruler. */
   readonly ruler?: boolean;
   /** Badges only for the sides there are, without words for a missing one. */
@@ -186,15 +202,15 @@ export function LevelLine({
   return (
     <span
       data-level-line
-      data-plan-box={lead?.label === "Planned" ? "" : undefined}
-      data-done-box={lead?.label === "Done" ? "" : undefined}
+      data-plan-box={lead?.label === "Planned" || (lead && assumed) ? "" : undefined}
+      data-done-box={lead?.label === "Done" && !assumed ? "" : undefined}
       className="flex basis-full flex-wrap items-center gap-x-4 gap-y-1 px-1.5 text-sm leading-6"
     >
       {/* The lead and the badges wrap as two units, so no line ends on a separator. */}
       {lead === undefined ? (
         <span className="inline-flex flex-wrap items-center gap-x-2">
           <span className="form-label text-muted-foreground">Level</span>
-          <Badges grade={grade} side={side} compact={compact} />
+          <Badges grade={grade} side={side} compact={compact} assumed={assumed} />
         </span>
       ) : (
         <>
@@ -205,7 +221,7 @@ export function LevelLine({
               <span className="text-xs text-muted-foreground">{lead.note}</span>
             )}
           </span>
-          <Badges grade={grade} side={side} compact={compact} />
+          <Badges grade={grade} side={side} compact={compact} assumed={assumed} />
         </>
       )}
       {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
@@ -214,7 +230,7 @@ export function LevelLine({
           <LevelRuler
             size="sm"
             stops={familyStops(family, sex)}
-            markers={markersOf(grade, nameOf, side)}
+            markers={markersOf(grade, nameOf, side, assumed)}
             range={
               grade.prescribed && family.id === grade.family.id
                 ? { from: grade.prescribed.position, to: grade.prescribed.position }
@@ -233,10 +249,13 @@ export function LevelVerdict({
   grade,
   nameOf,
   side = "done",
+  assumed = false,
 }: {
   readonly grade: ItemGrade;
   readonly nameOf: (id: MovementId) => string | undefined;
   readonly side?: GradeSide;
+  /** Counted as done from the block's score, not said. */
+  readonly assumed?: boolean;
 }) {
   const sex = useAthleteSex();
   const family = grade.performed?.family ?? grade.family;
@@ -248,11 +267,11 @@ export function LevelVerdict({
         <span className="text-sm font-semibold">{family.name}</span>
       </span>
       <span className="flex flex-wrap items-center gap-2 text-sm">
-        <Badges grade={grade} side={side} />
+        <Badges grade={grade} side={side} assumed={assumed} />
       </span>
       <LevelRuler
         stops={familyStops(family, sex)}
-        markers={markersOf(grade, nameOf, side)}
+        markers={markersOf(grade, nameOf, side, assumed)}
         range={
           grade.prescribed && family.id === grade.family.id
             ? { from: grade.prescribed.position, to: grade.prescribed.position }

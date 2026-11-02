@@ -93,6 +93,10 @@ const leadOf = (item: DerivedItem, names: ProtocolNames, sex: Sex): LevelLead | 
     item.plan === undefined ? undefined : describePlan(item.plan, names.nameOf, sex, item);
   if (names.gradeSide === "planned" || item.performance === undefined)
     return plan === undefined ? undefined : { label: "Planned", text: plan };
+  // Counted from the block's score: the plan, when there is one, is what it counts as. As
+  // prescribed needs no words; the block header says it once.
+  if (item.assumed)
+    return plan === undefined ? undefined : { label: "Done", text: plan, note: "as planned" };
   const done = describePlan(item.performance, names.nameOf, sex, item);
   if (plan === undefined)
     return item.performance.perRound === undefined ? undefined : { label: "Done", text: done };
@@ -287,8 +291,8 @@ function OptionRow({
         ) : null}
         {lead !== undefined && grade === undefined ? (
           <span
-            data-plan-box={lead.label === "Planned" ? "" : undefined}
-            data-done-box={lead.label === "Done" ? "" : undefined}
+            data-plan-box={lead.label === "Planned" || item.assumed ? "" : undefined}
+            data-done-box={lead.label === "Done" && !item.assumed ? "" : undefined}
             className="flex basis-full flex-wrap items-baseline gap-x-2 px-1.5 text-sm leading-6"
           >
             <span className="form-label text-muted-foreground">{lead.label}</span>
@@ -304,6 +308,7 @@ function OptionRow({
             nameOf={names.nameOf}
             side={names.gradeSide ?? "done"}
             lead={lead}
+            assumed={item.assumed}
             ruler={!editor?.rulerOnSelectedOnly || selected}
             compact={!selected}
           />
@@ -564,6 +569,27 @@ function ScoreBox({ label, children }: { readonly label: string; readonly childr
 }
 
 /**
+ * Once the block is scored, what its stations nobody marked count as: "Counted as prescribed",
+ * or "2 unmarked counted as planned" when some were marked.
+ */
+const assumedNote = (block: DerivedBlock): string | undefined => {
+  const assumed = block.items.flatMap((item) =>
+    [item, ...item.alternatives].filter((option) => option.assumed),
+  );
+  if (assumed.length === 0) return undefined;
+  const planned = assumed.filter((option) => option.plan !== undefined).length;
+  const as =
+    planned === 0
+      ? "as prescribed"
+      : planned === assumed.length
+        ? "as planned"
+        : "as planned or prescribed";
+  return assumed.length === block.items.length
+    ? `Counted ${as}`
+    : `${assumed.length} unmarked counted ${as}`;
+};
+
+/**
  * A block's header strip: its format, its scores and what it lifted. In the editor a block that
  * takes a result offers it here, in the box the score prints in, and opens its fields below.
  */
@@ -589,6 +615,7 @@ function BlockHeader({
   const title = describeBlock(block.format, block.params);
   // Planning, nothing is lifted yet, so there is no share of the board to give.
   const boardKg = names.gradeSide === "planned" ? undefined : boardTonnageOf(block.items, sex);
+  const assumed = assumedNote(block);
   return (
     <>
       <div className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1 bg-muted px-4 py-1">
@@ -628,6 +655,11 @@ function BlockHeader({
           </button>
         ) : block.result === undefined ? null : (
           <ScoreBox label="Score">{block.scores[0]}</ScoreBox>
+        )}
+        {assumed === undefined ? null : (
+          <span data-assumed-note className="text-xs text-muted-foreground">
+            {assumed}
+          </span>
         )}
         <span className="ml-auto flex flex-wrap justify-end gap-1.5">
           {marked.map((score) => (

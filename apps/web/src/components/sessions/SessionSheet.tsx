@@ -237,7 +237,7 @@ function ImportedProtocol({
         const core = byId.get(id)?.variationOf;
         return core === undefined ? undefined : byId.get(core)?.name;
       };
-      const session = deriveSession(stored.document, nameOf);
+      const session = deriveSession(stored.document, nameOf, { sex });
       const grades = gradeSession(session, names.catalog, sex);
       const complexes = findComplexes(session, stored.document, (id) => byId.get(id)?.category);
       const body = bodyOn(profile, session.performedOn ?? stored.summary.performedOn);

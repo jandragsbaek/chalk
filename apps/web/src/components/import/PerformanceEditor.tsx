@@ -214,6 +214,10 @@ export function PerformanceEditor({
   const asksLoad = family === undefined || family.kind === "load" || written !== undefined;
   const showImplements = family?.group === "kb_db";
   const planning = mode === "plan";
+  // Nothing said, but the block is scored: it counts as planned, or as prescribed, until the
+  // athlete says otherwise. That choice shows open (dashed), so one press makes it theirs.
+  const assumed = !planning && !draft.recorded && item.assumed === true;
+  const logPlanned = planned !== undefined && !planning;
   const target = roundTarget(item);
   const perRound = parseAmount(draft.perRound);
   const reach = perRound === undefined ? undefined : describeReach(perRound, target, sex);
@@ -283,20 +287,18 @@ export function PerformanceEditor({
           <p className="text-sm text-muted-foreground">
             {planning
               ? "Say how you mean to scale it; the plan is graded against the level sheet."
-              : complex
-                ? "Say how it went, and the movements are graded against the level sheet."
-                : "Say how it went, and the movement is graded against the level sheet."}
+              : assumed
+                ? `The block is scored, so ${complex ? "they count" : "it counts"} as ${logPlanned ? "planned" : "prescribed"}. ${logPlanned ? "Did it another way" : "Scaled it"}? Say how.`
+                : complex
+                  ? "Say how it went, and the movements are graded against the level sheet."
+                  : "Say how it went, and the movement is graded against the level sheet."}
           </p>
-          <div
-            className={
-              planned !== undefined && !planning
-                ? "grid grid-cols-3 gap-1"
-                : "grid grid-cols-2 gap-1"
-            }
-          >
-            {planned !== undefined && !planning ? (
+          <div className={logPlanned ? "grid grid-cols-3 gap-1" : "grid grid-cols-2 gap-1"}>
+            {logPlanned ? (
               <Button
                 size="sm"
+                variant={assumed ? "outline" : "default"}
+                data-assumed={assumed ? "" : undefined}
                 aria-keyshortcuts="p"
                 onClick={() => {
                   setDraft(draftFromPerformance(planned, unit));
@@ -309,7 +311,8 @@ export function PerformanceEditor({
             ) : null}
             <Button
               size="sm"
-              variant={planned !== undefined && !planning ? "outline" : "default"}
+              variant={logPlanned || assumed ? "outline" : "default"}
+              data-assumed={assumed && !logPlanned ? "" : undefined}
               onClick={() => edit({ ...draft, recorded: true, asWritten: true })}
             >
               {planning ? "As written" : "As prescribed"}
@@ -325,6 +328,11 @@ export function PerformanceEditor({
             </Button>
           </div>
           <ScaleTo options={scalings} rows={undefined} onPick={scaleTo} />
+          {assumed
+            ? verdicts.map((verdict) => (
+                <LevelVerdict key={verdict.family.id} grade={verdict} nameOf={nameOf} assumed />
+              ))
+            : null}
         </>
       )}
 

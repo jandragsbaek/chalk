@@ -224,6 +224,12 @@
   outline: 1.5px dashed var(--foreground);
   outline-offset: -1.5px;
 }
+/* Done by assumption: the level's fill, on the open (dashed) edge in the level's own ink. */
+[data-level-badge][data-assumed] {
+  box-shadow: none;
+  outline: 1.5px dashed var(--level-ink);
+  outline-offset: -1.5px;
+}
 
 [data-ruler] {
   --ruler-height: 3.25rem;
@@ -320,6 +326,11 @@
   margin-left: -0.46875rem;
   background: var(--foreground);
   outline: 2px solid var(--card);
+}
+/* Counted from a block's score, not said: the square open, on a dashed ink edge. */
+[data-ruler] [data-marker="performed"][data-assumed] {
+  background: var(--card);
+  border: 1.5px dashed var(--foreground);
 }
 [data-ruler] [data-marker="capability"],
 [data-ruler] [data-marker="estimate"] {
