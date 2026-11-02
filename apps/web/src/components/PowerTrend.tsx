@@ -14,6 +14,7 @@ import {
   formatKj,
   formatWatts,
   rollingMedian,
+  strengthBlocksLabel,
   type SessionPowerRow,
 } from "../lib/power.ts";
 import { PROGRESS_RANGES, rangeStart, toDate, type ProgressRange } from "../lib/progress.ts";
@@ -53,8 +54,29 @@ const METRICS: Record<
   work: { label: "Work", valueOf: (row) => row.joules, format: formatKj },
 };
 
+/** What a session's power is over: its conditioning blocks, or a benchmark whole. */
+const countedLabel = (row: SessionPowerRow) =>
+  row.benchmark ? "Whole workout" : row.counted.map((block) => block.title).join(", ");
+
+/** The table's "Power over" cell: the counted blocks, and the strength ones left out. */
+const powerOver = (row: SessionPowerRow) =>
+  row.watts === undefined ? (
+    "-"
+  ) : (
+    <>
+      {countedLabel(row)}
+      {row.strengthBlocks > 0 ? (
+        <span className="text-muted-foreground">
+          {" "}
+          · {strengthBlocksLabel(row.strengthBlocks)} left out
+        </span>
+      ) : null}
+    </>
+  );
+
 /**
- * Estimated power (or work) per session over time. Each session is a dot, an Rx benchmark a
+ * Estimated power (or work) per session over time. Power is over conditioning blocks only;
+ * strength blocks add work, so a strength-only session shows under work and not under power. Each session is a dot, an Rx benchmark a
  * diamond; the line is the median of the last eight, so one hard day does not move it.
  */
 export function PowerTrend({ rows }: { readonly rows: ReadonlyArray<SessionPowerRow> }) {
@@ -163,7 +185,7 @@ export function PowerTrend({ rows }: { readonly rows: ReadonlyArray<SessionPower
       {points.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {metric === "power"
-            ? "No timed sessions in this range: power needs a for-time score, an AMRAP or an EMOM."
+            ? "No timed conditioning in this range: power needs a for-time score, an AMRAP or an EMOM, and leaves strength blocks out."
             : "No sessions in this range."}
         </p>
       ) : view === "table" ? (
@@ -175,6 +197,10 @@ export function PowerTrend({ rows }: { readonly rows: ReadonlyArray<SessionPower
             { header: "Day", cell: (point) => formatFullDay(point.date) },
             { header: "Session", cell: (point) => point.row.name },
             { header: "Work", cell: (point) => formatKj(point.row.joules), numeric: true },
+            {
+              header: "Power over",
+              cell: (point) => powerOver(point.row),
+            },
             {
               header: "Time",
               cell: (point) => (point.row.seconds > 0 ? formatClock(point.row.seconds) : "-"),
@@ -334,8 +360,16 @@ export function PowerTrend({ rows }: { readonly rows: ReadonlyArray<SessionPower
                     }
                   />
                 ) : null}
-                <TooltipRow value={formatKj(activePoint.row.joules)} label="work" />
+                {activePoint.row.watts !== undefined && !activePoint.row.benchmark ? (
+                  <span className="text-muted-foreground">{countedLabel(activePoint.row)}</span>
+                ) : null}
+                <TooltipRow value={formatKj(activePoint.row.joules)} label="session work" />
                 <TooltipRow value={format(activePoint.trend)} label="trend" />
+                {activePoint.row.strengthBlocks > 0 ? (
+                  <span className="text-muted-foreground">
+                    Not in power: {strengthBlocksLabel(activePoint.row.strengthBlocks)}
+                  </span>
+                ) : null}
               </ChartTooltip>
             ) : null}
           </div>

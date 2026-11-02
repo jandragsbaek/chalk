@@ -1,18 +1,30 @@
-import type { BlockWork, MovementId, SessionWork } from "@chalk/contracts";
+import type { BlockRole, BlockWork, MovementId, SessionWork } from "@chalk/contracts";
 import { Link } from "@tanstack/react-router";
 
-import { formatClock, formatKj, formatWatts, leftOutLines } from "../../lib/power.ts";
+import { blockLabel, formatClock, formatKj, formatWatts, leftOutLines } from "../../lib/power.ts";
 import { SectionHeader } from "../import/SessionProtocol.tsx";
 
 const Empty = ({ label }: { readonly label: string }) => <span data-empty aria-label={label} />;
 
-function BlockRow({ title, work }: { readonly title: string; readonly work: BlockWork }) {
+function BlockRow({
+  title,
+  role,
+  work,
+}: {
+  readonly title: string;
+  readonly role: BlockRole;
+  readonly work: BlockWork;
+}) {
+  // A strength block's time is mostly rest between lifts: its work counts, its power does not.
+  const leftOut = role === "strength" && work.watts !== undefined;
   return (
     <tr>
       <th scope="row" className="px-4 py-1.5 text-left font-semibold">
         {title}
         {work.skipped ? (
           <span className="ml-2 font-normal text-muted-foreground">{work.skipped}</span>
+        ) : leftOut ? (
+          <span className="ml-2 font-normal text-muted-foreground">Strength, not in power</span>
         ) : null}
       </th>
       <td className="px-4 py-1.5 text-right tabular-nums">
@@ -26,14 +38,15 @@ function BlockRow({ title, work }: { readonly title: string; readonly work: Bloc
         )}
       </td>
       <td className="px-4 py-1.5 text-right font-semibold tabular-nums">
-        {work.watts === undefined ? <Empty label="No power" /> : formatWatts(work.watts)}
+        {work.watts === undefined || leftOut ? <Empty label="No power" /> : formatWatts(work.watts)}
       </td>
     </tr>
   );
 }
 
 /**
- * The session's estimated work and power, block by block, with what could not be counted. Asks
+ * The session's estimated work and power, block by block, with what could not be counted. Power
+ * is over the conditioning blocks, so the foot shows them apart from the whole session's work. Asks
  * for height and a weigh-in when the profile has neither, since the estimate needs both.
  */
 export function WorkSection({
@@ -67,7 +80,8 @@ export function WorkSection({
   const blocks = work.parts.flatMap((part) =>
     part.blocks.map((block) => ({
       key: `${part.title}/${block.title}`,
-      title: block.title === "" ? part.title : `${part.title} · ${block.title}`,
+      title: blockLabel(part.title, block.title),
+      role: block.role,
       work: block.work,
     })),
   );
@@ -90,7 +104,7 @@ export function WorkSection({
         </thead>
         <tbody className="divide-y border-b">
           {blocks.map((block) => (
-            <BlockRow key={block.key} title={block.title} work={block.work} />
+            <BlockRow key={block.key} title={block.title} role={block.role} work={block.work} />
           ))}
           {work.notesJoules > 0 ? (
             <tr>
@@ -110,16 +124,38 @@ export function WorkSection({
         <tfoot className="border-b-2 border-foreground">
           <tr>
             <th scope="row" className="px-4 py-1.5 text-left font-semibold">
+              Conditioning
+            </th>
+            <td className="px-4 py-1.5 text-right tabular-nums">
+              {work.watts === undefined ? (
+                <Empty label="No work" />
+              ) : (
+                formatKj(work.conditioningJoules)
+              )}
+            </td>
+            <td className="px-4 py-1.5 text-right tabular-nums">
+              {work.watts === undefined ? (
+                <Empty label="No time" />
+              ) : (
+                formatClock(work.conditioningSeconds)
+              )}
+            </td>
+            <td className="px-4 py-1.5 text-right text-lg font-bold tabular-nums font-stretch-semi-condensed">
+              {work.watts === undefined ? <Empty label="No power" /> : formatWatts(work.watts)}
+            </td>
+          </tr>
+          <tr className="border-t">
+            <th scope="row" className="px-4 py-1.5 text-left font-semibold">
               Session
             </th>
             <td className="px-4 py-1.5 text-right font-semibold tabular-nums">
               {formatKj(work.joules)}
             </td>
-            <td className="px-4 py-1.5 text-right tabular-nums">
-              {work.timedSeconds > 0 ? formatClock(work.timedSeconds) : <Empty label="No time" />}
+            <td className="px-4 py-1.5 text-right">
+              <Empty label="No time" />
             </td>
-            <td className="px-4 py-1.5 text-right text-lg font-bold tabular-nums font-stretch-semi-condensed">
-              {work.watts === undefined ? <Empty label="No power" /> : formatWatts(work.watts)}
+            <td className="px-4 py-1.5 text-right">
+              <Empty label="No power" />
             </td>
           </tr>
         </tfoot>

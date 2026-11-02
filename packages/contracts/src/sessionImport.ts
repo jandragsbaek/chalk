@@ -93,6 +93,13 @@ export const BlockParams = Schema.Struct({
 });
 export type BlockParams = typeof BlockParams.Type;
 
+/**
+ * What a block trained, for power: a conditioning block's work over its time is power, a
+ * strength block's time is mostly rest between lifts, so it adds work but not power.
+ */
+export const BlockRole = Schema.Literals(["conditioning", "strength"]);
+export type BlockRole = typeof BlockRole.Type;
+
 const Count = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 
 /** One performed set: `reps` at `loadKg`. */
@@ -155,6 +162,8 @@ export const Span = Schema.TaggedUnion({
     params: BlockParams,
     /** The athlete's score for the block, entered in the editor. */
     result: Schema.optionalKey(BlockResult),
+    /** Set by the athlete when the block is not what `blockRole` reads it as. */
+    role: Schema.optionalKey(BlockRole),
   },
   movement: {
     ...spanFields,

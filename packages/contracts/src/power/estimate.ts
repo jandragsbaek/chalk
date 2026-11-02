@@ -1,7 +1,7 @@
 import type { MovementId } from "../baseSchemas.ts";
 import type { Benchmark } from "../benchmarks/model.ts";
 import { parseBenchmarkScore } from "../benchmarks/index.ts";
-import type { CatalogMovement } from "../sessionImport.ts";
+import type { BlockRole, CatalogMovement } from "../sessionImport.ts";
 import type { DerivedSession } from "../sessionImport/derive.ts";
 import {
   benchmarkBlock,
@@ -9,15 +9,16 @@ import {
   type CountUnit,
   type LeftOut,
   type WorkBlock,
+  type WorkItem,
 } from "../volume/count.ts";
 import type { Body } from "./body.ts";
 import { WORK_MODELS, type WorkModel } from "./movements.ts";
 
 /**
- * Work and power of a session, block by block: each movement's reps (or metres, calories), as
- * `countBlock` counts them, times its work per unit, summed; power is that work over the block's
- * time. Time comes from a for-time score, an AMRAP's or EMOM's length, or rounds × interval. What
- * cannot be counted is listed with the reason, never silently dropped.
+ * Work and power, block by block: each movement's count (`countBlock`) times its work per unit;
+ * power is that work over the block's time (a for-time score, an AMRAP's or EMOM's length). A
+ * session's power is over its conditioning blocks only (`blockRole`). What cannot be counted is
+ * listed with the reason, never silently dropped.
  */
 
 export type WorkUnit = Exclude<CountUnit, "s">;
@@ -42,18 +43,27 @@ export interface BlockWork {
   readonly skipped: string | undefined;
 }
 
+export interface SessionBlockWork {
+  readonly title: string;
+  readonly role: BlockRole;
+  readonly work: BlockWork;
+}
+
 export interface SessionWork {
   readonly parts: ReadonlyArray<{
     readonly title: string;
-    readonly blocks: ReadonlyArray<{ readonly title: string; readonly work: BlockWork }>;
+    readonly blocks: ReadonlyArray<SessionBlockWork>;
   }>;
   /** Lift sets from the notes: work, no time. */
   readonly notesJoules: number;
+  /** Every block's work and the notes': the session's. */
   readonly joules: number;
-  /** Work in blocks with a time, and that time: the session's average power. */
-  readonly timedJoules: number;
-  readonly timedSeconds: number;
+  /** Work in conditioning blocks with a time, and that time: the session's average power. */
+  readonly conditioningJoules: number;
+  readonly conditioningSeconds: number;
   readonly watts: number | undefined;
+  /** Strength blocks that had a time: left out of power, though they add work. */
+  readonly strengthBlocks: number;
 }
 
 export type WorkModelOf = (movementId: MovementId) => WorkModel | undefined;
@@ -67,6 +77,23 @@ export const workModelsFor =
     const core = catalog.find((movement) => movement.id === movementId)?.variationOf;
     return core === undefined ? undefined : WORK_MODELS[core];
   };
+
+/**
+ * What a block reads as, without the athlete's word: strength for a strength block or one built
+ * up set by set (lifts entered, no score for the block), else conditioning. An EMOM of cleans
+ * logged load by load is strength; the same EMOM with rows and burpees, or any scored block, is
+ * conditioning.
+ */
+export const readBlockRole = (block: WorkBlock): BlockRole => {
+  if (block.format === "strength") return "strength";
+  if (block.result !== undefined || block.scores.length > 0) return "conditioning";
+  const lifted = (item: WorkItem): boolean =>
+    item.performed.length > 0 || item.alternatives.some(lifted);
+  return block.items.some(lifted) ? "strength" : "conditioning";
+};
+
+/** What a block trained, for power: the athlete's word, else what it reads as. */
+export const blockRole = (block: WorkBlock): BlockRole => block.role ?? readBlockRole(block);
 
 const secondsOf = (block: WorkBlock): number | undefined => {
   const { params } = block;
@@ -190,6 +217,10 @@ export const estimateBlockWork = (
   };
 };
 
+/** Whether a session's block is in its power: conditioning, with a time. */
+export const countsForPower = (block: SessionBlockWork): boolean =>
+  block.role === "conditioning" && block.work.watts !== undefined;
+
 export const estimateSessionWork = (
   session: DerivedSession,
   body: Body,
@@ -199,24 +230,33 @@ export const estimateSessionWork = (
     title: part.title,
     blocks: part.blocks
       .filter((block) => block.format !== "rest" && block.items.length > 0)
-      .map((block) => ({ title: block.title, work: estimateBlockWork(block, body, modelOf) })),
+      .map((block): SessionBlockWork => ({
+        title: block.title,
+        role: blockRole(block),
+        work: estimateBlockWork(block, body, modelOf),
+      })),
   }));
   let notesJoules = 0;
   for (const set of session.liftSets) {
     const perRep = modelOf(set.movementId)?.perRep;
     if (perRep) notesJoules += set.count * set.reps * perRep(body, set.loadKg);
   }
-  const blocks = parts.flatMap((part) => part.blocks.map((block) => block.work));
-  const timed = blocks.filter((work) => work.watts !== undefined);
-  const timedJoules = timed.reduce((total, work) => total + work.joules, 0);
-  const timedSeconds = timed.reduce((total, work) => total + (work.seconds ?? 0), 0);
+  const blocks = parts.flatMap((part) => part.blocks);
+  const timed = blocks.filter((block) => block.work.watts !== undefined);
+  const powerBlocks = blocks.filter(countsForPower);
+  const conditioningJoules = powerBlocks.reduce((total, block) => total + block.work.joules, 0);
+  const conditioningSeconds = powerBlocks.reduce(
+    (total, block) => total + (block.work.seconds ?? 0),
+    0,
+  );
   return {
     parts,
     notesJoules,
-    joules: blocks.reduce((total, work) => total + work.joules, 0) + notesJoules,
-    timedJoules,
-    timedSeconds,
-    watts: timedSeconds > 0 ? timedJoules / timedSeconds : undefined,
+    joules: blocks.reduce((total, block) => total + block.work.joules, 0) + notesJoules,
+    conditioningJoules,
+    conditioningSeconds,
+    watts: conditioningSeconds > 0 ? conditioningJoules / conditioningSeconds : undefined,
+    strengthBlocks: timed.length - powerBlocks.length,
   };
 };
 

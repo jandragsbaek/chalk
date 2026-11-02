@@ -6,6 +6,7 @@ import type {
   BlockFormat,
   BlockParams,
   BlockResult,
+  BlockRole,
   PerformedSet,
   Quantity,
 } from "../sessionImport.ts";
@@ -39,6 +40,8 @@ export interface WorkBlock {
   /** The athlete's entered result; the scores carry its text too. */
   readonly result?: BlockResult;
   readonly rotation?: number;
+  /** The athlete's word on what the block trained (`blockRole`). */
+  readonly role?: BlockRole;
 }
 
 /** What one unit of a count is. Seconds are counted only when asked (`CountOptions.seconds`). */
