@@ -6,6 +6,7 @@ import type {
   BlockFormat,
   BlockParams,
   BlockResult,
+  BlockRole,
   ImportDocument,
   LiftResult,
   PerformedSet,
@@ -104,6 +105,8 @@ export interface DerivedBlock {
    * rotates through, one per interval. Absent when the lines are not numbered.
    */
   readonly rotation?: number;
+  /** The athlete's word on what the block trained; absent, `blockRole` reads it. */
+  readonly role?: BlockRole;
   /** Reps × load over the block's performed sets, alternatives included. */
   readonly tonnageKg: number;
 }
@@ -1178,6 +1181,7 @@ export const deriveSession = (
             ...(index === scoredAt ? benchmarkScores : []),
           ]),
           ...(rotation === undefined ? {} : { rotation }),
+          ...(owner?._tag === "block" && owner.role !== undefined ? { role: owner.role } : {}),
           tonnageKg: roundKg(items.reduce((total, item) => total + itemTonnage(item), 0)),
         };
       }),

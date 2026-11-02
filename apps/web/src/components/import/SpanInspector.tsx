@@ -17,6 +17,7 @@ import {
   withTiers,
   type Amount,
   type BlockParams,
+  type BlockRole,
   type CatalogMovement,
   type DerivedItem,
   formatPerformed,
@@ -284,6 +285,46 @@ export interface ComplexInspection {
   readonly onUpdateAll: (spans: ReadonlyArray<SpanOf<"movement">>) => void;
 }
 
+const ROLE_LABELS: Record<BlockRole, string> = {
+  conditioning: "Conditioning: in power",
+  strength: "Strength: work, not power",
+};
+
+/**
+ * Whether the block counts for power: read from the block (`readBlockRole`) until the athlete
+ * says otherwise. Picking what it reads as drops the override, so a later edit can still move it.
+ */
+function BlockRoleField({
+  span,
+  readRole,
+  onUpdate,
+}: {
+  readonly span: SpanOf<"block">;
+  readonly readRole: BlockRole;
+  readonly onUpdate: (span: Span) => void;
+}) {
+  const { role: _old, ...rest } = span;
+  return (
+    <label className="grid gap-1">
+      <span className="form-label text-muted-foreground">Counts as</span>
+      <NativeSelect
+        value={span.role ?? readRole}
+        onChange={(event) => {
+          const role = event.target.value as BlockRole;
+          onUpdate(role === readRole ? rest : { ...rest, role });
+        }}
+      >
+        {(["conditioning", "strength"] as const).map((role) => (
+          <option key={role} value={role}>
+            {ROLE_LABELS[role]}
+            {role === readRole ? " (as read)" : ""}
+          </option>
+        ))}
+      </NativeSelect>
+    </label>
+  );
+}
+
 function withParam<K extends keyof BlockParams>(
   params: BlockParams,
   key: K,
@@ -329,8 +370,11 @@ export function SpanInspector({
   tail,
   onVariationPicked,
   carried = new Map(),
+  readRole,
 }: {
   readonly span: Span;
+  /** What a block is read as for power without the athlete's word (`blockRole`). */
+  readonly readRole?: BlockRole | undefined;
   readonly text: string;
   readonly spans: ReadonlyArray<Span>;
   readonly catalog: ReadonlyArray<CatalogMovement>;
@@ -570,6 +614,9 @@ export function SpanInspector({
               ))}
             </NativeSelect>
           </label>
+          {mode === "log" && readRole !== undefined ? (
+            <BlockRoleField span={span} readRole={readRole} onUpdate={onUpdate} />
+          ) : null}
           <div className="grid grid-cols-2 gap-2">
             <NumberField
               label="Duration (min)"

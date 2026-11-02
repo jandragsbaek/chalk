@@ -75,6 +75,11 @@ function PowerPage() {
           score, an AMRAP's or EMOM's length.
         </p>
         <p>
+          Power counts conditioning only. A strength block, one you build up lift by lift with no
+          score, is mostly rest between sets, so it adds work but not power. When a block is read
+          wrong, mark it Strength or Conditioning on the block in the import editor.
+        </p>
+        <p>
           The watts are estimates, so compare a session with your own earlier ones, not with someone
           else's. Carries and holds move nothing upward and count as zero; each session lists what
           it could not count.

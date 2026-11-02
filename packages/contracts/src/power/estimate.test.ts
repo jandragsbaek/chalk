@@ -9,6 +9,7 @@ import { makeMovementMatcher } from "../sessionImport/movementMatcher.ts";
 import { suggestSpans } from "../sessionImport/suggest.ts";
 import { bodyOf } from "./body.ts";
 import {
+  blockRole,
   estimateBenchmarkWork,
   estimateBlockWork,
   estimateSessionWork,
@@ -370,5 +371,61 @@ describe("estimateSessionWork", () => {
     expect(work.seconds).toBe(16 * 60);
     // Four times through "18-15/15-12 cal": the board's range, 15 to 18, averaged.
     expect(work.items.find((counted) => counted.movementId === "row")?.amount).toBe(4 * 16.5);
+  });
+});
+
+describe("blockRole", () => {
+  const every = (items: ReadonlyArray<WorkItem>, extra: Partial<WorkBlock> = {}): WorkBlock => ({
+    format: "every",
+    params: { intervalSeconds: 90, rounds: { min: 5, max: 5 } },
+    items,
+    scores: [],
+    ...extra,
+  });
+  const cleans = item("clean", { sets: [reps(2)], performed: [{ reps: 2, loadKg: 80 }] });
+
+  it("reads a block built up lift by lift as strength, and a scored or bodyweight one as conditioning", () => {
+    expect(blockRole(every([cleans]))).toBe("strength");
+    expect(blockRole(every([item("burpee", { sets: [reps(10)] })]))).toBe("conditioning");
+    expect(blockRole(every([cleans], { scores: ["5:00"] }))).toBe("conditioning");
+    expect(blockRole({ format: "strength", params: {}, items: [], scores: [] })).toBe("strength");
+  });
+
+  it("takes the athlete's word over the reading", () => {
+    expect(blockRole(every([cleans], { role: "conditioning" }))).toBe("conditioning");
+    expect(blockRole(every([item("burpee")], { role: "strength" }))).toBe("strength");
+  });
+});
+
+describe("estimateSessionWork power", () => {
+  const text = "Every 90 sec x 5\n2 Power clean\n\nFor time\n21 Burpees\n";
+  const session = (role?: "conditioning") => {
+    const document = documentOf(text);
+    const spans = document.spans.map((span): Span => {
+      if (span._tag === "movement" && span.movementId === "power-clean")
+        return { ...span, result: { _tag: "fixed", sets: 5, reps: 2, loadKg: 80 } };
+      if (span._tag === "block" && span.format === "for_time")
+        return { ...span, result: { _tag: "time", seconds: 180 } };
+      if (span._tag === "block" && role !== undefined) return { ...span, role };
+      return span;
+    });
+    return estimateSessionWork(deriveSession({ ...document, spans }, nameOf), jan, modelOf);
+  };
+
+  it("is over the conditioning blocks only; strength adds work, not power", () => {
+    const work = session();
+    const [emom, metcon] = work.parts.flatMap((part) => part.blocks);
+    expect(emom!.role).toBe("strength");
+    expect(emom!.work.seconds).toBe(450);
+    expect(work.conditioningSeconds).toBe(180);
+    expect(work.watts).toBeCloseTo(metcon!.work.joules / 180);
+    expect(work.joules).toBeCloseTo(emom!.work.joules + metcon!.work.joules);
+    expect(work.strengthBlocks).toBe(1);
+  });
+
+  it("counts a strength-looking block the athlete marked conditioning", () => {
+    const work = session("conditioning");
+    expect(work.conditioningSeconds).toBe(450 + 180);
+    expect(work.strengthBlocks).toBe(0);
   });
 });

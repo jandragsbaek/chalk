@@ -1,5 +1,6 @@
 import {
   deriveSession,
+  readBlockRole,
   lineNumberOf,
   loadUnitOf,
   makeMovementMatcher,
@@ -213,6 +214,10 @@ export function ImportWorkbench({
   const errors = session.issues.filter((issue) => issue.severity === "error");
   const selected = state.spans.find((span) => span.id === state.selectedId);
   const programmed = selected?._tag === "movement" ? findItem(session, selected.id) : undefined;
+  const selectedBlock =
+    selected?._tag === "block"
+      ? session.parts.flatMap((part) => part.blocks).find((block) => block.spanId === selected.id)
+      : undefined;
   const grades = gradeSession(session, catalog, sex, planning ? "planned" : "done");
   const complexes = findComplexes(session, document, (id) => categories.get(id));
   const selectedComplex =
@@ -876,6 +881,7 @@ export function ImportWorkbench({
                   key={`${selected.id}:${revision}:${complexInspection?.shared ?? "single"}`}
                   span={selected}
                   carried={carried}
+                  readRole={selectedBlock === undefined ? undefined : readBlockRole(selectedBlock)}
                   mode={mode}
                   onAsPlanned={plan === undefined ? undefined : (spans) => takeAsPlanned(spans)}
                   complex={complexInspection}
