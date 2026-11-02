@@ -75,6 +75,31 @@ describe("deriveSession", () => {
     ]);
   });
 
+  it("gives a complex the intensity written after its last movement, but not the load", () => {
+    const text = [
+      "Every 2 min x 3",
+      "3 Snatches + 1 Overhead Squat @ 66-71%",
+      "2 Snatch @ 70% + 1 Overhead Squat @ RPE 8",
+      "1 Snatch + 1 Overhead Squat @ 70% + 1 Snatch @ 80%",
+      "Amrap 10",
+      "10 Wall balls + 5 Thrusters @ 40 kg",
+      "5 Thrusters or 5 Snatch @ 60%",
+    ].join("\n");
+    const blocks = deriveSession(documentOf(text), nameOf).parts[0]?.blocks ?? [];
+    expect(blocks.map((block) => block.items.map(itemRow))).toEqual([
+      [
+        "snatch[3 reps 66-71 %]",
+        "overhead-squat[1 rep 66-71 %]",
+        "snatch[2 reps 70 % RPE 8]",
+        "overhead-squat[1 rep RPE 8]",
+        "snatch[1 rep 80 %]",
+        "overhead-squat[1 rep 70 %]",
+        "snatch[1 rep 80 %]",
+      ],
+      ["wall-ball[10 reps]", "thruster[5 reps 40 kg]", "thruster[5 reps] | snatch[5 reps 60 %]"],
+    ]);
+  });
+
   it("puts a movement named above its format line into that block, one set per ramp line", () => {
     const session = deriveSession(documentOf(SESSION_160), nameOf);
     const [strength] = session.parts[0]?.blocks ?? [];
