@@ -367,12 +367,18 @@ re-derivable.
   top of a paragraph ("Workout #1", "Strength": first line or after a blank one, more lines
   under it, no movement, format, number or benchmark, no sentence) opens a part. Bullets are
   `-`, `+` or `•`.
-  Quantities attach to the movement in the same `+` / `or` segment of their line; a line of only
+  Quantities attach to the movement in the same `+` / `or` / `/` segment of their line (a slash
+  splits only between two movements: "120 Double unders / 180 Single unders" makes the single
+  unders the alternative; "20/14" and "w/ 40 kg" stay as they are); a line of only
   numbers ("5 reps @40%") attaches to the last movement of the part. Coach comments (`- *...`)
   and lines with a % or RPE but no movement become intent; asides in parentheses are skipped.
   Variation words before a known movement ("High-hang", "Pause") widen its mark, and unless
   the catalog knows the whole phrase it is left open: "High-hang power snatch" is never silently
-  logged as a hang power snatch.
+  logged as a hang power snatch. A pause written after the lift ("clean with 2 sec pause at
+  knee", "w/ pause in the hole") joins its mark and resolves as "Pause clean"; the catalog seeds
+  pause and tempo variations of the main lifts (`026_PauseAndTempoLifts`), so their loads keep
+  rep maxes of their own instead of passing for the plain lift. A duration followed by "pause" or
+  "rest" is never work on the movement.
 - `deriveSession` (contracts) turns a document into the session and its issues; both the editor
   preview and the server use it, so the server refuses what the editor would. Errors (no date,
   unresolved movement, a result without reps) block saving; warnings (an unattached number)

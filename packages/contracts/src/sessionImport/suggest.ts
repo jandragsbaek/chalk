@@ -25,25 +25,56 @@ interface Segment {
   readonly alternative: boolean;
 }
 
-const SEPARATOR = /\s+(?:or|eller)\s+|\+|&/giu;
-
-const splitSegments = (text: string, offset: number): ReadonlyArray<Segment> => {
-  const segments: Array<Segment> = [];
-  let start = 0;
-  let alternative = false;
-  for (const match of text.matchAll(SEPARATOR)) {
-    segments.push({ start: offset + start, end: offset + match.index, alternative });
-    alternative = /\p{L}/u.test(match[0]);
-    start = match.index + match[0].length;
-  }
-  segments.push({ start: offset + start, end: offset + text.length, alternative });
-  return segments;
-};
+/**
+ * "or", "eller" and a slash after a word make an alternative; "+" and "&" a complex. A slash
+ * after a one-letter word is an abbreviation ("b/t", "w/"), not a choice.
+ */
+const SEPARATOR = /\s+(?:or|eller)\s+|(?<=[\p{L}\p{N}]\p{L})\s*\/\s*|\+|&/giu;
 
 interface Placed {
   readonly start: number;
   readonly end: number;
 }
+
+/**
+ * The `+` / `or` / `/` segments of a line. A separator inside a movement's name ("Clean & jerk")
+ * splits nothing, and a slash only splits between two movements ("120 Double unders / 180 Single
+ * unders"), so "b/t rounds" or "w/ 40 kg" stay one segment.
+ */
+const splitSegments = (
+  text: string,
+  offset: number,
+  movements: ReadonlyArray<Placed>,
+): ReadonlyArray<Segment> => {
+  const between = (from: number, to: number) =>
+    movements.some((movement) => movement.start >= from && movement.end <= to);
+  const separators = [...text.matchAll(SEPARATOR)].filter(
+    (match) =>
+      !movements.some(
+        (movement) =>
+          movement.start < offset + match.index &&
+          movement.end > offset + match.index + match[0].length - 1,
+      ),
+  );
+  const segments: Array<Segment> = [];
+  let start = 0;
+  let alternative = false;
+  for (const [index, match] of separators.entries()) {
+    const at = match.index;
+    const after = at + match[0].length;
+    const until = separators[index + 1]?.index ?? text.length;
+    if (
+      match[0].includes("/") &&
+      !(between(offset + start, offset + at) && between(offset + after, offset + until))
+    )
+      continue;
+    segments.push({ start: offset + start, end: offset + at, alternative });
+    alternative = !/[+&]/.test(match[0]);
+    start = after;
+  }
+  segments.push({ start: offset + start, end: offset + text.length, alternative });
+  return segments;
+};
 
 /** The movement a quantity belongs to among `movements` (all in its segment, in text order). */
 const pickOwner = <M extends Placed>(
@@ -91,6 +122,20 @@ const VARIATION_WORDS: ReadonlySet<string> = new Set([
   "muscle",
   "tall",
 ]);
+
+/**
+ * A pause written after the movement: "with 2 sec pause at knee", "w/ pause below the knee",
+ * "med 2 sek pause ved knæ", ", paused at the hip". The position is one word (or "mid-shin").
+ */
+const PAUSE_AFTER = new RegExp(
+  [
+    String.raw`^\s*,?\s*(?:(?:with|w\/|med)\s*(?:an?\s+|en\s+)?`,
+    String.raw`(?:\d+(?:[.,]\d+)?\s*-?\s*(?:sec(?:onds?)?|sek(?:under)?|s)\s+)?pause|paused)`,
+    String.raw`(?:\s+(?:at|in|below|above|under|over|off|by|ved|i)\s+(?:the\s+)?`,
+    String.raw`\p{L}+(?:-\p{L}+)?)?(?!\p{L})`,
+  ].join(""),
+  "iu",
+);
 
 const QUOTED_NAME = /^["“”'‘’]?\s*(.+?)\s*["“”'‘’]?\s*[:!.]?\s*$/u;
 
@@ -168,7 +213,8 @@ export const suggestSpans = (
   const addMovements = (content: string, offset: number) => {
     const tokens = tokenize(content, offset);
     let taken = offset;
-    return matcher.find(content, offset).map((match) => {
+    return matcher.find(content, offset).flatMap((match) => {
+      if (match.start < taken) return [];
       let start = match.start;
       for (let index = tokens.findIndex((token) => token.start === match.start); index > 0;) {
         const previous = tokens[--index]!;
@@ -177,20 +223,25 @@ export const suggestSpans = (
           break;
         start = previous.start;
       }
-      taken = match.end;
-      const movementId =
-        start === match.start
+      const name = content.slice(start - offset, match.end - offset);
+      // "clean with 2 sec pause at knee" is a pause clean, written the long way round.
+      const pause = PAUSE_AFTER.exec(content.slice(match.end - offset));
+      const end = pause ? match.end + pause[0].length : match.end;
+      taken = end;
+      const movementId = pause
+        ? matcher.lookup(`pause ${name}`)
+        : start === match.start
           ? match.movementId
-          : matcher.lookup(content.slice(start - offset, match.end - offset));
+          : matcher.lookup(name);
       const span: SpanOf<"movement"> = {
         _tag: "movement",
         id: makeId(),
         start,
-        end: match.end,
+        end,
         ...(movementId === undefined ? {} : { movementId }),
       };
       spans.push(span);
-      return span;
+      return [span];
     });
   };
 
@@ -273,8 +324,12 @@ export const suggestSpans = (
 
     const masked = maskParentheses(content);
     const movements = addMovements(masked, offset);
-    const quantities = parseQuantities(masked, offset, { bareReps: movements.length > 0 });
-    const segments = splitSegments(masked, offset);
+    // A number inside a movement's mark ("with 2-sec pause") is part of its name.
+    const quantities = parseQuantities(masked, offset, { bareReps: movements.length > 0 }).filter(
+      (match) =>
+        !movements.some((movement) => match.start < movement.end && match.end > movement.start),
+    );
+    const segments = splitSegments(masked, offset, movements);
     const inSegment = (segment: Segment, placed: Placed) =>
       placed.start >= segment.start && placed.end <= segment.end;
 

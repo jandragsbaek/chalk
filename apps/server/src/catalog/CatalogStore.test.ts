@@ -6,6 +6,8 @@ import {
   MovementId,
   normalizeMovementPhrase,
   scalingOptions,
+  SpanId,
+  suggestSpans,
   WORK_MODELS,
   workModelsFor,
 } from "@chalk/contracts";
@@ -105,6 +107,30 @@ describe("CatalogStore", () => {
       ]);
       expect(matcher.lookup("SGDL")).toBe("snatch-deadlift");
       expect(matcher.lookup("CL pulls")).toBe("clean-pull");
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("seeds paused and tempo lifts as variations, read the way the board writes them", () =>
+    Effect.gen(function* () {
+      const store = yield* CatalogStore.CatalogStore;
+      const catalog = yield* store.list();
+      const byId = new Map(catalog.map((movement) => [movement.id, movement]));
+      expect(byId.get(MovementId.make("pause-clean"))?.variationOf).toBe("clean");
+      expect(byId.get(MovementId.make("pause-clean"))?.levelFamily).toBeUndefined();
+      expect(byId.get(MovementId.make("tempo-clean-pull"))).toMatchObject({
+        variationOf: "clean-pull",
+        accessory: true,
+        supports: ["bb-clean"],
+      });
+
+      const matcher = makeMovementMatcher(catalog);
+      let next = 0;
+      const text = "- 1 Tempo clean pull + 1 clean with 2 sec pause at knee + 1 clean";
+      const movements = suggestSpans(text, matcher, () => SpanId.make(`s${++next}`)).flatMap(
+        (span) => (span._tag === "movement" ? [span.movementId] : []),
+      );
+      expect(movements).toEqual(["tempo-clean-pull", "pause-clean", "clean"]);
+      expect(matcher.lookup("Paused back squat")).toBe("pause-back-squat");
     }).pipe(Effect.provide(layer)),
   );
 
@@ -249,6 +275,8 @@ describe("CatalogStore", () => {
           .map((movement) => movement.id);
       expect(variationsOf(yield* store.list())).toEqual([
         "hang-power-snatch",
+        "pause-power-snatch",
+        "pause-snatch",
         "power-snatch",
         "split-snatch",
       ]);
@@ -302,6 +330,8 @@ describe("CatalogStore", () => {
       expect(moved.variationOf).toBe("deadlift");
       expect(variationsOf(yield* store.list())).toEqual([
         "hang-power-snatch",
+        "pause-power-snatch",
+        "pause-snatch",
         "split-snatch",
         "squat-snatch",
       ]);
