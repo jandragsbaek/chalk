@@ -112,20 +112,29 @@ function Reading({ children }: { readonly children: ReactNode }) {
   return <span className="text-xs font-semibold font-stretch-semi-condensed">{children}</span>;
 }
 
+/** Questions folded under "More for the coach" until one has an answer. */
+const MORE = ["feel", "capacity", "limiters", "nextTime"] as const satisfies ReadonlyArray<
+  keyof Debrief
+>;
+
 /**
- * The athlete's side of the session, closing the protocol: the result in their words, how it
- * felt, how hard they went and could have gone, what limited them, and notes for the coach.
- * Nothing here is required.
+ * The athlete's side of the session, closing the protocol. Open: the result (the blocks' scores
+ * once entered, else in their words), the minutes, how hard they went and notes for the coach.
+ * Folded: how it felt, how hard they could have gone, what limited them, and next time. Nothing
+ * here is required.
  */
 export function DebriefSheet({
   debrief,
   scores,
+  entered,
   firstFieldRef,
   onChange,
 }: {
   readonly debrief: Debrief;
   /** Block scores marked in the text, offered as the result. */
   readonly scores: ReadonlyArray<string>;
+  /** Scores entered on the blocks, which are the result: shown, not typed again. */
+  readonly entered: ReadonlyArray<string>;
   readonly firstFieldRef?: Ref<HTMLInputElement>;
   readonly onChange: (debrief: Debrief) => void;
 }) {
@@ -172,6 +181,10 @@ export function DebriefSheet({
   const load = sessionLoad(normalized);
   const lines = describeDebrief(debrief);
   const scoreText = scores.join(" · ");
+  // A result typed before the blocks were scored stays editable, so it can be cleared.
+  const echo = entered.length > 0 && normalized.result === undefined;
+  const moreAnswered = MORE.filter((key) => normalized[key] !== undefined).length;
+  const [more, setMore] = useState(moreAnswered > 0);
 
   return (
     <section aria-label="Debrief" className="@container">
@@ -184,32 +197,42 @@ export function DebriefSheet({
       </header>
 
       <div className="grid divide-y border-b @sm:grid-cols-[minmax(0,1fr)_7rem] @sm:divide-x @sm:divide-y-0">
-        <Box
-          label="Result"
-          htmlFor={`${id}-result`}
-          reading={
-            scoreText !== "" && normalized.result === undefined ? (
-              <button
-                type="button"
-                className="cursor-pointer truncate text-xs font-medium underline decoration-input underline-offset-2 transition-[text-decoration-color] duration-150 hover:decoration-foreground"
-                onClick={() => set("result", scoreText)}
-              >
-                Use {scoreText}
-              </button>
-            ) : undefined
-          }
-        >
-          <Input
-            ref={firstFieldRef}
-            id={`${id}-result`}
-            value={debrief.result ?? ""}
-            maxLength={120}
-            placeholder="In your words, like 12+5 or a 150 kg single"
-            onChange={(event) => set("result", event.target.value)}
-          />
-        </Box>
+        {echo ? (
+          <Box label="Score">
+            <p className="flex min-h-9 flex-wrap items-baseline gap-x-2 text-sm">
+              <span className="font-semibold tabular-nums">{entered.join(" · ")}</span>
+              <span className="text-xs text-muted-foreground">as entered on the block</span>
+            </p>
+          </Box>
+        ) : (
+          <Box
+            label="In your words"
+            htmlFor={`${id}-result`}
+            reading={
+              scoreText !== "" && normalized.result === undefined ? (
+                <button
+                  type="button"
+                  className="cursor-pointer truncate text-xs font-medium underline decoration-input underline-offset-2 transition-[text-decoration-color] duration-150 hover:decoration-foreground"
+                  onClick={() => set("result", scoreText)}
+                >
+                  Use {scoreText}
+                </button>
+              ) : undefined
+            }
+          >
+            <Input
+              ref={firstFieldRef}
+              id={`${id}-result`}
+              value={debrief.result ?? ""}
+              maxLength={120}
+              placeholder="Your result, like 12+5 or a 150 kg single"
+              onChange={(event) => set("result", event.target.value)}
+            />
+          </Box>
+        )}
         <Box label="Minutes" htmlFor={`${id}-minutes`}>
           <Input
+            ref={echo ? firstFieldRef : undefined}
             id={`${id}-minutes`}
             inputMode="numeric"
             value={minutesText}
@@ -222,30 +245,6 @@ export function DebriefSheet({
               1 to 600
             </span>
           )}
-        </Box>
-      </div>
-
-      <div className="grid divide-y border-b @xl:grid-cols-2 @xl:divide-x @xl:divide-y-0">
-        <Box label="How it felt">
-          <Scale
-            name={`${id}-feel`}
-            label="How it felt"
-            options={FEELS.map((feel) => ({ value: feel, text: scaleLabel(FEEL_LABELS, feel) }))}
-            value={debrief.feel}
-            onChange={(feel) => set("feel", feel)}
-          />
-        </Box>
-        <Box label="Could push">
-          <Scale
-            name={`${id}-capacity`}
-            label="How hard you could push today"
-            options={CAPACITIES.map((capacity) => ({
-              value: capacity,
-              text: scaleLabel(CAPACITY_LABELS, capacity),
-            }))}
-            value={debrief.capacity}
-            onChange={(capacity) => set("capacity", capacity)}
-          />
         </Box>
       </div>
 
@@ -277,70 +276,6 @@ export function DebriefSheet({
       </div>
 
       <div className="border-b">
-        <Box
-          label="What limited you"
-          reading={
-            limiters.size === 0 ? undefined : (
-              <Reading>{limiters.has("none") ? "Nothing" : `${limiters.size} picked`}</Reading>
-            )
-          }
-        >
-          <ul
-            aria-label="What limited you"
-            className="-mx-1.5 grid grid-cols-1 @sm:grid-cols-2 @md:grid-cols-3"
-          >
-            {Limiter.literals.map((limiter) => (
-              <li key={limiter}>
-                <label data-check>
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={limiters.has(limiter)}
-                    onChange={() => toggleLimiter(limiter)}
-                  />
-                  <span data-check-box aria-hidden>
-                    <Check />
-                  </span>
-                  <span className="grid min-w-0 leading-5">
-                    <span className="text-sm font-medium">{LIMITER_LABELS[limiter].label}</span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {LIMITER_LABELS[limiter].hint}
-                    </span>
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
-          {limiters.has("pain") ? (
-            <div className="grid gap-1 border-t pt-2.5">
-              <label htmlFor={`${id}-pain`} className="form-label text-muted-foreground">
-                Pain: where, how, since when
-              </label>
-              <Input
-                id={`${id}-pain`}
-                value={debrief.pain ?? ""}
-                maxLength={200}
-                placeholder="Left wrist in the front rack, sharp, since Monday"
-                onChange={(event) => set("pain", event.target.value)}
-              />
-            </div>
-          ) : null}
-        </Box>
-      </div>
-
-      <div className="border-b">
-        <Box label="Next time" htmlFor={`${id}-next`}>
-          <Input
-            id={`${id}-next`}
-            value={debrief.nextTime ?? ""}
-            maxLength={300}
-            placeholder="Start the rows slower, break the thrusters 7-5 from round one"
-            onChange={(event) => set("nextTime", event.target.value)}
-          />
-        </Box>
-      </div>
-
-      <div className="border-b">
         <Box label="Notes for the coach" htmlFor={`${id}-notes`}>
           <Textarea
             id={`${id}-notes`}
@@ -352,6 +287,114 @@ export function DebriefSheet({
           />
         </Box>
       </div>
+
+      <details
+        data-disclosure
+        className="group border-b"
+        open={more}
+        onToggle={(event) => setMore(event.currentTarget.open)}
+      >
+        <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 px-4 hover:bg-muted">
+          <span className="form-label text-muted-foreground">More for the coach</span>
+          <span className="text-xs text-muted-foreground">
+            {moreAnswered === 0
+              ? "How it felt, could push, what limited you, next time"
+              : `${moreAnswered} of ${MORE.length} answered`}
+          </span>
+        </summary>
+        <div className="border-t">
+          <div className="grid divide-y border-b @xl:grid-cols-2 @xl:divide-x @xl:divide-y-0">
+            <Box label="How it felt">
+              <Scale
+                name={`${id}-feel`}
+                label="How it felt"
+                options={FEELS.map((feel) => ({
+                  value: feel,
+                  text: scaleLabel(FEEL_LABELS, feel),
+                }))}
+                value={debrief.feel}
+                onChange={(feel) => set("feel", feel)}
+              />
+            </Box>
+            <Box label="Could push">
+              <Scale
+                name={`${id}-capacity`}
+                label="How hard you could push today"
+                options={CAPACITIES.map((capacity) => ({
+                  value: capacity,
+                  text: scaleLabel(CAPACITY_LABELS, capacity),
+                }))}
+                value={debrief.capacity}
+                onChange={(capacity) => set("capacity", capacity)}
+              />
+            </Box>
+          </div>
+
+          <div className="border-b">
+            <Box
+              label="What limited you"
+              reading={
+                limiters.size === 0 ? undefined : (
+                  <Reading>{limiters.has("none") ? "Nothing" : `${limiters.size} picked`}</Reading>
+                )
+              }
+            >
+              <ul
+                aria-label="What limited you"
+                className="-mx-1.5 grid grid-cols-1 @sm:grid-cols-2 @md:grid-cols-3"
+              >
+                {Limiter.literals.map((limiter) => (
+                  <li key={limiter}>
+                    <label data-check>
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={limiters.has(limiter)}
+                        onChange={() => toggleLimiter(limiter)}
+                      />
+                      <span data-check-box aria-hidden>
+                        <Check />
+                      </span>
+                      <span className="grid min-w-0 leading-5">
+                        <span className="text-sm font-medium">{LIMITER_LABELS[limiter].label}</span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {LIMITER_LABELS[limiter].hint}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              {limiters.has("pain") ? (
+                <div className="grid gap-1 border-t pt-2.5">
+                  <label htmlFor={`${id}-pain`} className="form-label text-muted-foreground">
+                    Pain: where, how, since when
+                  </label>
+                  <Input
+                    id={`${id}-pain`}
+                    value={debrief.pain ?? ""}
+                    maxLength={200}
+                    placeholder="Left wrist in the front rack, sharp, since Monday"
+                    onChange={(event) => set("pain", event.target.value)}
+                  />
+                </div>
+              ) : null}
+            </Box>
+          </div>
+
+          <div>
+            <Box label="Next time" htmlFor={`${id}-next`}>
+              <Input
+                id={`${id}-next`}
+                value={debrief.nextTime ?? ""}
+                maxLength={300}
+                placeholder="Start the rows slower, break the thrusters 7-5 from round one"
+                onChange={(event) => set("nextTime", event.target.value)}
+              />
+            </Box>
+          </div>
+        </div>
+      </details>
 
       <div className="grid gap-1 px-4 pb-2 pt-3">
         <h4 className="form-label text-muted-foreground">What the coach reads</h4>

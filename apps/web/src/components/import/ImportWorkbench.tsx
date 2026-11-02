@@ -1,9 +1,8 @@
 import {
   deriveSession,
-  levelKey,
-  levelName,
   lineNumberOf,
   makeMovementMatcher,
+  scoresMovements,
   splitLines,
   suggestSpans,
   trailingWords,
@@ -34,7 +33,6 @@ import {
 } from "@chalk/ui/components/alert-dialog.tsx";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input } from "@chalk/ui/components/field.tsx";
-import { LevelBadge } from "@chalk/ui/components/level-ruler.tsx";
 import { useAtomSet } from "@effect/atom-react";
 import * as Cause from "effect/Cause";
 import * as Exit from "effect/Exit";
@@ -214,6 +212,7 @@ export function ImportWorkbench({
       ? undefined
       : {
           shared: selectedComplex.shared,
+          scored: scoresMovements(programmed?.block.format),
           members: selectedComplex.members.flatMap((id) => {
             const span = state.spans.find((candidate) => candidate.id === id);
             const found = findItem(session, id);
@@ -565,26 +564,6 @@ export function ImportWorkbench({
               </FieldBox>
             </>
           )}
-          {grades.programmed ? (
-            <FieldBox label="Board level">
-              <LevelBadge level={levelKey(grades.programmed.level)} open>
-                {levelName(grades.programmed.level)}
-              </LevelBadge>
-            </FieldBox>
-          ) : null}
-          {grades.programmed ? (
-            <FieldBox label={planning ? "Planned at" : "Done at"}>
-              {grades.performed && grades.unrecorded === 0 ? (
-                <LevelBadge level={levelKey(grades.performed.level)}>
-                  {levelName(grades.performed.level)}
-                </LevelBadge>
-              ) : (
-                <span className="text-sm font-normal text-muted-foreground">
-                  {grades.unrecorded} {planning ? "to plan" : "to record"}
-                </span>
-              )}
-            </FieldBox>
-          ) : null}
         </dl>
         <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-2.5">
           <RefereeLamps issues={session.issues} />
@@ -728,7 +707,14 @@ export function ImportWorkbench({
         <section aria-label="Protocol" className="flex min-h-0 flex-col border-b lg:border-r">
           <PaneHeader
             title="Protocol"
-            meta={planning ? "What you will do" : "What will be saved"}
+            meta={
+              // Planning or logging a plan, how many movements are still open.
+              outcomeFirst && grades.unrecorded > 0
+                ? `${grades.unrecorded} ${planning ? "to plan" : "to record"}`
+                : planning
+                  ? "What you will do"
+                  : "What will be saved"
+            }
             action={
               planning ? undefined : (
                 <span className="flex items-center gap-4">
@@ -777,7 +763,7 @@ export function ImportWorkbench({
                 onSelect: handleClickSpan,
                 onHover: setHovered,
                 lineOf,
-                rulerOnSelectedOnly: outcomeFirst,
+                rulerOnSelectedOnly: true,
                 tailOf: (id) => tails.get(id)?.text,
                 ...(planning
                   ? {}
@@ -823,6 +809,11 @@ export function ImportWorkbench({
                 scores={session.parts.flatMap((part) =>
                   part.blocks.flatMap((block) => block.scores),
                 )}
+                entered={session.parts.flatMap((part) =>
+                  part.blocks.flatMap((block) =>
+                    block.result === undefined ? [] : block.scores.slice(0, 1),
+                  ),
+                )}
                 firstFieldRef={debriefField}
                 onChange={(debrief) => dispatch({ type: "setDebrief", debrief })}
               />
@@ -841,11 +832,9 @@ export function ImportWorkbench({
             title={aside === "mark" ? "Selected mark" : aside === "tag" ? "Tag as" : "Keys"}
             meta={
               aside === "mark"
-                ? outcomeFirst
-                  ? planning
-                    ? "j k next · esc"
-                    : "j k next · p as planned · esc"
-                  : "Esc to close"
+                ? plan !== undefined && !planning
+                  ? "j k next · p as planned · esc"
+                  : "j k next · esc"
                 : aside === "tag"
                   ? `"${selectedText}"`
                   : "Select text, then press a key"
@@ -857,7 +846,6 @@ export function ImportWorkbench({
                 key={`${selected.id}:${revision}:${complexInspection?.shared ?? "single"}`}
                 span={selected}
                 mode={mode}
-                outcomeFirst={outcomeFirst}
                 onAsPlanned={plan === undefined ? undefined : (spans) => takeAsPlanned(spans)}
                 complex={complexInspection}
                 text={state.text}
@@ -877,6 +865,7 @@ export function ImportWorkbench({
                         station: stationOptions(programmed.station),
                         chosen: chosenOption(programmed.station, planning ? "planned" : "done")
                           ?.spanId,
+                        scored: scoresMovements(programmed.block.format),
                       }
                 }
                 onChooseOption={(chosen) => {

@@ -2,6 +2,7 @@ import {
   formatAmount,
   LEVEL_NAMES,
   reachOfTiers,
+  scoresMovements,
   type Amount,
   type DerivedBlock,
   type DerivedItem,
@@ -123,7 +124,7 @@ export function plannedMovements(
 /**
  * The movement span with its plan taken as done. The planned load (or the board's, for a plan
  * as written) also becomes the lift result when the board gives sets × reps ("5 x 3"), so the
- * planned lift reaches rep maxes.
+ * planned lift reaches rep maxes. Not in a block scored as a whole: its score says what was lifted.
  */
 export const asPlanned = (
   span: SpanOf<"movement">,
@@ -135,6 +136,7 @@ export const asPlanned = (
   const loadKg = span.plan.loadKg ?? defaults?.loadKg;
   const result =
     span.result === undefined &&
+    !scoresMovements(found?.block.format) &&
     loadKg !== undefined &&
     loadKg > 0 &&
     defaults?.sets !== undefined &&

@@ -356,6 +356,12 @@ re-derivable.
   `workout_item_id` and `set_number`, so results feed rep maxes and the item knows what was
   lifted. A result outside 1 to 100 sets or reps, or a load not in (0, 1000] kg, blocks saving.
   Set by set, a set of 0 reps is one missed at its load: kept in the result, lifting nothing.
+- **Movements of a scored block (built).** In a for-time or AMRAP (`scoresMovements`) a movement
+  takes no result of its own: one done at a load (`performance.loadKg`, or as prescribed at a
+  single written load) lifts one set per round at it, as many reps as the block's score says it
+  got through (`repsByRound`: up to where a cap stopped it, an AMRAP's rounds plus the reps into
+  the next). Reps split by variation, by sex, or counted in calories or metres are left out. A
+  result already on such a movement still counts instead.
 - **Complexes (built).** Barbell movements written on one line of a block ("1 Power clean + 2
   hang power clean") are done on one bar, so the editor enters their plan, load and result once
   (web, `lib/complexes.ts`; read from the text, not stored). Reps are typed as written, "1 + 2",

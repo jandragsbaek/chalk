@@ -187,4 +187,17 @@ describe("asPlanned", () => {
       asPlanned({ ...span, result: entered }, found([exact("sets", 5), exact("reps", 3)])).result,
     ).toEqual(entered);
   });
+
+  it("writes no lift in a block scored as a whole, whose score says what was lifted", () => {
+    const rounds = found([exact("reps", 15)]);
+    const scored = {
+      ...rounds,
+      block: {
+        ...rounds.block,
+        format: "for_time" as const,
+        params: { rounds: { min: 3, max: 3 } },
+      },
+    };
+    expect(asPlanned(span, scored).result).toBeUndefined();
+  });
 });

@@ -88,10 +88,42 @@ const segmentsOf = (grade: ItemGrade, shares: ReadonlyArray<LevelShare>, sex: Se
           ).toLowerCase(),
   }));
 
-/** Board and done as two badges: dashed for what was asked, solid for what was done. */
-function Badges({ grade, side }: { readonly grade: ItemGrade; readonly side: GradeSide }) {
+/**
+ * Board and done as two badges: dashed for what was asked, solid for what was done. `compact`
+ * leaves out a side that is missing instead of saying so.
+ */
+function Badges({
+  grade,
+  side,
+  compact = false,
+}: {
+  readonly grade: ItemGrade;
+  readonly side: GradeSide;
+  readonly compact?: boolean;
+}) {
+  if (compact && (grade.prescribed === undefined || grade.performed === undefined))
+    return grade.prescribed === undefined && grade.performed === undefined ? null : (
+      <span className="inline-flex items-center gap-2">
+        {grade.performed === undefined ? (
+          <LevelBadge
+            level={levelKey(grade.prescribed!.level)}
+            open
+            title={`The board asked for ${levelName(grade.prescribed!.level)}`}
+          >
+            {levelName(grade.prescribed!.level)}
+          </LevelBadge>
+        ) : (
+          <LevelBadge
+            level={levelKey(grade.performed.level)}
+            title={`${WORDS[side].at} ${levelName(grade.performed.level)}`}
+          >
+            {levelName(grade.performed.level)}
+          </LevelBadge>
+        )}
+      </span>
+    );
   return (
-    <>
+    <span className="inline-flex flex-wrap items-center gap-2">
       {grade.prescribed === undefined ? (
         <span className="text-xs text-muted-foreground">no load written</span>
       ) : (
@@ -116,7 +148,7 @@ function Badges({ grade, side }: { readonly grade: ItemGrade; readonly side: Gra
           {levelName(grade.performed.level)}
         </LevelBadge>
       )}
-    </>
+    </span>
   );
 }
 
@@ -137,13 +169,16 @@ export function LevelLine({
   side = "done",
   lead,
   ruler = true,
+  compact = false,
 }: {
   readonly grade: ItemGrade;
   readonly nameOf: (id: MovementId) => string | undefined;
   readonly side?: GradeSide;
   readonly lead?: LevelLead | undefined;
-  /** Off for rows that are not selected while planning; the inspector keeps the full ruler. */
+  /** Off for rows that are not selected; the inspector keeps the full ruler. */
   readonly ruler?: boolean;
+  /** Badges only for the sides there are, without words for a missing one. */
+  readonly compact?: boolean;
 }) {
   const sex = useAthleteSex();
   const note = shareNote(grade);
@@ -153,23 +188,26 @@ export function LevelLine({
       data-level-line
       data-plan-box={lead?.label === "Planned" ? "" : undefined}
       data-done-box={lead?.label === "Done" ? "" : undefined}
-      className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 px-1.5 text-sm leading-6"
+      className="flex basis-full flex-wrap items-center gap-x-4 gap-y-1 px-1.5 text-sm leading-6"
     >
+      {/* The lead and the badges wrap as two units, so no line ends on a separator. */}
       {lead === undefined ? (
-        <span className="form-label text-muted-foreground">Level</span>
+        <span className="inline-flex flex-wrap items-center gap-x-2">
+          <span className="form-label text-muted-foreground">Level</span>
+          <Badges grade={grade} side={side} compact={compact} />
+        </span>
       ) : (
         <>
-          <span className="form-label text-muted-foreground">{lead.label}</span>
-          <span className="font-medium">{lead.text}</span>
-          {lead.note === undefined ? null : (
-            <span className="text-xs text-muted-foreground">{lead.note}</span>
-          )}
-          <span aria-hidden className="text-muted-foreground">
-            ·
+          <span className="inline-flex flex-wrap items-baseline gap-x-2">
+            <span className="form-label text-muted-foreground">{lead.label}</span>
+            <span className="font-medium">{lead.text}</span>
+            {lead.note === undefined ? null : (
+              <span className="text-xs text-muted-foreground">{lead.note}</span>
+            )}
           </span>
+          <Badges grade={grade} side={side} compact={compact} />
         </>
       )}
-      <Badges grade={grade} side={side} />
       {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
       {ruler ? (
         <span className="ml-auto w-44">

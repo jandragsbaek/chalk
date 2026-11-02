@@ -17,6 +17,8 @@ import {
   type BlockParams,
   type CatalogMovement,
   type DerivedItem,
+  formatPerformed,
+  tonnageOf,
   type ItemGrade,
   type Level,
   type LiftResult,
@@ -33,7 +35,7 @@ import { Link2, Plus, Trash2, X } from "lucide-react";
 import { Fragment } from "react";
 
 import { parseAmount, toNumber } from "../../lib/amount.ts";
-import { MEASURE_LABELS } from "../../lib/blockLabels.ts";
+import { formatKg, MEASURE_LABELS } from "../../lib/blockLabels.ts";
 import { separateLoads, shareLoads, withResults, withShared } from "../../lib/complexes.ts";
 import type { PickMode } from "../../lib/importEditor.ts";
 import type { ResultDefaults } from "../../lib/resultDraft.ts";
@@ -273,6 +275,8 @@ export interface ComplexMember {
 /** The complex the selected movement is part of: one bar, loads entered once while `shared`. */
 export interface ComplexInspection {
   readonly shared: boolean;
+  /** The complex is in a block scored as a whole, like `ProgrammedMovement.scored`. */
+  readonly scored: boolean;
   /** In the order written; the first leads. */
   readonly members: ReadonlyArray<ComplexMember>;
   readonly onUpdateAll: (spans: ReadonlyArray<SpanOf<"movement">>) => void;
@@ -296,6 +300,11 @@ export interface ProgrammedMovement {
   readonly station: ReadonlyArray<DerivedItem>;
   /** The option a plan (or what was done) picked, if one was. */
   readonly chosen: SpanId | undefined;
+  /**
+   * In a block scored as a whole (a for-time, an AMRAP): what it lifted follows from how it was
+   * done and the block's score, so it takes no sets of its own.
+   */
+  readonly scored: boolean;
 }
 
 export function SpanInspector({
@@ -311,7 +320,6 @@ export function SpanInspector({
   onMovementPicked,
   onChooseOption,
   mode = "log",
-  outcomeFirst = false,
   onAsPlanned,
   complex,
   tail,
@@ -334,11 +342,6 @@ export function SpanInspector({
   ) => void;
   /** Planning: the movement takes a planned scaling, not what was done or lifted. */
   readonly mode?: "log" | "plan";
-  /**
-   * Planning or logging a plan: the plan (or how it was done) leads, and a resolved movement's
-   * catalog fields fold away under "Movement".
-   */
-  readonly outcomeFirst?: boolean;
   /** Logging a plan: take the movements' planned scaling as done (a complex's all at once). */
   readonly onAsPlanned?: ((spans: ReadonlyArray<SpanOf<"movement">>) => void) | undefined;
   /** The complex a programmed movement is part of ("1 power clean + 2 hang power clean"). */
@@ -420,7 +423,6 @@ export function SpanInspector({
           picking={picking}
           programmed={programmed}
           mode={mode}
-          outcomeFirst={outcomeFirst}
           alternativeOfText={textOf(span.alternativeOf)}
           onUpdate={onUpdate}
           onPick={onPick}
@@ -571,7 +573,8 @@ export function SpanInspector({
                 onUpdate({ ...span, params: withParam(span.params, "restSeconds", seconds) })
               }
             />
-            {span.format === "for_time" ? (
+            {/* Logging, the cap is set with the score, where a capped result needs it. */}
+            {span.format === "for_time" && mode === "plan" ? (
               <NumberField
                 label="Time cap (min)"
                 value={
@@ -752,7 +755,6 @@ function MovementMark({
   picking,
   programmed,
   mode,
-  outcomeFirst,
   alternativeOfText,
   onUpdate,
   onPick,
@@ -781,7 +783,6 @@ function MovementMark({
   readonly picking: PickMode | undefined;
   readonly programmed: ProgrammedMovement | undefined;
   readonly mode: "log" | "plan";
-  readonly outcomeFirst: boolean;
   readonly alternativeOfText: string | undefined;
   readonly onUpdate: (span: Span) => void;
   readonly onPick: (mode: PickMode | undefined) => void;
@@ -891,14 +892,18 @@ function MovementMark({
               )
             }
           />
-          <ResultEditor
-            results={[span.result]}
-            items={[programmed.item]}
-            defaults={[programmed.defaults]}
-            onChange={([result]: ReadonlyArray<LiftResult | undefined>) =>
-              onUpdate(result === undefined ? withoutField("result") : { ...span, result })
-            }
-          />
+          {programmed.scored && span.result === undefined ? (
+            <ScoredLift items={[programmed.item]} />
+          ) : (
+            <ResultEditor
+              results={[span.result]}
+              items={[programmed.item]}
+              defaults={[programmed.defaults]}
+              onChange={([result]: ReadonlyArray<LiftResult | undefined>) =>
+                onUpdate(result === undefined ? withoutField("result") : { ...span, result })
+              }
+            />
+          )}
         </>
       )}
     </>
@@ -938,9 +943,10 @@ function MovementMark({
       </>
     );
 
-  // An unresolved movement has to be picked before anything else counts. A complex sharing one
-  // bar leads with its loads, since they are what its movements have in common.
-  // Words left over lead: until they are settled the movement itself is in question.
+  // An unresolved movement has to be picked before anything else counts. Once it is, how it was
+  // done (or is planned) leads, and which movement it is folds away under "Movement" with the
+  // catalog's fields for it. Words left over lead: until they are settled the movement itself is
+  // in question.
   const ladder =
     onVariationPicked === undefined ? null : (
       <VariationLadder
@@ -951,9 +957,7 @@ function MovementMark({
         onPicked={(movementId, end, learned) => onVariationPicked(span, movementId, end, learned)}
       />
     );
-  // While words are left over the ladder is the way to change the movement; the picker folds.
-  const laddered = tail !== undefined && onVariationPicked !== undefined;
-  if ((!outcomeFirst && complex?.shared !== true && !laddered) || picked === undefined)
+  if (picked === undefined)
     return (
       <>
         {ladder}
@@ -978,6 +982,34 @@ function MovementMark({
         <div className="grid gap-4 pt-3">{identity}</div>
       </details>
     </>
+  );
+}
+
+/**
+ * What a movement of a block scored as a whole lifted, read from the load it was done at and the
+ * block's score, so there is nothing to type.
+ */
+function ScoredLift({ items }: { readonly items: ReadonlyArray<DerivedItem> }) {
+  const performed = items.flatMap((item) => item.performed);
+  return (
+    <div className="grid gap-1 border-t pt-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="form-label text-muted-foreground">Sets lifted</span>
+        {performed.length > 0 ? (
+          <span className="text-sm font-semibold tabular-nums">
+            {formatKg(tonnageOf(performed))}
+          </span>
+        ) : null}
+      </div>
+      {performed.length > 0 ? (
+        <p className="text-sm tabular-nums">{formatPerformed(performed)}</p>
+      ) : null}
+      <p className="text-xs text-muted-foreground">
+        {performed.length > 0
+          ? "From how it was done, round by round, up to the block's score."
+          : "Give the load it was done at, and it counts round by round up to the block's score."}
+      </p>
+    </div>
   );
 }
 
@@ -1026,12 +1058,16 @@ function SharedLoad({
               complex.onUpdateAll(withShared(members, "performance", performance))
             }
           />
-          <ResultEditor
-            results={members.map((span) => span.result)}
-            items={complex.members.map((member) => member.item)}
-            defaults={complex.members.map((member) => member.defaults)}
-            onChange={(results) => complex.onUpdateAll(withResults(members, results))}
-          />
+          {complex.scored && members.every((span) => span.result === undefined) ? (
+            <ScoredLift items={complex.members.map((member) => member.item)} />
+          ) : (
+            <ResultEditor
+              results={members.map((span) => span.result)}
+              items={complex.members.map((member) => member.item)}
+              defaults={complex.members.map((member) => member.defaults)}
+              onChange={(results) => complex.onUpdateAll(withResults(members, results))}
+            />
+          )}
         </>
       )}
       <div className="flex items-baseline justify-between gap-2 border-t pt-3">
