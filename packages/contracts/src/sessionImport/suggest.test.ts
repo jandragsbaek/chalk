@@ -203,6 +203,19 @@ describe("suggestSpans", () => {
       "quantity @ 7-8 RPE = RPE 7-8 -> Deadlift",
     ]);
   });
+
+  it("reads an every block run for a duration, and plural snatches", () => {
+    const text =
+      "Every 2 minutes, for 6 minutes (3 sets of):\n3 Snatches + 1 Overhead Squat @ 66-71%";
+    expect(describeSpans(text, suggest(text))).toEqual([
+      'block Every 2 minutes, for 6 minutes = every {"intervalSeconds":120,"rounds":{"min":3,"max":3}}',
+      "movement Snatches = snatch",
+      "movement Overhead Squat = overhead-squat",
+      "quantity 3 = 3 reps -> Snatches",
+      "quantity 1 = 1 rep -> Overhead Squat",
+      "quantity @ 66-71% = 66-71 % -> Overhead Squat",
+    ]);
+  });
 });
 
 describe("suggestSpans on plain text", () => {
@@ -252,6 +265,17 @@ describe("parse helpers", () => {
     expect(parseBlockFormat("5 rounds for time")).toMatchObject({
       format: "for_time",
       params: { rounds: { min: 5, max: 5 } },
+    });
+    expect(parseBlockFormat("Every 2 minutes, for 6 minutes (3 sets of):")).toMatchObject({
+      format: "every",
+      params: { intervalSeconds: 120, rounds: { min: 3, max: 3 } },
+      length: "Every 2 minutes, for 6 minutes".length,
+    });
+    expect(parseBlockFormat("E3MOM for 15 min")).toMatchObject({
+      params: { intervalSeconds: 180, rounds: { min: 5, max: 5 } },
+    });
+    expect(parseBlockFormat("Every 90 sec for 10 min")).toMatchObject({
+      params: { intervalSeconds: 90, durationSeconds: 600 },
     });
     expect(parseBlockFormat("12 Thrusters")).toBeUndefined();
   });
@@ -322,6 +346,9 @@ describe("parse helpers", () => {
   it("normalizes movement phrases for alias lookups", () => {
     expect(normalizeMovementPhrase("Pull-Ups")).toBe("pull up");
     expect(normalizeMovementPhrase("DUs")).toBe("du");
+    expect(normalizeMovementPhrase("Snatches")).toBe("snatch");
+    expect(normalizeMovementPhrase("Push presses")).toBe("push press");
+    expect(normalizeMovementPhrase("Lunges")).toBe("lunge");
     expect(matcher.lookup("double unders")).toBe("double-under");
   });
 

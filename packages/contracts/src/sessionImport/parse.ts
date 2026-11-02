@@ -345,6 +345,26 @@ const rounds = (from: string | undefined, to?: string): BlockParams =>
     ? {}
     : { rounds: parseRange(to === undefined ? from : `${from}-${to}`).amount };
 
+/** ", for 6 minutes", " for 90 sec": how long an "every" block runs. */
+const FOR_DURATION = String.raw`\s*,?\s*for\s+(${N})\s*${TIME_UNIT}\b`;
+
+/**
+ * "Every 2 minutes, for 6 minutes": 3 rounds. A duration the interval does not divide is kept as
+ * the block's length. `undefined` when no duration is written.
+ */
+const roundsIn = (
+  intervalSeconds: number,
+  amount: string | undefined,
+  unit: string | undefined,
+): BlockParams | undefined => {
+  if (amount === undefined || unit === undefined) return undefined;
+  const durationSeconds = toNumber(amount) * timeFactor(unit);
+  const count = durationSeconds / intervalSeconds;
+  return Number.isInteger(count) && count > 0
+    ? { rounds: { min: count, max: count } }
+    : { durationSeconds };
+};
+
 const FORMAT_RULES: ReadonlyArray<FormatRule> = [
   {
     pattern: new RegExp(String.raw`^amrap\s*:?\s*(${N})\s*(?:min(?:utes?)?|')?`, "i"),
@@ -362,24 +382,33 @@ const FORMAT_RULES: ReadonlyArray<FormatRule> = [
     }),
   },
   {
-    pattern: new RegExp(String.raw`^e(${N})mom(?:\s*(?:x\s*)?(\d+))?`, "i"),
-    read: (match) => ({
-      format: "every",
-      params: { intervalSeconds: toNumber(match[1]!) * 60, ...rounds(match[2]) },
-    }),
+    pattern: new RegExp(String.raw`^e(${N})mom(?:\s*(?:x\s*)?(\d+)|${FOR_DURATION})?`, "i"),
+    read: (match) => {
+      const intervalSeconds = toNumber(match[1]!) * 60;
+      return {
+        format: "every",
+        params: {
+          intervalSeconds,
+          ...(roundsIn(intervalSeconds, match[3], match[4]) ?? rounds(match[2])),
+        },
+      };
+    },
   },
   {
     pattern: new RegExp(
-      String.raw`^every\s+(${N})\s*(sec(?:onds?)?|s|min(?:utes?)?|m)\b(?:\s*[x×]\s*(\d+)(?:\s*-\s*(\d+))?)?`,
+      String.raw`^every\s+(${N})\s*(sec(?:onds?)?|s|min(?:utes?)?|m)\b(?:\s*[x×]\s*(\d+)(?:\s*-\s*(\d+))?|${FOR_DURATION})?`,
       "i",
     ),
-    read: (match) => ({
-      format: "every",
-      params: {
-        intervalSeconds: toNumber(match[1]!) * timeFactor(match[2]!),
-        ...rounds(match[3], match[4]),
-      },
-    }),
+    read: (match) => {
+      const intervalSeconds = toNumber(match[1]!) * timeFactor(match[2]!);
+      return {
+        format: "every",
+        params: {
+          intervalSeconds,
+          ...(roundsIn(intervalSeconds, match[5], match[6]) ?? rounds(match[3], match[4])),
+        },
+      };
+    },
   },
   {
     // "40 sec på / 20 sec af x 9", "30 sec on/15 sec off x 8".

@@ -321,6 +321,9 @@ const sessionTitle = (
   return `${WORKOUT_KIND_LABELS[kind]} · ${names.slice(0, 2).join(", ")}${more}`;
 };
 
+/** What the movements of a complex share when written once after the last: intensity, not load. */
+const SHARED_MEASURES: ReadonlySet<Quantity["measure"]> = new Set(["percent_1rm", "rpe"]);
+
 /** "1) 18-15/15-12 cal row": a numbered line of a rotating EMOM. */
 const ROTATION_LINE = /^(\d{1,2})\)\s/;
 
@@ -566,9 +569,38 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     quantitiesOf.set(owner.id, list);
   }
 
+  const movementSpans = spans.filter(isTag("movement"));
+  /**
+   * "3 snatches + 1 overhead squat @ 66-71%": a complex, so the intensity written after its last
+   * movement is every movement's, unless one has its own. Loads are not shared: "10 wall balls +
+   * 5 thrusters @ 40 kg" is the thruster's 40 kg.
+   */
+  const sharedOf = (movement: SpanOf<"movement">): ReadonlyArray<SpanOf<"quantity">> => {
+    const line = lineOf(movement.start);
+    // The chain's last movement: each step joined by "+" alone, on the same line.
+    let last = movement;
+    for (const other of movementSpans) {
+      if (other.start < last.end || lineOf(other.start) !== line) continue;
+      const between = text.slice(last.end, other.start);
+      if (!between.includes("+") || /\b(?:or|eller)\b/i.test(between)) break;
+      last = other;
+    }
+    if (last === movement) return [];
+    const own = new Set((quantitiesOf.get(movement.id) ?? []).map((quantity) => quantity.measure));
+    return (quantitiesOf.get(last.id) ?? []).filter(
+      (quantity) =>
+        SHARED_MEASURES.has(quantity.measure) &&
+        quantity.start >= last.end &&
+        lineOf(quantity.start) === line &&
+        !own.has(quantity.measure),
+    );
+  };
+
   const setsOf = (movement: SpanOf<"movement">): ReadonlyArray<DerivedSet> => {
     const sets = new Map<number, Array<Quantity>>();
-    for (const quantity of quantitiesOf.get(movement.id) ?? []) {
+    const own = quantitiesOf.get(movement.id) ?? [];
+    const shared = movement.alternativeOf === undefined ? sharedOf(movement) : [];
+    for (const quantity of [...own, ...shared].sort((left, right) => left.start - right.start)) {
       const line = lineOf(quantity.start);
       const { measure, amount, female, scheme, tiers } = quantity;
       const list = sets.get(line) ?? [];
