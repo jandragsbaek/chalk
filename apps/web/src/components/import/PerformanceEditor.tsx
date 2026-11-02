@@ -18,15 +18,19 @@ import { useState } from "react";
 
 import { parseAmount, toNumber } from "../../lib/amount.ts";
 import { MEASURE_LABELS } from "../../lib/blockLabels.ts";
+import { convertTyped, readKg, showLoad, type LoadUnit } from "../../lib/loadUnit.ts";
 import { describePlan, describeReach, roundTarget } from "../../lib/plan.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
 import { LevelVerdict } from "./LevelVerdict.tsx";
+import { LoadUnitToggle, useLoadUnit } from "./LoadUnitToggle.tsx";
 
 interface Draft {
   readonly recorded: boolean;
   /** Chosen "as written" on purpose; an empty plan from "Scale it" is no plan yet. */
   readonly asWritten: boolean;
+  /** Typed in `unit`. */
   readonly load: string;
+  readonly unit: LoadUnit;
   readonly implements: 1 | 2;
   readonly rows: ReadonlyArray<{ readonly movementId: string; readonly reps: string }>;
   readonly unbroken: string;
@@ -34,10 +38,14 @@ interface Draft {
   readonly perRound: string;
 }
 
-export const draftFromPerformance = (performance: Performance | undefined): Draft => ({
+export const draftFromPerformance = (
+  performance: Performance | undefined,
+  unit: LoadUnit = "kg",
+): Draft => ({
   recorded: performance !== undefined,
   asWritten: performance !== undefined && Object.keys(performance).length === 0,
-  load: performance?.loadKg === undefined ? "" : String(performance.loadKg),
+  load: showLoad(performance?.loadKg, unit),
+  unit,
   implements: performance?.implements ?? 1,
   rows: (performance?.variants ?? []).map((entry) => ({
     movementId: entry.movementId,
@@ -53,7 +61,7 @@ export const draftFromPerformance = (performance: Performance | undefined): Draf
  */
 export const performanceFromDraft = (draft: Draft, planning = false): Performance | undefined => {
   if (!draft.recorded) return undefined;
-  const loadKg = toNumber(draft.load);
+  const loadKg = readKg(draft.load, draft.unit);
   const unbroken = toNumber(draft.unbroken);
   const perRound = parseAmount(draft.perRound);
   const variants = draft.rows.flatMap((row) => {
@@ -193,11 +201,17 @@ export function PerformanceEditor({
   readonly complexGrades?: ReadonlyArray<ItemGrade | undefined> | undefined;
 }) {
   const sex = useAthleteSex();
-  const [draft, setDraft] = useState(() => draftFromPerformance(performance));
+  const { unit } = useLoadUnit();
+  const [typed, setDraft] = useState(() => draftFromPerformance(performance, unit));
+  // Flipping the unit converts the typed load; the performance stays the same.
+  const draft =
+    typed.unit === unit
+      ? typed
+      : { ...typed, unit, load: convertTyped(typed.load, typed.unit, unit) };
   const family = grade?.family;
   const nameOf = (id: MovementId) => catalog.find((movement) => movement.id === id)?.name;
   const written = prescribedLoad(item.sets, sex);
-  const showLoad = family === undefined || family.kind === "load" || written !== undefined;
+  const asksLoad = family === undefined || family.kind === "load" || written !== undefined;
   const showImplements = family?.group === "kb_db";
   const planning = mode === "plan";
   const target = roundTarget(item);
@@ -244,13 +258,16 @@ export function PerformanceEditor({
       <div className="flex items-baseline justify-between gap-2">
         <span className="form-label text-muted-foreground">{planning ? "Plan" : "Done as"}</span>
         {draft.recorded ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => edit({ ...draftFromPerformance(undefined) })}
-          >
-            Clear
-          </Button>
+          <span className="flex items-center gap-2">
+            {asksLoad ? <LoadUnitToggle /> : null}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => edit(draftFromPerformance(undefined, unit))}
+            >
+              Clear
+            </Button>
+          </span>
         ) : null}
       </div>
 
@@ -282,7 +299,7 @@ export function PerformanceEditor({
                 size="sm"
                 aria-keyshortcuts="p"
                 onClick={() => {
-                  setDraft(draftFromPerformance(planned));
+                  setDraft(draftFromPerformance(planned, unit));
                   if (onAsPlanned) onAsPlanned();
                   else onChange(planned);
                 }}
@@ -313,12 +330,12 @@ export function PerformanceEditor({
 
       {draft.recorded ? (
         <>
-          {showLoad ? (
+          {asksLoad ? (
             <div className={showImplements ? "grid grid-cols-2 items-end gap-2" : "grid gap-2"}>
               <Field
-                label={planning ? "Planned load, kg" : "Load used, kg"}
+                label={planning ? `Planned load, ${unit}` : `Load used, ${unit}`}
                 value={draft.load}
-                placeholder={written === undefined ? "" : `${written} as written`}
+                placeholder={written === undefined ? "" : `${showLoad(written, unit)} as written`}
                 onChange={(load) => edit({ ...draft, load })}
               />
               {showImplements ? (

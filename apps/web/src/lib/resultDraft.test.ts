@@ -6,6 +6,7 @@ import {
   resultDefaults,
   resultFromDraft,
   switchMode,
+  switchUnit,
   type ResultDefaults,
 } from "./resultDraft.ts";
 
@@ -105,5 +106,32 @@ describe("result drafts", () => {
       { reps: "2", load: "" },
       { reps: "2", load: "" },
     ]);
+  });
+
+  it("takes loads typed in pounds as kilograms, to the quarter kilo", () => {
+    const draft = draftFromResult(undefined, { ...NONE, sets: 5, reps: 5, loadKg: 102 }, "lb");
+    expect(draft.load).toBe("225");
+    expect(resultFromDraft({ ...switchMode(draft, "fixed"), load: "135" })).toEqual({
+      _tag: "fixed",
+      sets: 5,
+      reps: 5,
+      loadKg: 61.25,
+    });
+    expect(
+      resultFromDraft({ ...switchMode(draft, "ramp"), load: "135", step: "10" }),
+    ).toMatchObject({ startKg: 61.25, stepKg: 4.5 });
+    const each = switchMode({ ...draft, load: "95" }, "each");
+    expect(resultFromDraft({ ...each, rows: [{ reps: "5", load: "95" }] })).toEqual({
+      _tag: "each",
+      sets: [{ reps: 5, loadKg: 43 }],
+    });
+  });
+
+  it("converts what is typed when the unit flips, keeping the result", () => {
+    const ramp = { _tag: "ramp", sets: 3, reps: 2, startKg: 61.25, stepKg: 4.5 } as const;
+    const pounds = switchUnit(draftFromResult(ramp, NONE), "lb");
+    expect(pounds).toMatchObject({ load: "135", step: "10" });
+    expect(resultFromDraft(pounds)).toEqual(ramp);
+    expect(switchUnit({ ...pounds, load: "-" }, "kg").load).toBe("-");
   });
 });
