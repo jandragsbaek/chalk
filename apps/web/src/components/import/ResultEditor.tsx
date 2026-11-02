@@ -101,7 +101,7 @@ export function ResultEditor({
   return (
     <div className="grid gap-3 border-t pt-3">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="form-label text-muted-foreground">Result</span>
+        <span className="form-label text-muted-foreground">Sets lifted</span>
         {draft.mode !== undefined ? (
           <Button variant="ghost" size="sm" onClick={() => edit({ ...draft, mode: undefined })}>
             Clear

@@ -199,3 +199,102 @@ describe("a capped for-time", () => {
     expect(capped.joules).toBeLessThan(finished.joules);
   });
 });
+
+describe("movements of a block scored as a whole", () => {
+  /** The document with `loadKg` as how its movements `at` were done. */
+  const doneAt = (document: ImportDocument, at: ReadonlyArray<number>, loadKg: number) => {
+    const ids = new Set(at.map((index) => movements(document)[index]!.id));
+    return {
+      ...document,
+      spans: document.spans.map((span) =>
+        span._tag === "movement" && ids.has(span.id) ? { ...span, performance: { loadKg } } : span,
+      ),
+    };
+  };
+  const lifted = (block: DerivedBlock) =>
+    block.items.map((item) => item.performed.map((set) => `${set.reps}@${set.loadKg}`).join(" "));
+
+  // 30 burpees, 15 hang power cleans, 30 pull-ups, 15 hang power cleans, 30 burpees.
+  const cleans = doneAt(suggested(CAPPED_FOR_TIME), [1, 3], 35);
+
+  it("lift the load they were done at, once per round, before a score is entered", () => {
+    const session = deriveSession(cleans, nameOf);
+    expect(lifted(session.parts[0]!.blocks[0]!)).toEqual(["", "15@35", "", "15@35", ""]);
+    expect(session.tonnageKg).toBe(1050);
+  });
+
+  it("lift only what came before the cap", () => {
+    const pullUps = movements(cleans)[2]!;
+    const block = firstBlock(
+      withResult(cleans, { _tag: "capped", round: 1, at: pullUps.id, reps: 10, total: 55 }),
+    );
+    expect(lifted(block)).toEqual(["", "15@35", "", "", ""]);
+    expect(block.tonnageKg).toBe(525);
+  });
+
+  it("lift both bells of a pair", () => {
+    const pair = {
+      ...cleans,
+      spans: cleans.spans.map((span) =>
+        span._tag === "movement" && span.performance !== undefined
+          ? { ...span, performance: { loadKg: 22.5, implements: 2 as const } }
+          : span,
+      ),
+    };
+    expect(lifted(firstBlock(pair))).toEqual(["", "15@45", "", "15@45", ""]);
+  });
+
+  it("lift an AMRAP's full rounds and the reps into the next", () => {
+    const amrap = doneAt(suggested("Metcon\nAMRAP 10 min\n5 Deadlifts\n10 Burpees"), [0], 100);
+    // 3 rounds, then 7 reps: 5 deadlifts and 2 burpees.
+    const block = firstBlock(withResult(amrap, { _tag: "rounds_reps", rounds: 3, reps: 7 }));
+    expect(lifted(block)).toEqual(["5@100 5@100 5@100 5@100", ""]);
+    expect(lifted(firstBlock(amrap))).toEqual(["", ""]);
+  });
+
+  it("leave reps split by variation, or by sex, to a result of their own", () => {
+    const split = doneAt(suggested("Metcon\nFor time\n21/15 Deadlifts\n30 Burpees"), [0], 100);
+    expect(lifted(firstBlock(split))).toEqual(["", ""]);
+    // Unless the athlete says how many they did.
+    const counted = {
+      ...split,
+      spans: split.spans.map((span) =>
+        span._tag === "movement" && span.performance !== undefined
+          ? { ...span, performance: { loadKg: 100, perRound: { min: 15, max: 15 } } }
+          : span,
+      ),
+    };
+    expect(lifted(firstBlock(counted))).toEqual(["15@100", ""]);
+    const variants = {
+      ...cleans,
+      spans: cleans.spans.map((span) =>
+        span._tag === "movement" && span.performance !== undefined
+          ? {
+              ...span,
+              performance: { loadKg: 35, variants: [{ movementId: span.movementId!, reps: 15 }] },
+            }
+          : span,
+      ),
+    };
+    expect(lifted(firstBlock(variants))).toEqual(["", "", "", "", ""]);
+  });
+});
+
+describe("a movement done as prescribed in a block scored as a whole", () => {
+  it("lifts the load as written, when it is one for everybody", () => {
+    const prescribed = (text: string) => {
+      const document = suggested(text);
+      return firstBlock({
+        ...document,
+        spans: document.spans.map((span) =>
+          span._tag === "movement" ? { ...span, performance: {} } : span,
+        ),
+      }).items.map((item) => item.performed.map((set) => `${set.reps}@${set.loadKg}`).join(" "));
+    };
+    expect(prescribed("Metcon\nFor time\n15 Hang Power Cleans 50 kg\n30 Burpees")).toEqual([
+      "15@50",
+      "",
+    ]);
+    expect(prescribed(CAPPED_FOR_TIME)).toEqual(["", "", "", "", ""]);
+  });
+});

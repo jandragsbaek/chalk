@@ -178,7 +178,7 @@ export function BlockResultEditor({
   return (
     <div
       role="group"
-      aria-label={`Result of ${block.title || "the block"}`}
+      aria-label={`Score of ${block.title || "the block"}`}
       className="grid gap-3 border-b bg-card px-4 py-3"
       onKeyDown={closeOnKey}
     >

@@ -13,6 +13,7 @@ import {
   type ItemGrade,
   levelKey,
   levelName,
+  scoresMovements,
   type MovementId,
   type Sex,
   type SpanId,
@@ -51,7 +52,7 @@ export interface ProtocolEditor {
   readonly onSelect: (id: SpanId) => void;
   readonly onHover: (id: SpanId | undefined) => void;
   readonly lineOf: (id: SpanId) => number | undefined;
-  /** Planning or logging a plan: only the selected row draws its level ruler. */
+  /** Only the selected row draws its level ruler, and a row with nothing to say has no level line. */
   readonly rulerOnSelectedOnly?: boolean;
   /** Words left after the row's mark that may name a variation ("o. line"). */
   readonly tailOf?: (id: SpanId) => string | undefined;
@@ -106,6 +107,7 @@ function OptionRow({
   full,
   passed,
   inComplex = false,
+  scored = false,
 }: {
   readonly item: DerivedItem;
   readonly names: ProtocolNames;
@@ -116,6 +118,11 @@ function OptionRow({
   readonly passed: boolean;
   /** In a complex sharing one bar, which prints what was lifted once for all its rows. */
   readonly inComplex?: boolean;
+  /**
+   * In a block scored as a whole: what it lifted follows from how it was done, which the row
+   * already prints, and the block header totals it.
+   */
+  readonly scored?: boolean;
 }) {
   const sex = useAthleteSex();
   const name = item.movementId === undefined ? undefined : names.nameOf(item.movementId);
@@ -131,6 +138,15 @@ function OptionRow({
   const grade = names.gradeOf(item.spanId);
   const tail = editor?.tailOf?.(item.spanId);
   const lead = full ? leadOf(item, names, sex) : undefined;
+  const selected = editor?.selectedId === item.spanId;
+  // Quiet rows: only the selected one, and one with something done or planned, print a level.
+  const levelLine =
+    full &&
+    grade !== undefined &&
+    (!editor?.rulerOnSelectedOnly ||
+      selected ||
+      lead !== undefined ||
+      grade.performed !== undefined);
   const content = (
     <>
       {editor ? <span key={signature} data-flash aria-hidden /> : null}
@@ -196,7 +212,7 @@ function OptionRow({
             </LevelBadge>
           </span>
         ) : null}
-        {item.performed.length > 0 && !inComplex ? (
+        {item.performed.length > 0 && !inComplex && !scored ? (
           <span
             data-result-box
             className="flex basis-full flex-wrap items-baseline gap-x-2 bg-card px-1.5 text-sm leading-6"
@@ -221,13 +237,14 @@ function OptionRow({
             )}
           </span>
         ) : null}
-        {full && grade ? (
+        {levelLine && grade ? (
           <LevelLine
             grade={grade}
             nameOf={names.nameOf}
             side={names.gradeSide ?? "done"}
             lead={lead}
-            ruler={!editor?.rulerOnSelectedOnly || editor.selectedId === item.spanId}
+            ruler={!editor?.rulerOnSelectedOnly || selected}
+            compact={!selected}
           />
         ) : null}
       </span>
@@ -266,10 +283,12 @@ function StationRow({
   item,
   names,
   editor,
+  scored,
 }: {
   readonly item: DerivedItem;
   readonly names: ProtocolNames;
   readonly editor: ProtocolEditor | undefined;
+  readonly scored: boolean;
 }) {
   const picked = chosenOption(item, names.gradeSide ?? "done");
   const leading = picked ?? item;
@@ -284,6 +303,7 @@ function StationRow({
           alternative={index > 0}
           full={option === leading}
           passed={picked !== undefined && option !== picked}
+          scored={scored}
         />
       ))}
     </li>
@@ -508,7 +528,7 @@ function BlockHeader({
   const title = describeBlock(block.format, block.params);
   return (
     <>
-      <div className="flex min-h-8 items-center justify-between gap-3 bg-muted px-4">
+      <div className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1 bg-muted px-4 py-1">
         {editor ? (
           <button
             type="button"
@@ -523,29 +543,30 @@ function BlockHeader({
             {title}
           </span>
         )}
-        <span className="flex flex-wrap justify-end gap-1.5">
-          {entering ? (
-            <button
-              type="button"
-              aria-expanded={open}
-              data-result-box={block.result === undefined ? undefined : ""}
-              data-open-box={block.result === undefined ? "" : undefined}
-              title={unfit ? "No longer fits the block: enter it again" : undefined}
-              className="flex cursor-pointer items-baseline gap-1.5 bg-card px-1.5 text-sm font-semibold leading-6 tabular-nums transition-colors duration-150 hover:bg-background"
-              onClick={() => setOpen(!open)}
-            >
-              <span className="form-label text-muted-foreground">Result</span>
-              {block.result !== undefined ? (
-                block.scores[0]
-              ) : unfit ? (
-                <span className="text-destructive">{formatBlockResult(stored)}</span>
-              ) : (
-                <Plus aria-hidden className="size-3.5 self-center" />
-              )}
-            </button>
-          ) : block.result === undefined ? null : (
-            <ScoreBox label="Result">{block.scores[0]}</ScoreBox>
-          )}
+        {/* The score sits by the title it belongs to, where the whiteboard writes it. */}
+        {entering ? (
+          <button
+            type="button"
+            aria-expanded={open}
+            data-result-box={block.result === undefined ? undefined : ""}
+            data-open-box={block.result === undefined ? "" : undefined}
+            title={unfit ? "No longer fits the block: enter it again" : undefined}
+            className="flex h-7 cursor-pointer items-center gap-1.5 bg-card px-2 text-sm font-semibold tabular-nums transition-colors duration-150 hover:bg-background"
+            onClick={() => setOpen(!open)}
+          >
+            <span className="form-label text-muted-foreground">Score</span>
+            {block.result !== undefined ? (
+              block.scores[0]
+            ) : unfit ? (
+              <span className="text-destructive">{formatBlockResult(stored)}</span>
+            ) : (
+              <Plus aria-hidden className="size-3.5" />
+            )}
+          </button>
+        ) : block.result === undefined ? null : (
+          <ScoreBox label="Score">{block.scores[0]}</ScoreBox>
+        )}
+        <span className="ml-auto flex flex-wrap justify-end gap-1.5">
           {marked.map((score) => (
             <ScoreBox key={score} label="Score">
               {score}
@@ -667,6 +688,7 @@ export function SessionProtocol({
                         item={row.item}
                         names={names}
                         editor={editor}
+                        scored={scoresMovements(block.format)}
                       />
                     ) : (
                       <ComplexRows

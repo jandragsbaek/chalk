@@ -194,3 +194,72 @@ export const cappedShares = (
   }
   return shares;
 };
+
+/**
+ * Formats scored as a whole, whose movements are logged by how they were done ("Done as" at
+ * 35 kg) rather than by sets of their own: the score says how far each one got.
+ */
+export const scoresMovements = (format: BlockFormat | undefined): boolean =>
+  format === "for_time" || format === "amrap";
+
+/**
+ * Reps of each station done round by round, by the block's score: a for-time's rounds up to
+ * where a cap stopped it, an AMRAP's full rounds plus the reps into the next. In item order;
+ * `undefined` for a station that cannot be counted, an unscored AMRAP or another format.
+ */
+export const repsByRound = (
+  block: {
+    readonly format: BlockFormat | undefined;
+    readonly params: BlockParams;
+    readonly items: ReadonlyArray<ScoredItem>;
+  },
+  result: BlockResult | undefined,
+  sex: Sex | undefined,
+): ReadonlyArray<ReadonlyArray<number> | undefined> => {
+  const { params, items } = block;
+  if (block.format === "for_time") {
+    const rounds = roundsOfBlock(params);
+    const stop =
+      result?._tag === "capped"
+        ? {
+            round: result.round - 1,
+            at: items.findIndex((item) => isStation(item, result.at)),
+            reps: result.reps,
+          }
+        : undefined;
+    return items.map((item, index) => {
+      const done: Array<number> = [];
+      for (let round = 0; round < rounds; round++) {
+        // Past where the cap came: not reached.
+        if (stop !== undefined && (round > stop.round || (round === stop.round && index > stop.at)))
+          break;
+        const count = stationCount(item, params, round, sex);
+        if (count === undefined) return undefined;
+        done.push(
+          stop !== undefined && round === stop.round && index === stop.at
+            ? Math.min(stop.reps, count)
+            : count,
+        );
+      }
+      return done;
+    });
+  }
+  if (block.format === "amrap" && result?._tag === "rounds_reps") {
+    let into = result.reps;
+    return items.map((item) => {
+      const done: Array<number> = [];
+      for (let round = 0; round < result.rounds; round++) {
+        const count = stationCount(item, params, round, sex);
+        if (count === undefined) return undefined;
+        done.push(count);
+      }
+      if (into === 0) return done;
+      const next = stationCount(item, params, result.rounds, sex);
+      if (next === undefined) return undefined;
+      const extra = Math.min(into, next);
+      into -= extra;
+      return [...done, extra];
+    });
+  }
+  return items.map(() => undefined);
+};

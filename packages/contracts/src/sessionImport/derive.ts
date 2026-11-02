@@ -19,8 +19,10 @@ import {
   cappedTotal,
   formatBlockResult,
   isStation,
+  repsByRound,
   resultKindsFor,
   roundsOfBlock,
+  scoresMovements,
   stationCount,
 } from "./blockResult.ts";
 import { lineIndexAt, parseQuantities, splitLines, type Line } from "./parse.ts";
@@ -36,7 +38,11 @@ export interface DerivedItem {
   readonly movementId: MovementId | undefined;
   readonly text: string;
   readonly sets: ReadonlyArray<DerivedSet>;
-  /** What was lifted, set by set; empty without a valid result. */
+  /**
+   * What was lifted, set by set; empty without a valid result. In a block scored as a whole
+   * (`scoresMovements`), a movement done at a load gets one set per round at it instead, as many
+   * reps as the score says it got through.
+   */
   readonly performed: ReadonlyArray<PerformedSet>;
   /** Every set the result lists, a missed one (0 reps) included; empty without a valid result. */
   readonly listed: ReadonlyArray<PerformedSet>;
@@ -628,6 +634,67 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
       alternatives: (alternativesOf.get(movement.id) ?? []).map(toItem),
     };
   };
+  /**
+   * A block scored as a whole lifts what its movements were done at: a movement with a load
+   * ("Done as" 35 kg, or as prescribed at the load written) and no sets of its own gets one set per
+   * round at that load, by the reps the score says it got through. Left alone when the reps are calories or metres, split by
+   * variation, or differ for men and women with no count of the athlete's own.
+   */
+  const withScoredLoads = (
+    block: Pick<DerivedBlock, "format" | "params" | "items">,
+    result: BlockResult | undefined,
+  ): ReadonlyArray<DerivedItem> => {
+    if (!scoresMovements(block.format)) return block.items;
+    const done = repsByRound(block, result, undefined);
+    return block.items.map((item, index) => {
+      const reps = done[index];
+      // The option the station was done by, as `stationCount` counts it.
+      const option =
+        item.performance === undefined
+          ? (item.alternatives.find((alternative) => alternative.performance !== undefined) ?? item)
+          : item;
+      const counted = option.sets.flatMap((set) => set.quantities);
+      // Done as prescribed: the load as written, when there is one for everybody.
+      const written = counted.filter((quantity) => quantity.measure === "load_kg");
+      const [load] = written;
+      const writtenKg =
+        written.length === 1 && load!.female === undefined && load!.amount.min === load!.amount.max
+          ? load!.amount.min
+          : undefined;
+      // Per implement as entered; a set lifts both bells of a pair.
+      const perImplement = option.performance?.loadKg ?? (option.performance && writtenKg);
+      const loadKg =
+        perImplement === undefined
+          ? undefined
+          : perImplement * (option.performance?.implements ?? 1);
+      if (
+        reps === undefined ||
+        loadKg === undefined ||
+        loadKg <= 0 ||
+        option.performed.length > 0 ||
+        option.performance?.variants !== undefined ||
+        counted.some(
+          (quantity) =>
+            quantity.measure === "calories" ||
+            quantity.measure === "distance_m" ||
+            (quantity.measure === "reps" &&
+              quantity.female !== undefined &&
+              option.performance?.perRound === undefined),
+        )
+      )
+        return item;
+      const performed = reps.filter((count) => count > 0).map((count) => ({ reps: count, loadKg }));
+      const lifted = { ...option, performed, listed: performed };
+      return option === item
+        ? lifted
+        : {
+            ...item,
+            alternatives: item.alternatives.map((alternative) =>
+              alternative === option ? lifted : alternative,
+            ),
+          };
+    });
+  };
   const itemTonnage = (item: DerivedItem): number =>
     tonnageOf(item.performed) +
     item.alternatives.reduce((total, alternative) => total + itemTonnage(alternative), 0);
@@ -910,14 +977,18 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     return {
       ...base,
       blocks: blocks.map((block, index) => {
-        const items = block.items.map(toItem);
+        const listed = block.items.map(toItem);
         const rotation = rotationOf(block.spanId);
         const owner = block.spanId === undefined ? undefined : byId.get(block.spanId);
         const scored = resultFor(owner?._tag === "block" ? owner : undefined, {
           format: block.format,
           params: block.params,
-          items,
+          items: listed,
         });
+        const items = withScoredLoads(
+          { format: block.format, params: block.params, items: listed },
+          scored.result,
+        );
         return {
           spanId: block.spanId,
           title: block.title,
