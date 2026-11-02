@@ -295,6 +295,10 @@ the 2xl width) ruled off on its right, beside a column that stacks the title str
 ruler, the board (taking the rest of the height) and the drafts tray; the rail and each week's day
 columns scroll on their own, with thin box-edge scrollbars.
 
+The Volume page owns the viewport below the band too: the title and its switches on a 2px ink
+rule, the week strip, then the ledger in its own scroller taking the rest of the height (both
+axes, thin box-edge scrollbars), and a one-line foot.
+
 Record lists that sit side by side share a 56px row so their rules line up: the Recent PRs list and the Main lifts table. Week day rows are at least 48px.
 
 Spacing steps observed: 2px, 4px, 6px, 8px, 12px, 16px, 24px; 48px for the band.
@@ -367,7 +371,7 @@ Printed and decisive: square, semi-bold, no gradient.
 
 ### Navigation
 
-- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Calendar, Plan, Log, Strength, Benchmarks, Levels, Movements, Power, Body, Workouts, Import, Coach, Settings); Today is the front page, Calendar the programmed weeks, Log the manual entry page, Body the weigh-ins with body fat and muscle mass, Workouts the session register and Settings the athlete's profile. Settings carries its own tab strip under its title (Profile, Connections): condensed caps tabs on a 1px rule, the active one in ink with a 2px ink inset underline, like the level groups' tabs. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
+- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Calendar, Plan, Log, Strength, Benchmarks, Levels, Movements, Power, Volume, Body, Workouts, Import, Coach, Settings); Today is the front page, Calendar the programmed weeks, Log the manual entry page, Volume the training volume by week, Body the weigh-ins with body fat and muscle mass, Workouts the session register and Settings the athlete's profile. Settings carries its own tab strip under its title (Profile, Connections): condensed caps tabs on a 1px rule, the active one in ink with a 2px ink inset underline, like the level groups' tabs. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
 
 ### Protocol Field Box
 
@@ -497,6 +501,49 @@ stood in and ghost up, down and remove buttons, an add select, then the dashed o
 Scaled from (chips linking to the movements that offer this one), Variations (the family as a ruled list: core marked "Core" in condensed caps, each with its first two whiteboard phrases in bold Courier and "+n", the movement being read in the selection double outline), Aliases (Courier entries on a
 dotted underline and an add field), and Core and levels (the importer's catalog fields). The
 importer's inspector uses the same Scales to list.
+
+### Volume Ledger
+
+`/volume` reads training volume like a ledger of attempt boxes: movements down, ISO weeks across.
+The title ("Volume", display caps) shares its 2px ink rule with three joined switches under
+printed labels, the picked option in ink: Show (Volume, Tonnage), Credit to (Done, As written),
+Weeks (12 weeks, 26 weeks, All).
+
+- **Week strip:** protocol field boxes on fresh sheet under the rule: Week ("W44 · Oct 26 –
+  Nov 1"), Sessions, Reps, Metres, Calories, Seconds, Tonnage (Reps lifted and Tonnage in the
+  tonnage view), the empty-cell rule for none. The last box takes the rest of the width as the
+  readout: a picked cell names its movement and week over its total and each session's share in
+  pencil grey ("60 · Thu, Oct 8"), with a swap said in words ("in place of Pull-up", "done as Ring
+  row"); with no cell picked it lists what the week did not count ("AMRAP 15: AMRAP without a
+  score").
+- **Ledger:** a table on fresh sheet. The head sticks: "W44" in ink over the Monday ("Oct 26") in
+  condensed caps, the year on the first column and where a year starts; the picked week's head is
+  an ink tab with paper text and its column is bracketed by 1px ink rules. The name column
+  sticks on the left (15rem, the name in semi-bold, its unit in condensed caps only when it is
+  not reps), the total column on the right behind a 2px ink rule ("4,800 m · 120 cal"). Category
+  heads in title caps on a 2px ink rule. Cells are right-aligned tabular numbers, 28px tall, the
+  empty-cell rule for nothing.
+- **Shade (signature):** each cell on the heat ramp against its movement's own best week in view
+  (under 35 %, 60 %, 85 %, then the top step), so every movement shows its own rhythm whatever
+  its scale. The steps are lighter than the day heat (7 %, 16 %, 30 %, 62 % ink into fresh
+  sheet) so numbers print on them; the top step takes paper text. On the carbon side the ramp
+  runs toward paper, as everywhere.
+- **Another unit:** a cell that also counted another unit (a row in metres and calories) carries
+  a small corner tick in its text colour; a week counted only in the other unit prints it with
+  its unit ("60 cal") and no shade.
+- **Picking:** a click, or the arrow keys (Home and End to the ends), picks a cell: the 3px
+  double outline inset 4px (paper on the top step), the readout follows. Escape lets go of the
+  cell and keeps the week. A week head picks the week. The ledger opens scrolled to the newest
+  week.
+- **Foot:** totals after the movements on the ruled tint over a 2px ink rule: Sessions, each unit
+  with anything in view, Tonnage. Under the scroller one pencil-grey line: the shade legend, how
+  the work is credited, and the tick's meaning (in tonnage, that bodyweight adds nothing).
+- **Empty:** with nothing logged at all, one sentence on fresh sheet and "Import a session"
+  with the 12px arrow; with nothing in the weeks shown, one sentence and "Show all weeks".
+
+The movement sheet on `/movements` sets the unit under "Counted in": a joined scale (Reps,
+Metres, Calories, Seconds, the chosen one in ink) and one pencil-grey line saying how the grid
+reads it, with "Volume" and the arrow as the section's meta.
 
 ### Coach Conversation
 

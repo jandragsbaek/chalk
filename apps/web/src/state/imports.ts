@@ -34,6 +34,8 @@ export const setLevelsAtom = AdminClient.mutation("movements", "setLevels");
 
 export const setScalingsAtom = AdminClient.mutation("movements", "setScalings");
 
+export const setMeasureAtom = AdminClient.mutation("movements", "setMeasure");
+
 export const importsAtom = AdminClient.query("imports", "list", {
   reactivityKeys: [IMPORTS_REACTIVITY_KEY],
 });

@@ -67,10 +67,16 @@ the words, saves the whole phrase as an alias and re-tags its other lines, so th
 reads it. Without leftovers the inspector offers the family as one-click swaps, and the
 Movements page lists a movement's family with the phrases the board writes each one as.
 
+**Measure (built).** `movements.measure` is what one unit of the movement is: `reps`,
+`distance_m`, `calories` or `seconds` (`MovementMeasure`; absent on `CatalogMovement` means reps).
+The volume grid reads a movement's weeks in it. Migration `025_MovementMeasure` seeds metres for
+runs, rows, ski, swim, shuttle runs, carries, sleds, handstand walks and bear crawls, calories for
+the bike and VersaClimber, seconds for dead hangs and handstand holds; the rest stay reps. Set on
+the Movements page ("Counted in"). A line written in another unit (a row in calories) still
+counts, in that unit.
+
 Later fields:
 
-- `measure`: what one unit of the movement is: `reps`, `distance_m`, `calories`, `seconds`.
-  Rows and runs are counted in meters or calories, not reps; the volume grid needs this.
 - `loadable`: whether a load makes sense (thruster yes, burpee no).
 
 ### Scaling option
@@ -300,18 +306,34 @@ Later:
 - Bodyweight movements with load (weighted pull-up) use the same table with `loadKg` as the
   added weight.
 
-### Weekly volume grid
+### Weekly volume grid (built)
 
-Rows: movements. Columns: ISO weeks. Cell: total reps (or meters, calories, seconds, per the
-movement's `measure`), with tonnage (`reps × load`) for loaded movements as a second view.
+Rows: movements. Columns: ISO weeks (Monday first). Cell: what was done, in the movement's
+`measure`, with tonnage (reps × external load) as a second view.
 
-Sources are performed workout items and lift sets not linked to a part (linked ones are already
-counted through their item). The query groups by `movement_id` and
-`strftime('%G-%V', performed_on)` (ISO year and week; the SQLite bundled with Node 24 is 3.53,
-which supports both).
-
-Substituted items count toward the movement actually performed, and the grid can toggle to show
-prescribed movements instead, which answers "how many pull-ups were programmed vs done".
+- **Counting** (`countBlock` in `packages/contracts/src/volume/`): the same count work and power
+  use (see Work and power, "Counting a block"), so a session has one count wherever it is read:
+  reps per round from the item's lines (the athlete's side of an M/F split), times rounds or a
+  scheme; an AMRAP's rounds and partial round from its score; a capped for time up to where it
+  stopped; lift results and a scored block's rounds at a load set by set; an EMOM's rotation.
+  Volume also counts lines in seconds (a hold); work does not.
+- **Done, not prescribed**: reps split by variation (scaled pull-ups as ring rows) go to the
+  variation; an "or" to the option done. Each count keeps `writtenAs`, the movement the board
+  wrote, so the grid can credit the board's movement instead ("As written"): how many pull-ups
+  were programmed versus done. An AMRAP without a score, a capped block that cannot be placed and
+  a line without reps are not guessed; they are listed as not counted.
+- **Sources** (`VolumeStore`): every import's document, derived with the profile's sex; every
+  benchmark logged Rx with a score, as prescribed (a time-scored one done once, a single AMRAP
+  by its rounds); every lift set outside an import (an import's sets count through its
+  document). Each session gives one `VolumeEntry` per movement done and movement written, every
+  unit summed on its own (`reps`, `metres`, `calories`, `seconds`, `tonnageKg`).
+- **Tonnage**: reps × the load on the bar or bells, both implements for a pair (devil press).
+  Bodyweight adds nothing; a weighted pull-up's added load counts. Work done with the body is on
+  `/power`.
+- RPC `volume.weeks`: every ISO week with something done, oldest first, keyed by its Monday
+  (`isoWeekStart`), with its entries and its lines not counted.
+- Web `/volume`: the ledger (see DESIGN.md, Volume Ledger). Later: variations rolled up to their
+  core, and the coach reading volume.
 
 ## Session import (built)
 

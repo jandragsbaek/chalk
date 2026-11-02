@@ -30,6 +30,7 @@ import * as RestDayStore from "./rest/RestDayStore.ts";
 import * as Rpc from "./rpc.ts";
 import * as StrengthStore from "./strength/StrengthStore.ts";
 import * as BlockStore from "./training/BlockStore.ts";
+import * as VolumeStore from "./volume/VolumeStore.ts";
 import * as SessionNamer from "./workout/SessionNamer.ts";
 import * as WorkoutStore from "./workout/WorkoutStore.ts";
 
@@ -47,6 +48,7 @@ const layerStores = Layer.mergeAll(
   RestDayStore.layer,
   BlockStore.layer,
   LevelStore.layer.pipe(Layer.provide(CatalogStore.layer)),
+  VolumeStore.layer.pipe(Layer.provide(Layer.mergeAll(CatalogStore.layer, ProfileStore.layer))),
 ).pipe(Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)));
 
 /**

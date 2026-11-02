@@ -138,6 +138,27 @@ describe("CatalogStore", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect(
+    "seeds a measure per catalog movement, reps unless counted otherwise, and sets it",
+    () =>
+      Effect.gen(function* () {
+        const store = yield* CatalogStore.CatalogStore;
+        const measureOf = (catalog: ReadonlyArray<{ id: string; measure?: string }>, id: string) =>
+          catalog.find((movement) => movement.id === id)?.measure;
+        const catalog = yield* store.list();
+        expect(measureOf(catalog, "row")).toBe("distance_m");
+        expect(measureOf(catalog, "bike")).toBe("calories");
+        expect(measureOf(catalog, "handstand-hold")).toBe("seconds");
+        expect(measureOf(catalog, "pull-up")).toBeUndefined();
+
+        const id = MovementId.make("row");
+        expect((yield* store.setMeasure(id, "calories")).measure).toBe("calories");
+        expect((yield* store.setMeasure(id, "reps")).measure).toBeUndefined();
+        const missing = yield* Effect.flip(store.setMeasure(MovementId.make("no-such"), "reps"));
+        expect(missing).toMatchObject({ _tag: "CatalogNotFoundError", id: "no-such" });
+      }).pipe(Effect.provide(layer)),
+  );
+
   it.effect('reads the box\'s burpee variations and devil presses, "o." for over', () =>
     Effect.gen(function* () {
       const store = yield* CatalogStore.CatalogStore;

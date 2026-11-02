@@ -21,6 +21,7 @@ import { CATALOG_REACTIVITY_KEY } from "../../state/strength.ts";
 import { FieldBox } from "../FieldBox.tsx";
 import { CoreMovementField } from "../import/CoreMovementField.tsx";
 import { MovementLevelsField } from "../import/MovementLevelsField.tsx";
+import { MovementMeasureField } from "./MovementMeasureField.tsx";
 import { MovementScalingsField } from "../import/MovementScalingsField.tsx";
 import { SectionHead } from "../today/SectionHead.tsx";
 
@@ -287,6 +288,8 @@ export function MovementSheet({
             )}
             <AliasForm movement={movement} catalog={catalog} />
           </section>
+
+          <MovementMeasureField movement={movement} />
 
           <section aria-labelledby="movement-catalog" className="grid gap-3">
             <SectionHead id="movement-catalog" title="Core and levels" />

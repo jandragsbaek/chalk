@@ -7,6 +7,7 @@ import {
   MovementCategory,
   MovementExistsError,
   MovementId,
+  MovementMeasure,
   normalizeMovementPhrase,
   TrimmedNonEmptyString,
   VariationInvalidError,
@@ -30,6 +31,7 @@ export class CatalogPersistenceError extends Schema.TaggedError<CatalogPersisten
       "set a core movement",
       "set a movement's levels",
       "set a movement's scalings",
+      "set a movement's measure",
     ]),
     cause: Schema.Defect(),
   },
@@ -61,6 +63,7 @@ const MovementRow = Schema.Struct({
   complements: Schema.fromJsonString(Schema.Array(Complement)),
   supports: Schema.fromJsonString(Schema.Array(LevelFamilyId)),
   scalings: Schema.fromJsonString(Schema.Array(MovementId)),
+  measure: MovementMeasure,
 });
 type MovementRow = typeof MovementRow.Type;
 
@@ -118,6 +121,11 @@ export class CatalogStore extends Context.Service<
       id: MovementId,
       scalings: ReadonlyArray<MovementId>,
     ) => Effect.Effect<CatalogMovement, CatalogNotFoundError | CatalogPersistenceError>;
+    /** What one unit of the movement is, for its volume. */
+    readonly setMeasure: (
+      id: MovementId,
+      measure: MovementMeasure,
+    ) => Effect.Effect<CatalogMovement, CatalogNotFoundError | CatalogPersistenceError>;
   }
 >()("chalk/catalog/CatalogStore") {}
 
@@ -130,7 +138,7 @@ const make = Effect.gen(function* () {
     execute: () =>
       sql`
         SELECT id, name, category, variation_of AS "variationOf", level_family AS "levelFamily",
-               accessory, complements, supports, scalings
+               accessory, complements, supports, scalings, measure
         FROM movements ORDER BY category, name
       `,
   });
@@ -153,7 +161,16 @@ const make = Effect.gen(function* () {
     aliases: ReadonlyArray<typeof AliasRow.Type>,
   ): ReadonlyArray<CatalogMovement> =>
     movements.map(
-      ({ variationOf, levelFamily, accessory, complements, supports, scalings, ...movement }) => ({
+      ({
+        variationOf,
+        levelFamily,
+        accessory,
+        complements,
+        supports,
+        scalings,
+        measure,
+        ...movement
+      }) => ({
         ...movement,
         aliases: aliases.filter((row) => row.movementId === movement.id).map((row) => row.alias),
         ...(variationOf === null ? {} : { variationOf }),
@@ -162,6 +179,7 @@ const make = Effect.gen(function* () {
         ...(complements.length === 0 ? {} : { complements }),
         ...(supports.length === 0 ? {} : { supports }),
         ...(scalings.length === 0 ? {} : { scalings }),
+        ...(measure === "reps" ? {} : { measure }),
       }),
     );
 
@@ -341,7 +359,35 @@ const make = Effect.gen(function* () {
     }),
   );
 
-  return CatalogStore.of({ list, create, addAlias, setVariationOf, setLevels, setScalings });
+  const setMeasure = Effect.fn("CatalogStore.setMeasure")(
+    function* (id: MovementId, measure: MovementMeasure) {
+      const entry = yield* Effect.gen(function* () {
+        const result = yield* sql`
+          UPDATE movements SET measure = ${measure} WHERE id = ${id} RETURNING id
+        `;
+        if (result.length === 0) return undefined;
+        return yield* catalogEntry(id);
+      }).pipe(sql.withTransaction);
+      if (!entry) return yield* new CatalogNotFoundError({ id });
+      return entry;
+    },
+    Effect.catchTags({
+      SqlError: (cause) =>
+        Effect.fail(new CatalogPersistenceError({ operation: "set a movement's measure", cause })),
+      SchemaError: (cause) =>
+        Effect.fail(new CatalogPersistenceError({ operation: "set a movement's measure", cause })),
+    }),
+  );
+
+  return CatalogStore.of({
+    list,
+    create,
+    addAlias,
+    setVariationOf,
+    setLevels,
+    setScalings,
+    setMeasure,
+  });
 });
 
 export const layer = Layer.effect(CatalogStore, make);

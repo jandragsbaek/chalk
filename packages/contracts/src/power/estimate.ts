@@ -1,50 +1,26 @@
 import type { MovementId } from "../baseSchemas.ts";
 import type { Benchmark } from "../benchmarks/model.ts";
 import { parseBenchmarkScore } from "../benchmarks/index.ts";
-import type { Performance } from "../levels.ts";
-import type {
-  BlockFormat,
-  BlockParams,
-  BlockResult,
-  CatalogMovement,
-  PerformedSet,
-  Quantity,
-} from "../sessionImport.ts";
-import { cappedShares } from "../sessionImport/blockResult.ts";
+import type { CatalogMovement } from "../sessionImport.ts";
 import type { DerivedSession } from "../sessionImport/derive.ts";
+import {
+  benchmarkBlock,
+  countBlock,
+  type CountUnit,
+  type LeftOut,
+  type WorkBlock,
+} from "../volume/count.ts";
 import type { Body } from "./body.ts";
 import { WORK_MODELS, type WorkModel } from "./movements.ts";
 
 /**
- * Work and power of a session, block by block: each movement's reps (or metres, calories) times
- * its work per unit, summed; power is that work over the block's time. Time comes from a for-time
- * score, an AMRAP's or EMOM's length, or rounds × interval. What cannot be counted is listed with
- * the reason, never silently dropped.
+ * Work and power of a session, block by block: each movement's reps (or metres, calories), as
+ * `countBlock` counts them, times its work per unit, summed; power is that work over the block's
+ * time. Time comes from a for-time score, an AMRAP's or EMOM's length, or rounds × interval. What
+ * cannot be counted is listed with the reason, never silently dropped.
  */
 
-/** What one item of a block needs; a derived block's items fit, and so do a benchmark's. */
-export interface WorkItem {
-  /** A derived item's span; a capped result names the station it stopped at by it. */
-  readonly spanId?: string;
-  readonly movementId: MovementId | undefined;
-  readonly text: string;
-  readonly sets: ReadonlyArray<{ readonly quantities: ReadonlyArray<Quantity> }>;
-  readonly performed: ReadonlyArray<PerformedSet>;
-  readonly performance: Performance | undefined;
-  readonly alternatives: ReadonlyArray<WorkItem>;
-}
-
-export interface WorkBlock {
-  readonly format: BlockFormat | undefined;
-  readonly params: BlockParams;
-  readonly items: ReadonlyArray<WorkItem>;
-  readonly scores: ReadonlyArray<string>;
-  /** The athlete's entered result; the scores carry its text too. */
-  readonly result?: BlockResult;
-  readonly rotation?: number;
-}
-
-export type WorkUnit = "reps" | "m" | "cal";
+export type WorkUnit = Exclude<CountUnit, "s">;
 
 export interface ItemWork {
   readonly movementId: MovementId;
@@ -53,12 +29,6 @@ export interface ItemWork {
   /** External load, all implements together; `undefined` for bodyweight. */
   readonly loadKg: number | undefined;
   readonly joules: number;
-}
-
-export interface LeftOut {
-  readonly movementId: MovementId | undefined;
-  readonly text: string;
-  readonly reason: string;
 }
 
 export interface BlockWork {
@@ -97,88 +67,6 @@ export const workModelsFor =
     const core = catalog.find((movement) => movement.id === movementId)?.variationOf;
     return core === undefined ? undefined : WORK_MODELS[core];
   };
-
-const mid = (amount: { readonly min: number; readonly max: number }) =>
-  (amount.min + amount.max) / 2;
-
-const amountFor = (quantity: Quantity, body: Body) =>
-  mid(body.sex === "f" && quantity.female !== undefined ? quantity.female : quantity.amount);
-
-const COUNT_UNITS: Partial<Record<Quantity["measure"], WorkUnit>> = {
-  reps: "reps",
-  distance_m: "m",
-  calories: "cal",
-};
-
-interface RoundCount {
-  readonly amount: number;
-  readonly unit: WorkUnit;
-}
-
-/** One round of the item: its reps (or metres, calories) over every written line. */
-const roundCount = (item: WorkItem, block: WorkBlock, body: Body): RoundCount | undefined => {
-  let unit: WorkUnit | undefined;
-  let amount = 0;
-  /** Metres per rep, when reps are written with a length. */
-  let length: number | undefined;
-  for (const set of item.sets) {
-    // "10 shuttle runs 10 m": reps of a written length, so metres.
-    const reps = set.quantities.find((quantity) => quantity.measure === "reps");
-    const distance = set.quantities.find((quantity) => quantity.measure === "distance_m");
-    const count =
-      distance !== undefined && reps !== undefined
-        ? distance
-        : set.quantities.find((quantity) => COUNT_UNITS[quantity.measure] !== undefined);
-    if (count === undefined) continue;
-    const countUnit = COUNT_UNITS[count.measure]!;
-    if (unit !== undefined && unit !== countUnit) continue;
-    unit = countUnit;
-    const sets = set.quantities.find((quantity) => quantity.measure === "sets");
-    const lengths = count === distance && reps !== undefined ? amountFor(reps, body) : 1;
-    if (count === distance && reps !== undefined) length = amountFor(distance, body);
-    amount += amountFor(count, body) * lengths * (sets === undefined ? 1 : mid(sets.amount));
-  }
-  // The count each round is in reps; reps of a written length are metres.
-  const perRound = item.performance?.perRound;
-  if (unit !== undefined && perRound !== undefined)
-    return { amount: mid(perRound) * (length ?? 1), unit };
-  if (unit !== undefined) return { amount, unit };
-  // "21-15-9 thrusters and pull-ups": the block's scheme is every item's reps.
-  const scheme = block.params.scheme;
-  if (scheme !== undefined && scheme.length > 0)
-    return { amount: scheme.reduce((total, reps) => total + reps, 0), unit: "reps" };
-  return undefined;
-};
-
-const loadOf = (item: WorkItem, body: Body, pair = false): number | undefined => {
-  const performance = item.performance;
-  const implementsCount = performance?.implements ?? (pair || /\bdual\b/i.test(item.text) ? 2 : 1);
-  if (performance?.loadKg !== undefined) return performance.loadKg * implementsCount;
-  for (const set of item.sets)
-    for (const quantity of set.quantities)
-      if (quantity.measure === "load_kg") return amountFor(quantity, body) * implementsCount;
-  return undefined;
-};
-
-/** How many times the block's items are done, before any AMRAP partial round. */
-const roundsOf = (block: WorkBlock): number | undefined => {
-  const { params } = block;
-  const rounds = params.rounds === undefined ? undefined : params.rounds.min;
-  switch (block.format) {
-    case "emom":
-    case "every": {
-      const intervals =
-        rounds ??
-        (params.durationSeconds !== undefined && params.intervalSeconds
-          ? Math.floor(params.durationSeconds / params.intervalSeconds)
-          : undefined);
-      if (intervals === undefined) return undefined;
-      return block.rotation === undefined ? intervals : intervals / block.rotation;
-    }
-    default:
-      return rounds ?? 1;
-  }
-};
 
 const secondsOf = (block: WorkBlock): number | undefined => {
   const { params } = block;
@@ -219,93 +107,6 @@ const UNIT_NAMES: Record<WorkUnit, string> = { reps: "reps", m: "metres", cal: "
 const perUnitOf = (model: WorkModel, unit: WorkUnit) =>
   unit === "reps" ? model.perRep : unit === "m" ? model.perMeter : model.perCalorie;
 
-/** The item done in its block, or an alternative when only that one says how it went. */
-const doneItem = (item: WorkItem): WorkItem =>
-  item.performance === undefined && item.performed.length === 0
-    ? (item.alternatives.find(
-        (alternative) => alternative.performance !== undefined || alternative.performed.length > 0,
-      ) ?? item)
-    : item;
-
-interface Counted {
-  readonly items: Array<ItemWork>;
-  readonly leftOut: Array<LeftOut>;
-}
-
-/** `amount` units of the item, split over its variations when the athlete said so. */
-const countItem = (
-  item: WorkItem,
-  amount: number,
-  unit: WorkUnit,
-  body: Body,
-  modelOf: WorkModelOf,
-  into: Counted,
-) => {
-  const variants = item.performance?.variants;
-  const total = variants?.reduce((sum, variant) => sum + variant.reps, 0) ?? 0;
-  const shares =
-    variants !== undefined && total > 0
-      ? variants.map((variant) => ({ movementId: variant.movementId, share: variant.reps / total }))
-      : item.movementId === undefined
-        ? []
-        : [{ movementId: item.movementId, share: 1 }];
-  if (shares.length === 0) {
-    into.leftOut.push({ movementId: undefined, text: item.text, reason: "No movement picked." });
-    return;
-  }
-  for (const { movementId, share } of shares) {
-    const model = modelOf(movementId);
-    const loadKg = loadOf(item, body, model?.pair);
-    const leave = (reason: string) => into.leftOut.push({ movementId, text: item.text, reason });
-    if (model === undefined) {
-      leave("No work model for this movement yet.");
-      continue;
-    }
-    if (model.none !== undefined) {
-      into.items.push({ movementId, amount: amount * share, unit, loadKg, joules: 0 });
-      continue;
-    }
-    const perUnit = perUnitOf(model, unit);
-    if (perUnit === undefined) {
-      leave(`Counted in ${UNIT_NAMES[unit]}, which this movement has no model for.`);
-      continue;
-    }
-    if (model.loaded && loadKg === undefined) {
-      leave("No load to count (a percentage of 1RM is not read yet).");
-      continue;
-    }
-    into.items.push({
-      movementId,
-      amount: amount * share,
-      unit,
-      loadKg,
-      joules: amount * share * perUnit(body, loadKg ?? 0),
-    });
-  }
-};
-
-/** Lifted sets: each at its own load. */
-const countSets = (item: WorkItem, body: Body, modelOf: WorkModelOf, into: Counted) => {
-  const movementId = item.movementId;
-  const model = movementId === undefined ? undefined : modelOf(movementId);
-  if (movementId === undefined || model?.perRep === undefined) {
-    into.leftOut.push({
-      movementId,
-      text: item.text,
-      reason: model?.none ?? "No work model for this movement yet.",
-    });
-    return;
-  }
-  for (const set of item.performed)
-    into.items.push({
-      movementId,
-      amount: set.reps,
-      unit: "reps",
-      loadKg: set.loadKg,
-      joules: set.reps * model.perRep(body, set.loadKg),
-    });
-};
-
 const totalJoules = (items: ReadonlyArray<ItemWork>) =>
   items.reduce((total, item) => total + item.joules, 0);
 
@@ -324,77 +125,67 @@ export const estimateBlockWork = (
   modelOf: WorkModelOf,
 ): BlockWork => {
   const seconds = secondsOf(block);
-  const counted: Counted = { items: [], leftOut: [] };
-  const items = block.items.map(doneItem);
-
-  if (block.format === "amrap") {
-    const score = block.scores
-      .map((text) => parseBenchmarkScore("rounds_reps", text))
-      .find((value) => value !== undefined);
-    if (score === undefined) return skippedBlock("AMRAP without a score.", seconds);
-    const rounds = Math.floor(score / 1000);
-    let partial = score % 1000;
-    for (const item of items) {
-      const count = roundCount(item, block, body);
-      if (count === undefined) {
-        counted.leftOut.push({ movementId: item.movementId, text: item.text, reason: "No reps." });
+  const count = countBlock(block, {
+    sex: body.sex,
+    pairOf: (movementId) => modelOf(movementId)?.pair === true,
+  });
+  if (count.skipped !== undefined && count.counted.length === 0 && count.leftOut.length === 0)
+    return skippedBlock(count.skipped, seconds);
+  const items: Array<ItemWork> = [];
+  const leftOut: Array<LeftOut> = [...count.leftOut];
+  // A lifted item is left out once, not once per set.
+  const leftLifted = new Set<string>();
+  for (const line of count.counted) {
+    const { movementId, amount, loadKg } = line;
+    const model = modelOf(movementId);
+    const leave = (reason: string) => leftOut.push({ movementId, text: line.text, reason });
+    if (line.lifted) {
+      if (model?.perRep === undefined) {
+        const key = `${movementId}\u0000${line.text}`;
+        if (!leftLifted.has(key)) leave(model?.none ?? "No work model for this movement yet.");
+        leftLifted.add(key);
         continue;
       }
-      const extra = Math.min(partial, count.amount);
-      partial -= extra;
-      countItem(item, rounds * count.amount + extra, count.unit, body, modelOf, counted);
+      items.push({
+        movementId,
+        amount,
+        unit: "reps",
+        loadKg,
+        joules: amount * model.perRep(body, loadKg ?? 0),
+      });
+      continue;
     }
-  } else {
-    const rounds = roundsOf(block);
-    const result = block.result;
-    const shares = result?._tag === "capped" ? cappedShares(block, result, body.sex) : undefined;
-    if (result?._tag === "capped" && shares === undefined)
-      return skippedBlock("Capped, and where it stopped cannot be counted.", seconds);
-    for (const [index, item] of items.entries()) {
-      if (item.performed.length > 0) {
-        countSets(item, body, modelOf, counted);
-        continue;
-      }
-      const count = roundCount(item, block, body);
-      if (count === undefined || rounds === undefined) {
-        counted.leftOut.push({
-          movementId: item.movementId,
-          text: item.text,
-          reason: block.format === "strength" ? "No result entered." : "No reps.",
-        });
-        continue;
-      }
-      // An item with its own reps in a "21-15-9" block is done once per round of the scheme.
-      const schemeRounds =
-        block.params.rounds === undefined &&
-        block.params.scheme !== undefined &&
-        item.sets.some((set) => set.quantities.some((q) => q.measure === "reps"))
-          ? block.params.scheme.length
-          : 1;
-      // Capped: only the share of the station done before the cap.
-      const share = shares?.[index] ?? 1;
-      if (share === 0) continue;
-      countItem(
-        item,
-        rounds * schemeRounds * count.amount * share,
-        count.unit,
-        body,
-        modelOf,
-        counted,
-      );
+    if (model === undefined) {
+      leave("No work model for this movement yet.");
+      continue;
     }
+    // Seconds are not counted for work (`countBlock` leaves them out unless asked).
+    const unit = line.unit as WorkUnit;
+    if (model.none !== undefined) {
+      items.push({ movementId, amount, unit, loadKg, joules: 0 });
+      continue;
+    }
+    const perUnit = perUnitOf(model, unit);
+    if (perUnit === undefined) {
+      leave(`Counted in ${UNIT_NAMES[unit]}, which this movement has no model for.`);
+      continue;
+    }
+    if (model.loaded && loadKg === undefined) {
+      leave("No load to count (a percentage of 1RM is not read yet).");
+      continue;
+    }
+    items.push({ movementId, amount, unit, loadKg, joules: amount * perUnit(body, loadKg ?? 0) });
   }
 
   // Nothing counted at all is no measurement; a zero would read as one.
-  if (counted.items.length === 0)
-    return { ...skippedBlock("Nothing it could count.", seconds), leftOut: counted.leftOut };
-  const joules = totalJoules(counted.items);
+  if (items.length === 0) return { ...skippedBlock("Nothing it could count.", seconds), leftOut };
+  const joules = totalJoules(items);
   return {
     joules,
     seconds,
     watts: seconds !== undefined && seconds > 0 && joules > 0 ? joules / seconds : undefined,
-    items: counted.items,
-    leftOut: counted.leftOut,
+    items,
+    leftOut,
     skipped: undefined,
   };
 };
@@ -436,19 +227,6 @@ export interface BenchmarkWork {
   readonly leftOut: ReadonlyArray<LeftOut>;
 }
 
-/** "two dumbbells": the posted load is per implement, and two are lifted. */
-const TWO_IMPLEMENTS = /\btwo (?:dumbbells|kettlebells)\b/i;
-
-const benchmarkItem = (item: Benchmark["blocks"][number]["items"][number]): WorkItem => ({
-  movementId: item.movementId,
-  text: item.movementId,
-  sets: item.quantities.length === 0 ? [] : [{ quantities: item.quantities }],
-  performed: [],
-  performance:
-    item.note !== undefined && TWO_IMPLEMENTS.test(item.note) ? { implements: 2 } : undefined,
-  alternatives: (item.alternatives ?? []).map(benchmarkItem),
-});
-
 /**
  * One attempt at a benchmark as prescribed (Rx loads): a time over the whole workout, or an
  * AMRAP's rounds. `undefined` when the score says neither or nothing could be counted.
@@ -461,11 +239,7 @@ export const estimateBenchmarkWork = (
 ): BenchmarkWork | undefined => {
   const blocks = benchmark.blocks.filter((block) => block.format !== "rest");
   const asWork = (block: Benchmark["blocks"][number], scores: ReadonlyArray<string>) =>
-    estimateBlockWork(
-      { format: block.format, params: block.params, items: block.items.map(benchmarkItem), scores },
-      body,
-      modelOf,
-    );
+    estimateBlockWork(benchmarkBlock(block, scores), body, modelOf);
   let joules = 0;
   let seconds: number | undefined;
   const leftOut: Array<LeftOut> = [];
