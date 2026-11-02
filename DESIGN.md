@@ -341,7 +341,7 @@ Printed and decisive: square, semi-bold, no gradient.
 - **Style:** carbonless fill with a 2px inset ink underline of the same hue. Prescription chips sit inside attempt boxes in the protocol; marks sit inline in the Courier source.
 - **Variants:** blocks are a 1px ink outline on no fill; parts are a solid ink block with paper text; scores carry a double underline; date, session and notes use a 2px dotted underline.
 - **State:** hover or linked deepens the fill toward its ink (26%); open drops the fill for a 1.5px dashed outline; selected adds a 3px double outline offset 1px.
-- **Offered:** a movement chip Chalk derives rather than one the athlete set (a scaling offered by the core movement or the level sheet) drops the fill for the same 1.5px dashed outline (`data-derived`).
+- **Offered:** a movement chip Chalk derives rather than one the athlete set (a scaling offered by the core movement or the level sheet) drops the fill for the same 1.5px dashed outline (`data-derived`). So does a load carried to a line that wrote none: in a for-time or AMRAP, "15 power cleans" after "21 power cleans 61.25/43 kg" is the same bar, and its load chip prints dashed with the line it came from in its title.
 - **Tail:** words the matcher left after a movement mark ("lateral over DB" after "Burpee") carry no fill, only a 1.5px dashed underline in movement ink, offset under the baseline: the mark may run on into a variation, still open. The tail belongs to its mark: it lights and selects with it (dashed outline when selected), and the protocol row prints it in Courier under the name with "variation?" in condensed caps.
 
 ### Cards / Containers
@@ -383,6 +383,10 @@ Logging, the time cap is set here only; the block inspector offers it while plan
 it opens a fresh-sheet strip under the header: the outcome switch ("Finished" or "Capped" for a
 for-time, the result-mode switch's vocabulary), the fields for it, the cap in minutes, Clear and
 Done, and one pencil-grey line saying how the score was counted. Enter or Escape closes it.
+Once scored, every station nobody marked counts as done (as planned, else as prescribed, the way
+a score on the board is Rx), and a pencil-grey note after the score box says so once: "Counted
+as prescribed", or "5 unmarked counted as prescribed" when some were marked. Those rows print no
+words of their own; their done level badge carries it.
 
 ### Variation Ladder
 
@@ -414,7 +418,10 @@ and a labelled marker on a rung prints its number in place of the rung's. Under 
 family, a share bar splits the reps by level in the ramp's fills. Level badges are square
 condensed caps on the ramp, solid when done and dashed when asked for. Used on the web
 `/levels` page (one row per family, tabs by group) and on importer protocol rows (small, no
-labels) and in the inspector.
+labels) and in the inspector. A done level that is only counted from a block's score keeps its
+ramp fill on a 1.5px dashed edge in the level's own ink (`data-assumed`): done, still open. In
+the inspector the choice in effect ("As prescribed", or "As planned") prints as an outline button
+on a dashed ink border, "Scaled it" beside it; pressing it makes the choice the athlete's.
 
 ### Section Heads
 

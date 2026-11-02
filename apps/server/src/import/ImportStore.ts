@@ -26,6 +26,7 @@ import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 
+import { ProfileStore, layer as layerProfile } from "../profile/ProfileStore.ts";
 import { placeColumns } from "../workout/placeColumns.ts";
 import { sessionColumns } from "../workout/sessionMarks.ts";
 import { deleteWorkoutRows } from "../workout/deleteWorkoutRows.ts";
@@ -102,6 +103,7 @@ export class ImportStore extends Context.Service<
 
 const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
+  const profile = yield* ProfileStore;
   const random = yield* SecureRandom.SecureRandom;
   const newId = random.uuidV7();
 
@@ -221,7 +223,15 @@ const make = Effect.gen(function* () {
       ),
     );
     const nameById = new Map(names.map((row) => [row.id, row.name]));
-    const session = deriveSession(input.document, (id) => nameById.get(id));
+    // The athlete's side of an M/F load lifted as written.
+    const { sex } = yield* profile
+      .get()
+      .pipe(
+        Effect.mapError(
+          (cause) => new ImportPersistenceError({ operation: "save an import", cause }),
+        ),
+      );
+    const session = deriveSession(input.document, (id) => nameById.get(id), { sex });
     const problems = blockingIssues(session).map((issue) => issue.message);
     const performedOn = session.performedOn;
     if (problems.length > 0 || performedOn === undefined)
@@ -327,4 +337,4 @@ const make = Effect.gen(function* () {
   return ImportStore.of({ list, get, save });
 });
 
-export const layer = Layer.effect(ImportStore, make);
+export const layer = Layer.effect(ImportStore, make).pipe(Layer.provide(layerProfile));

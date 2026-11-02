@@ -1,6 +1,7 @@
 import type { BenchmarkId, IsoDate, MovementId } from "../baseSchemas.ts";
 import { benchmarkById, type Benchmark, type BenchmarkItem } from "../benchmarks/index.ts";
-import { LEVEL_NAMES, type Performance } from "../levels.ts";
+import { LEVEL_NAMES, type Performance, type Sex } from "../levels.ts";
+import { DEFAULT_SEX } from "../profile.ts";
 import type {
   BlockFormat,
   BlockParams,
@@ -31,6 +32,11 @@ import { lineIndexAt, parseQuantities, splitLines, type Line } from "./parse.ts"
 export interface DerivedSet {
   readonly line: number;
   readonly quantities: ReadonlyArray<Quantity>;
+  /**
+   * The line wrote no load, and its load is the one written on this earlier line for the same
+   * movement in a block scored as a whole: "21 power cleans 60 kg, ... 15 power cleans" is one bar.
+   */
+  readonly loadFrom?: number;
 }
 
 export interface DerivedItem {
@@ -46,8 +52,16 @@ export interface DerivedItem {
   readonly performed: ReadonlyArray<PerformedSet>;
   /** Every set the result lists, a missed one (0 reps) included; empty without a valid result. */
   readonly listed: ReadonlyArray<PerformedSet>;
-  /** How it was done, when the athlete said; `undefined` while it has a problem. */
+  /**
+   * How it was done, when the athlete said (`undefined` while it has a problem), or as
+   * `assumed`.
+   */
   readonly performance: Performance | undefined;
+  /**
+   * The athlete said nothing of how it was done, but its block is scored: `performance` is the
+   * plan, or as prescribed (`{}`) without one, the way a score on the board counts as Rx.
+   */
+  readonly assumed?: true;
   /** How the athlete planned to do it; `undefined` without a plan or while it has a problem. */
   readonly plan: Performance | undefined;
   readonly alternatives: ReadonlyArray<DerivedItem>;
@@ -335,9 +349,14 @@ const stripBullet = (line: string) =>
 
 /**
  * The session a document stands for. Pure and total: problems become issues, so the editor can
- * show a live preview and the server can refuse to save the same way.
+ * show a live preview and the server can refuse to save the same way. `sex` picks the athlete's
+ * side of a load written for men and women ("61.25/43 kg") where one is lifted as written.
  */
-export const deriveSession = (document: ImportDocument, nameOf: MovementNames): DerivedSession => {
+export const deriveSession = (
+  document: ImportDocument,
+  nameOf: MovementNames,
+  { sex = DEFAULT_SEX }: { readonly sex?: Sex } = {},
+): DerivedSession => {
   const { text } = document;
   const issues: Array<ImportIssue> = [];
   const spans = [...document.spans].sort((left, right) => left.start - right.start);
@@ -667,6 +686,78 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     };
   };
   /**
+   * In a block scored as a whole, a movement written again without a load ("21 power cleans
+   * 60 kg, 15 burpees, 15 power cleans") is done on the same bar: its sets take the load written
+   * last for that movement above it.
+   */
+  const withCarriedLoads = (
+    format: BlockFormat | undefined,
+    items: ReadonlyArray<DerivedItem>,
+  ): ReadonlyArray<DerivedItem> => {
+    if (!scoresMovements(format)) return items;
+    const written = new Map<MovementId, { readonly line: number; readonly load: Quantity }>();
+    return items.map((item) => {
+      if (item.movementId === undefined) return item;
+      const own = item.sets.findLast((set) =>
+        set.quantities.some((quantity) => quantity.measure === "load_kg"),
+      );
+      if (own !== undefined) {
+        const load = own.quantities.findLast((quantity) => quantity.measure === "load_kg")!;
+        written.set(item.movementId, { line: own.line, load });
+        return item;
+      }
+      const carried = written.get(item.movementId);
+      if (carried === undefined || item.sets.length === 0) return item;
+      return {
+        ...item,
+        sets: item.sets.map((set) => ({
+          ...set,
+          quantities: [...set.quantities, carried.load],
+          loadFrom: carried.line,
+        })),
+      };
+    });
+  };
+
+  /**
+   * Once a block scored as a whole has its score, a station the athlete said nothing about counts
+   * as done: as planned, or as prescribed. Saying how it went (or how an alternative went)
+   * replaces it.
+   */
+  const withAssumed = (
+    format: BlockFormat | undefined,
+    items: ReadonlyArray<DerivedItem>,
+    result: BlockResult | undefined,
+  ): ReadonlyArray<DerivedItem> => {
+    if (!scoresMovements(format) || result === undefined) return items;
+    return items.map((item) => {
+      const options = [item, ...item.alternatives];
+      const said = options.some((option) => {
+        const span = byId.get(option.spanId);
+        return (
+          (span?._tag === "movement" && span.performance !== undefined) ||
+          option.performed.length > 0
+        );
+      });
+      if (said) return item;
+      const planned = options.find((option) => option.plan !== undefined);
+      const assume = (option: DerivedItem): DerivedItem => ({
+        ...option,
+        performance: option.plan ?? {},
+        assumed: true,
+      });
+      return planned === undefined || planned === item
+        ? assume(item)
+        : {
+            ...item,
+            alternatives: item.alternatives.map((alternative) =>
+              alternative === planned ? assume(alternative) : alternative,
+            ),
+          };
+    });
+  };
+
+  /**
    * A block scored as a whole lifts what its movements were done at: a movement with a load
    * ("Done as" 35 kg, or as prescribed at the load written) and no sets of its own gets one set per
    * round at that load, by the reps the score says it got through. Left alone when the reps are calories or metres, split by
@@ -686,12 +777,14 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
           ? (item.alternatives.find((alternative) => alternative.performance !== undefined) ?? item)
           : item;
       const counted = option.sets.flatMap((set) => set.quantities);
-      // Done as prescribed: the load as written, when there is one for everybody.
+      // Done as prescribed: the load as written, the athlete's side of one for men and women.
       const written = counted.filter((quantity) => quantity.measure === "load_kg");
       const [load] = written;
+      const side =
+        load === undefined ? undefined : sex === "f" && load.female ? load.female : load.amount;
       const writtenKg =
-        written.length === 1 && load!.female === undefined && load!.amount.min === load!.amount.max
-          ? load!.amount.min
+        new Set(written.map(formatQuantity)).size === 1 && side!.min === side!.max
+          ? side!.min
           : undefined;
       // Per implement as entered; a set lifts both bells of a pair.
       const perImplement = option.performance?.loadKg ?? (option.performance && writtenKg);
@@ -1009,7 +1102,7 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
     return {
       ...base,
       blocks: blocks.map((block, index) => {
-        const listed = block.items.map(toItem);
+        const listed = withCarriedLoads(block.format, block.items.map(toItem));
         const rotation = rotationOf(block.spanId);
         const owner = block.spanId === undefined ? undefined : byId.get(block.spanId);
         const scored = resultFor(owner?._tag === "block" ? owner : undefined, {
@@ -1018,7 +1111,11 @@ export const deriveSession = (document: ImportDocument, nameOf: MovementNames): 
           items: listed,
         });
         const items = withScoredLoads(
-          { format: block.format, params: block.params, items: listed },
+          {
+            format: block.format,
+            params: block.params,
+            items: withAssumed(block.format, listed, scored.result),
+          },
           scored.result,
         );
         return {

@@ -13,12 +13,14 @@ import * as SqlClient from "effect/sql/SqlClient";
 import * as CatalogStore from "../catalog/CatalogStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
+import * as ProfileStore from "../profile/ProfileStore.ts";
 import * as StrengthStore from "../strength/StrengthStore.ts";
 import * as WorkoutStore from "../workout/WorkoutStore.ts";
 import * as ImportStore from "./ImportStore.ts";
 
 const layer = Layer.mergeAll(
   ImportStore.layer,
+  ProfileStore.layer,
   CatalogStore.layer,
   StrengthStore.layer,
   WorkoutStore.layer,
@@ -176,6 +178,57 @@ describe("ImportStore", () => {
       yield* (yield* WorkoutStore.WorkoutStore).remove(summary.workoutId);
       expect(yield* (yield* StrengthStore.StrengthStore).list()).toEqual([]);
     }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect(
+    "lifts a scored for-time's unmarked movements as written, on the athlete's side of the load",
+    () =>
+      Effect.gen(function* () {
+        yield* (yield* ProfileStore.ProfileStore).update({
+          sex: "f",
+          heightCm: null,
+          armLengthCm: null,
+          legLengthCm: null,
+        });
+        const text = [
+          "** Session 171 <2026-10-31 fr>",
+          "*** Workout",
+          "- For time",
+          "- 21 Power cleans 60/40 kg",
+          "- 15 Bar facing burpees",
+          "- 15 Power cleans",
+        ].join("\n");
+        const suggested = yield* suggestedDocument(text);
+        const document: ImportDocument = {
+          ...suggested,
+          spans: suggested.spans.map((span) =>
+            span._tag === "block" ? { ...span, result: { _tag: "time", seconds: 431 } } : span,
+          ),
+        };
+        const summary = yield* (yield* ImportStore.ImportStore).save({ document });
+        expect(summary).toMatchObject({ tonnageKg: 36 * 40 });
+
+        const sql = yield* SqlClient.SqlClient;
+        const items = yield* sql<{ movement: string; prescription: string; performance: string }>`
+          SELECT movement_id AS movement, prescription, performance
+          FROM workout_items ORDER BY position
+        `;
+        // Saved as done as prescribed; the third line's load is the first line's.
+        expect(items.map((item) => [item.movement, JSON.parse(item.performance)])).toEqual([
+          ["power-clean", {}],
+          ["bar-facing-burpee", {}],
+          ["power-clean", {}],
+        ]);
+        expect(JSON.parse(items[2]!.prescription)).toEqual([
+          {
+            line: expect.any(Number),
+            quantities: [
+              { measure: "reps", amount: { min: 15, max: 15 } },
+              { measure: "load_kg", amount: { min: 60, max: 60 }, female: { min: 40, max: 40 } },
+            ],
+          },
+        ]);
+      }).pipe(Effect.provide(layer)),
   );
 
   it.effect("keeps the name the model gave a session when it is imported again", () =>

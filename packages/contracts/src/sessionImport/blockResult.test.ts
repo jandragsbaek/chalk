@@ -281,20 +281,106 @@ describe("movements of a block scored as a whole", () => {
 });
 
 describe("a movement done as prescribed in a block scored as a whole", () => {
-  it("lifts the load as written, when it is one for everybody", () => {
-    const prescribed = (text: string) => {
-      const document = suggested(text);
-      return firstBlock({
-        ...document,
-        spans: document.spans.map((span) =>
-          span._tag === "movement" ? { ...span, performance: {} } : span,
+  const asPrescribed = (document: ImportDocument): ImportDocument => ({
+    ...document,
+    spans: document.spans.map((span) =>
+      span._tag === "movement" ? { ...span, performance: {} } : span,
+    ),
+  });
+  const lifted = (block: DerivedBlock) =>
+    block.items.map((item) => item.performed.map((set) => `${set.reps}@${set.loadKg}`).join(" "));
+
+  it("lifts the load as written, the athlete's side of one for men and women", () => {
+    expect(
+      lifted(
+        firstBlock(
+          asPrescribed(suggested("Metcon\nFor time\n15 Hang Power Cleans 50 kg\n30 Burpees")),
         ),
-      }).items.map((item) => item.performed.map((set) => `${set.reps}@${set.loadKg}`).join(" "));
-    };
-    expect(prescribed("Metcon\nFor time\n15 Hang Power Cleans 50 kg\n30 Burpees")).toEqual([
-      "15@50",
-      "",
+      ),
+    ).toEqual(["15@50", ""]);
+    const ladies = suggested("Metcon\nFor time\n15 Hang Power Cleans 60/40 kg\n30 Burpees");
+    expect(lifted(firstBlock(asPrescribed(ladies)))).toEqual(["15@60", ""]);
+    expect(
+      lifted(deriveSession(asPrescribed(ladies), nameOf, { sex: "f" }).parts[0]!.blocks[0]!),
+    ).toEqual(["15@40", ""]);
+  });
+
+  it("lifts a movement written again without a load at the load written above it", () => {
+    const text = [
+      "Metcon",
+      "For time",
+      "21 Power Cleans 60/40 kg",
+      "15 Bar Facing Burpees",
+      "15 Power Cleans",
+      "9 Bar Facing Burpees",
+      "9 Power Cleans",
+    ].join("\n");
+    const block = firstBlock(asPrescribed(suggested(text)));
+    expect(lifted(block)).toEqual(["21@60", "", "15@60", "", "9@60"]);
+    // The load is the first line's, marked as carried from it.
+    expect(block.items[2]!.sets).toEqual([
+      expect.objectContaining({ loadFrom: block.items[0]!.sets[0]!.line }),
     ]);
-    expect(prescribed(CAPPED_FOR_TIME)).toEqual(["", "", "", "", ""]);
+    // Not in a strength block, where the next line is a different set.
+    const strength = firstBlock(suggested("Strength\n5 Deadlifts 100 kg\n5 Deadlifts"));
+    expect(strength.items[1]!.sets[0]!.quantities.map((quantity) => quantity.measure)).toEqual([
+      "reps",
+    ]);
+  });
+});
+
+describe("a station the athlete said nothing about, once its block is scored", () => {
+  const text = "Metcon\nFor time\n21 Power Cleans 60 kg\n15 Bar Facing Burpees\n15 Power Cleans";
+  const done = { _tag: "time", seconds: 431 } as const;
+
+  it("counts as done as prescribed, lifting the load written", () => {
+    const unsaid = suggested(text);
+    expect(firstBlock(unsaid).items.map((item) => item.assumed)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    const block = firstBlock(withResult(unsaid, done));
+    expect(block.items.map((item) => [item.assumed, item.performance])).toEqual([
+      [true, {}],
+      [true, {}],
+      [true, {}],
+    ]);
+    expect(block.tonnageKg).toBe(36 * 60);
+  });
+
+  it("gives way to what the athlete said, for the station or an alternative of it", () => {
+    const [clean] = movements(suggested(text));
+    const said = withResult(
+      {
+        ...suggested(text),
+        spans: suggested(text).spans.map((span) =>
+          span.id === clean!.id ? { ...span, performance: { loadKg: 40 } } : span,
+        ),
+      },
+      done,
+    );
+    const block = firstBlock(said);
+    expect(block.items[0]).toMatchObject({ performance: { loadKg: 40 } });
+    expect(block.items[0]!.assumed).toBeUndefined();
+    expect(block.tonnageKg).toBe(21 * 40 + 15 * 60);
+  });
+
+  it("counts as planned when there is a plan", () => {
+    const [clean] = movements(suggested(text));
+    const planned = withResult(
+      {
+        ...suggested(text),
+        spans: suggested(text).spans.map((span) =>
+          span.id === clean!.id ? { ...span, plan: { loadKg: 50 } } : span,
+        ),
+      },
+      done,
+    );
+    expect(firstBlock(planned).items[0]).toMatchObject({
+      assumed: true,
+      performance: { loadKg: 50 },
+      performed: [{ reps: 21, loadKg: 50 }],
+    });
   });
 });

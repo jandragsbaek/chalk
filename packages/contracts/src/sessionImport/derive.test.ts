@@ -96,7 +96,12 @@ describe("deriveSession", () => {
         "overhead-squat[1 rep 70 %]",
         "snatch[1 rep 80 %]",
       ],
-      ["wall-ball[10 reps]", "thruster[5 reps 40 kg]", "thruster[5 reps] | snatch[5 reps 60 %]"],
+      // The AMRAP's second thruster line is on the same bar as the first.
+      [
+        "wall-ball[10 reps]",
+        "thruster[5 reps 40 kg]",
+        "thruster[5 reps 40 kg] | snatch[5 reps 60 %]",
+      ],
     ]);
   });
 

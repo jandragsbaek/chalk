@@ -153,12 +153,13 @@ export function ImportWorkbench({
   const planning = mode === "plan";
   /** Planning, or logging a plan: the plan is the work, so it leads the screen. */
   const outcomeFirst = planning || plan !== undefined;
+  const sex = useAthleteSex();
   const [state, dispatch] = useReducer(editorReducer, initial, (document) => {
     const start = initialEditorState(document);
     if (!outcomeFirst) return start;
     // Open on the first movement still to plan (or to log), not on the tag keys.
     const names = new Map(catalog.map((movement) => [movement.id, movement.name]));
-    const items = programmedItems(deriveSession(document, (id) => names.get(id)));
+    const items = programmedItems(deriveSession(document, (id) => names.get(id), { sex }));
     const open = items.find((item) => {
       const span = document.spans.find((candidate) => candidate.id === item.spanId);
       return span?._tag === "movement" && (planning ? span.plan : span.performance) === undefined;
@@ -201,13 +202,12 @@ export function ImportWorkbench({
     return core === undefined ? undefined : names.get(core);
   };
   const document = toDocument(state);
-  const session = deriveSession(document, nameOf);
+  const session = deriveSession(document, nameOf, { sex });
   // A plan keeps its name while it is logged; a pasted session is named by its heading.
   const title = session.name;
   const errors = session.issues.filter((issue) => issue.severity === "error");
   const selected = state.spans.find((span) => span.id === state.selectedId);
   const programmed = selected?._tag === "movement" ? findItem(session, selected.id) : undefined;
-  const sex = useAthleteSex();
   const grades = gradeSession(session, catalog, sex, planning ? "planned" : "done");
   const complexes = findComplexes(session, document, (id) => categories.get(id));
   const selectedComplex =
