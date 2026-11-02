@@ -60,11 +60,13 @@ export const boardTonnageOf = (items: ReadonlyArray<DerivedItem>, sex: Sex): num
   const tonnage = (item: DerivedItem): number => {
     const change = loadChangeOf(item, sex);
     if (change !== undefined && item.performed.length > 0) changed = true;
+    // A set of a pair lifts both bells: its load is the one per implement, twice.
+    const pair = item.performance?.implements ?? 1;
     const sets =
       change === undefined
         ? item.performed
         : item.performed.map((set) =>
-            set.loadKg === change.doneKg ? { ...set, loadKg: change.boardKg } : set,
+            set.loadKg === change.doneKg * pair ? { ...set, loadKg: change.boardKg * pair } : set,
           );
     return tonnageOf(sets) + item.alternatives.reduce((sum, option) => sum + tonnage(option), 0);
   };

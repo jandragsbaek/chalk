@@ -83,6 +83,16 @@ describe("boardTonnageOf", () => {
     expect(shareOfBoard(1950, 2735.25)).toBe(71);
   });
 
+  it("counts both bells of a pair", () => {
+    // Two 15 kg dumbbells for 10 reps against 20 kg on the board: 300 kg lifted of 400.
+    const pair: DerivedItem = {
+      ...deadlift([reps(10), load(20)], 15, 10),
+      performed: [{ reps: 10, loadKg: 30 }],
+      performance: { loadKg: 15, implements: 2 },
+    };
+    expect(boardTonnageOf([pair], "m")).toBe(400);
+  });
+
   it("is undefined when every load was the board's", () => {
     expect(boardTonnageOf([deadlift([load(70.25)], 70.25)], "m")).toBeUndefined();
     expect(boardTonnageOf([deadlift([load(70.25)], 50, 0)], "m")).toBeUndefined();
