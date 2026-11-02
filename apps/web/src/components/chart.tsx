@@ -6,6 +6,15 @@ const kgFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 export const kg = (value: number) => `${kgFormat.format(value)}\u00a0kg`;
 export const signedKg = (value: number) =>
   `${value >= 0 ? "+" : "−"}${kgFormat.format(Math.abs(value))}\u00a0kg`;
+/** Body fat, percent of bodyweight; the scale reads tenths. */
+const pctFormat = new Intl.NumberFormat(undefined, {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+export const pct = (value: number) => `${pctFormat.format(value)}\u00a0%`;
+/** A change in a percentage, in percentage points. */
+export const signedPoints = (value: number) =>
+  `${value >= 0 ? "+" : "−"}${pctFormat.format(Math.abs(value))}\u00a0pts`;
 
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: "short" });
 const dayFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });

@@ -52,9 +52,13 @@ export function WorkSection({
       <section aria-label="Work and power">
         <SectionHeader title="Work and power" meta="Estimated" />
         <p className="px-4 py-3 text-sm text-muted-foreground">
-          Set your height and log a bodyweight in{" "}
+          Set your height in{" "}
           <Link to="/settings" className="underline underline-offset-2 hover:text-foreground">
             Settings
+          </Link>{" "}
+          and log a bodyweight on{" "}
+          <Link to="/body" className="underline underline-offset-2 hover:text-foreground">
+            Body
           </Link>{" "}
           to estimate the work this session took.
         </p>

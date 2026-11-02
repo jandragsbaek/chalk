@@ -56,9 +56,9 @@ const failureMessage = (
 };
 
 /**
- * The Garmin Connect login that brings the scale's weigh-ins into bodyweight. The tokens come
- * from a login on the athlete's own machine; the server keeps and renews them, and only says
- * how its reads went.
+ * The Garmin Connect login that brings the scale's weigh-ins (weight, body fat, muscle mass)
+ * into Body. The tokens come from a login on the athlete's own machine; the server keeps and
+ * renews them, and only says how its reads went.
  */
 export function GarminForm() {
   return AsyncResult.match(useAtomValue(garminStatusAtom), {
@@ -184,7 +184,7 @@ function GarminConnection({ status }: { readonly status: GarminStatus }) {
 
   return (
     <section aria-labelledby={`${id}-title`} className="grid content-start">
-      <SectionHead id={`${id}-title`} title="Garmin Connect" meta="Smart scale into bodyweight" />
+      <SectionHead id={`${id}-title`} title="Garmin Connect" meta="Smart scale into Body" />
       <dl className="flex divide-x border-b bg-card whitespace-nowrap">
         {status._tag === "connected" ? (
           <>
@@ -222,7 +222,8 @@ function GarminConnection({ status }: { readonly status: GarminStatus }) {
       {connected ? (
         <div className="flex items-center justify-between gap-3 border-b bg-card px-4 py-2.5">
           <p className="text-xs text-muted-foreground">
-            The scale's first reading of each day. A weigh-in you typed is never overwritten.
+            The scale's first reading of each day, with body fat and muscle mass when it measured
+            them. A weigh-in you typed is never overwritten.
           </p>
           <div className="flex shrink-0 gap-1.5">
             <Button variant="outline" size="sm" disabled={busy} onClick={() => void handleSync()}>

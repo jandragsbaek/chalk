@@ -5,7 +5,8 @@ import { Sex } from "./levels.ts";
 
 /**
  * The athlete behind the log: sex (which side of an M/F load applies), height, optional limb
- * lengths, and bodyweight over time. Centimetres and kilograms, like every unit in storage.
+ * lengths, and bodyweight over time with body fat and muscle mass when the scale measured them.
+ * Centimetres, kilograms and percent of bodyweight, like every unit in storage.
  */
 
 /** Assumed until the athlete sets it: Chalk grades on the male side of every M/F load. */
@@ -29,10 +30,34 @@ export const BodyweightKg = Schema.Finite.check(
   Schema.isLessThanOrEqualTo(300),
 );
 
-/** One weigh-in: the athlete's local day and the scale's reading. One per day. */
+/** Body fat and muscle mass bounds: outside them a smart scale's number is not a reading. */
+export const BODY_FAT_PCT_MIN = 2;
+export const BODY_FAT_PCT_MAX = 75;
+export const MUSCLE_MASS_KG_MIN = 10;
+export const MUSCLE_MASS_KG_MAX = 150;
+
+/** Body fat, percent of bodyweight, from a bioimpedance scale. */
+export const BodyFatPct = Schema.Finite.check(
+  Schema.isGreaterThanOrEqualTo(BODY_FAT_PCT_MIN),
+  Schema.isLessThanOrEqualTo(BODY_FAT_PCT_MAX),
+);
+
+/** Skeletal muscle mass, kilograms, from a bioimpedance scale (Garmin's "muscle mass"). */
+export const MuscleMassKg = Schema.Finite.check(
+  Schema.isGreaterThanOrEqualTo(MUSCLE_MASS_KG_MIN),
+  Schema.isLessThanOrEqualTo(MUSCLE_MASS_KG_MAX),
+);
+
+/**
+ * One weigh-in: the athlete's local day and the scale's reading, with body fat and muscle mass
+ * when the scale measured them (a Garmin Index does barefoot; typed ones are optional). One per
+ * day.
+ */
 export const BodyweightEntry = Schema.Struct({
   performedOn: IsoDate,
   kg: BodyweightKg,
+  bodyFatPct: Schema.NullOr(BodyFatPct),
+  muscleMassKg: Schema.NullOr(MuscleMassKg),
 }).annotate({ identifier: "BodyweightEntry" });
 export type BodyweightEntry = typeof BodyweightEntry.Type;
 
@@ -77,16 +102,19 @@ export const EMPTY_ATHLETE_PROFILE: AthleteProfile = {
   bodyweights: [],
 };
 
+/** A day's bodyweight, without what else the scale measured. */
+type WeighIn = Pick<BodyweightEntry, "performedOn" | "kg">;
+
 /**
  * Bodyweight on day `date`: the latest weigh-in on or before it, else the earliest weigh-in
  * (a session before the first weigh-in uses the first one). `null` without any weigh-in.
  */
 export const bodyweightOn = (
-  profile: { readonly bodyweights: ReadonlyArray<BodyweightEntry> },
+  profile: { readonly bodyweights: ReadonlyArray<WeighIn> },
   date: IsoDate,
 ): number | null => {
-  let before: BodyweightEntry | undefined;
-  let earliest: BodyweightEntry | undefined;
+  let before: WeighIn | undefined;
+  let earliest: WeighIn | undefined;
   for (const entry of profile.bodyweights) {
     if (earliest === undefined || entry.performedOn < earliest.performedOn) earliest = entry;
     if (

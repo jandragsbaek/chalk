@@ -162,16 +162,16 @@ sources next to GymDanmark's.
 
 ### Athlete profile (built)
 
-Who is training, on `/settings`. `AthleteProfile` (contracts, `profile.ts`) is the whole thing in
+Who is training, on `/settings`, and their body over time, on `/body`. `AthleteProfile` (contracts, `profile.ts`) is the whole thing in
 one read (`profile.get`):
 
-| Field         | Notes                                                                            |
-| ------------- | -------------------------------------------------------------------------------- |
-| `sex`         | `m` or `f`: which side of an M/F load applies. `DEFAULT_SEX` (`m`) until set.    |
-| `heightCm`    | Standing height, 100 to 250, or null. One value, no history.                     |
-| `armLengthCm` | Optional: acromion (shoulder tip) to the knuckles of a closed fist, arm hanging. |
-| `legLengthCm` | Optional: inseam, floor to crotch, barefoot.                                     |
-| `bodyweights` | Every weigh-in `{ performedOn, kg, source, measuredAt }`, oldest first; one/day. |
+| Field         | Notes                                                                                                      |
+| ------------- | ---------------------------------------------------------------------------------------------------------- |
+| `sex`         | `m` or `f`: which side of an M/F load applies. `DEFAULT_SEX` (`m`) until set.                              |
+| `heightCm`    | Standing height, 100 to 250, or null. One value, no history.                                               |
+| `armLengthCm` | Optional: acromion (shoulder tip) to the knuckles of a closed fist, arm hanging.                           |
+| `legLengthCm` | Optional: inseam, floor to crotch, barefoot.                                                               |
+| `bodyweights` | Every weigh-in `{ performedOn, kg, bodyFatPct, muscleMassKg, source, measuredAt }`, oldest first; one/day. |
 
 - **Storage**: migration `013_AthleteProfile`. `athlete_profile` is one row (`id = 1`), absent
   until the first save, so the store reads `EMPTY_ATHLETE_PROFILE` (male, nulls) before then.
@@ -180,6 +180,12 @@ one read (`profile.get`):
   `source` is `manual` (typed) or `garmin` (the scale, with its local `measuredAt` "HH:MM";
   migration `018_Garmin`). A Garmin read only writes days that are not `manual`, so a typed
   weigh-in always wins; typing over a scale day makes it `manual`.
+- **Body composition**: `bodyFatPct` (percent of bodyweight, 2 to 75) and `muscleMassKg`
+  (skeletal muscle, 10 to 150 kg) ride on the weigh-in, null when it measured none (migration
+  `024_BodyComposition`). A Garmin Index measures both on a barefoot reading; a typed weigh-in
+  may give either. Logging a day again replaces all three numbers. Fat mass (kg × body fat %)
+  is derived on Body, never stored. Work and power stay on bodyweight: they move the whole
+  body, so lean mass changes nothing there.
 - **Bodyweight on a day**: `bodyweightOn(profile, date)` is the latest weigh-in on or before
   `date`, else the earliest weigh-in (a session before the first weigh-in uses it), else null.
   Estimates that need the athlete's mass at a session (work and power) read it through this.
@@ -188,10 +194,13 @@ one read (`profile.get`):
   `reachOfTiers`, ...). Switching it regrades everything client-side; nothing stored changes.
 - Limb lengths are optional because they can be estimated from height; whoever needs them
   estimates when they are null.
-- Web: `/settings` (sex, height, limbs with how to measure; bodyweight trend, the day's log, every
-  weigh-in with its change, source and delete). The chart draws the 7-day trailing mean as its
-  line, scale readings as faint marks under it and typed weigh-ins as solid squares, with 90 days,
-  1 year and All once the history is longer than 90 days. `/settings/connections` holds the
+- Web: `/settings` (sex, height, limbs with how to measure) and `/body`: body fat and muscle
+  mass lead as display numbers with their 30-day change in the weekly mean, then fat mass,
+  bodyweight and when it was measured; body fat, muscle mass and bodyweight charted over one
+  shared range (each the 7-day trailing mean as its line, scale readings as faint marks under
+  it, typed ones as solid squares; 90 days, 1 year and All once the history is longer than 90
+  days); the day's log (weight, optional body fat and muscle) and every weigh-in with its
+  change, composition, source and delete. `/settings/connections` holds the
   bookingboard and Garmin logins.
 
 ### Workout, parts and items
@@ -590,7 +599,8 @@ Read-only: GET requests only, never booking or check-in.
 ## Garmin Connect (built)
 
 The athlete's Garmin Index scale puts a weigh-in in Garmin Connect each morning; Chalk reads them
-into bodyweight so the trend and every work estimate use real numbers. Read-only.
+into bodyweight, with body fat and muscle mass, so the trends and every work estimate use real
+numbers. Read-only.
 
 - **No personal API**: Garmin's developer program only takes companies, and since March 2026 its
   SSO login sits behind Cloudflare TLS fingerprinting, so a Node `fetch` cannot log in. The data
@@ -613,7 +623,11 @@ into bodyweight so the trend and every work estimate use real numbers. Read-only
   "Sync now"): `GET /weight-service/weight/range/{from}/{to}?includeAll=true` in 120-day
   windows, from three days before the last read (the import day the first time) to tomorrow.
   `weighIns.ts` keeps each calendar day's first reading (`date`, local clock as epoch ms),
-  grams to kg, skips readings without a weight or outside 25 to 300 kg. A failed read keeps
+  grams to kg, skips readings without a weight or outside 25 to 300 kg. Body fat (`bodyFat`,
+  percent) and muscle mass (`muscleMass`, grams) come from the day's first reading that has
+  them: a reading in shoes sends `0` for both, not null (9 of 211 in a live reply, checked
+  2026-11-02). The reply also carries `bodyWater` (%), `boneMass` (g) and `bmi`; Chalk does
+  not keep them. A failed read keeps
   what was imported and stores its message (`last_error`): the strip turns its lamp red.
 - A scale day the athlete deletes comes back only if a later read still covers it (the three
   overlap days, or connecting again).

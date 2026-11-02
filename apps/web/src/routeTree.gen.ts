@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BodyRouteImport } from './routes/body'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as ImportRouteImport } from './routes/import'
@@ -29,6 +30,11 @@ import { Route as SettingsConnectionsRouteImport } from './routes/settings.conne
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BodyRoute = BodyRouteImport.update({
+  id: '/body',
+  path: '/body',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CalendarRoute = CalendarRouteImport.update({
@@ -109,6 +115,7 @@ const SettingsConnectionsRoute = SettingsConnectionsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/body': typeof BodyRoute
   '/calendar': typeof CalendarRoute
   '/coach': typeof CoachRoute
   '/import': typeof ImportRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/body': typeof BodyRoute
   '/calendar': typeof CalendarRoute
   '/coach': typeof CoachRoute
   '/import': typeof ImportRoute
@@ -145,6 +153,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/body': typeof BodyRoute
   '/calendar': typeof CalendarRoute
   '/coach': typeof CoachRoute
   '/import': typeof ImportRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/body'
     | '/calendar'
     | '/coach'
     | '/import'
@@ -183,6 +193,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/body'
     | '/calendar'
     | '/coach'
     | '/import'
@@ -200,6 +211,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/body'
     | '/calendar'
     | '/coach'
     | '/import'
@@ -219,6 +231,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BodyRoute: typeof BodyRoute
   CalendarRoute: typeof CalendarRoute
   CoachRoute: typeof CoachRoute
   ImportRoute: typeof ImportRoute
@@ -241,6 +254,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/body': {
+      id: '/body'
+      path: '/body'
+      fullPath: '/body'
+      preLoaderRoute: typeof BodyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/calendar': {
@@ -367,6 +387,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BodyRoute: BodyRoute,
   CalendarRoute: CalendarRoute,
   CoachRoute: CoachRoute,
   ImportRoute: ImportRoute,
