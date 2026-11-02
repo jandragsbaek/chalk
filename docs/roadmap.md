@@ -24,7 +24,8 @@ coach.
 
 ## 3. Composed workouts
 
-- `workout_parts` and `workout_items` tables (prescribed vs performed, derived total reps).
+- `workout_parts` and `workout_items` tables (done): parts, blocks and items, prescribed vs
+  performed, written by the importer (migration `003_SessionImports`).
 - Structured scores per format, with the display string derived (imports: built, entered on
   the block header; the Log form not yet).
 - Log form builds a workout from parts and catalog movements.
@@ -32,7 +33,8 @@ coach.
   one writes its structure, the importer links parts to them, `/benchmarks` shows attempts,
   records and the Rx level on GymDanmark's sheet. Later: a structured score per format, and
   logging how a scaled attempt was done.
-- Strength parts write lift sets, so rep maxes come from workouts too.
+- Strength parts write lift sets, so rep maxes come from workouts too (imports: done; the Log
+  form not yet).
 - Migrate existing workouts to one part each.
 
 ## 4. Scaling
@@ -42,7 +44,8 @@ coach.
   recorded in the importer; programmed and performed level per movement and per session;
   accessories tagged with what they complement. Web: `/levels`, a ruler per family.
 - Standards from Competition Corner divisions (national, international) as extra sources.
-- `scaling_options` catalog per movement, ranked.
+- Scaling options per movement, ranked (done): `movements.scalings`, first offered first, as
+  one-click "Scale to" in the importer and edited on `/movements`. Migration `021_Scalings`.
 - Per-movement scaling timeline ("banded → kipping → Rx").
 
 ## 5. Volume grid
@@ -65,7 +68,8 @@ coach.
 
 ## Later, unordered
 
-- Custom movements and aliases (done through the importer; no catalog screen yet).
+- Custom movements and aliases (done): created through the importer; aliases also on the
+  `/movements` desk.
 - kg / lb display preference.
 - Athlete profile (done): sex (M/F, picks the side of every M/F load; male until set), height,
   optional arm and inseam lengths, bodyweight over time, on `/settings`. A plain settings page,
@@ -79,5 +83,6 @@ coach.
   athlete's body and what each session asked (see domain.md). Session sheet, benchmark
   attempts, `/power` trend. RPC `power.sessions`. Later: % of 1RM loads from the estimated 1RM,
   box height and vest per attempt, how a scaled benchmark was done.
-- Desk pages: catalog management (movements, scaling options, templates).
+- Desk pages: catalog management. Movements and scaling options done (`/movements`: aliases,
+  levels, scalings, variation of); creating a movement there and templates not yet.
 - Import pasted session text (done: the Import page, see domain.md). Whiteboard photos later.
