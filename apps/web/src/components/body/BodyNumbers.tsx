@@ -154,25 +154,46 @@ export function BodyNumbers({
   readonly muscle: ReadonlyArray<SeriesPoint<Bodyweight>>;
   readonly weight: ReadonlyArray<SeriesPoint<Bodyweight>>;
 }) {
-  // Body fat and muscle come from the same reading; the latest one that measured either.
+  // A scale measures both at once; a typed weigh-in may give only one, so each number is its
+  // own latest reading, dated when it is older than the latest reading of either.
   const measured = entries.findLast(
     (entry) => entry.bodyFatPct !== null || entry.muscleMassKg !== null,
   );
+  const latestFat = fat.at(-1);
+  const latestMuscle = muscle.at(-1);
   const latestWeight = weight.at(-1);
-  const fatMass = measured === undefined ? null : fatMassKg(measured);
+  const fatMass = latestFat === undefined ? null : fatMassKg(latestFat);
+  const olderDay = (point: SeriesPoint<Bodyweight> | undefined) =>
+    point === undefined || point.performedOn === measured?.performedOn ? null : (
+      <span className="text-xs text-muted-foreground">From {formatDay(point.performedOn)}</span>
+    );
 
   return (
     <dl aria-label="Body, latest" className="flex border bg-card">
       <Headline
         label="Body fat"
-        value={measured?.bodyFatPct == null ? undefined : pct(measured.bodyFatPct)}
-        under={fat.length === 0 ? null : <Change value={meanChange(fat)} format={signedPoints} />}
+        value={latestFat === undefined ? undefined : pct(latestFat.value)}
+        under={
+          latestFat === undefined ? null : (
+            <>
+              <Change value={meanChange(fat)} format={signedPoints} />
+              {olderDay(latestFat)}
+            </>
+          )
+        }
       />
       <Headline
         closing
         label="Muscle mass"
-        value={measured?.muscleMassKg == null ? undefined : kg(measured.muscleMassKg)}
-        under={muscle.length === 0 ? null : <Change value={meanChange(muscle)} format={signedKg} />}
+        value={latestMuscle === undefined ? undefined : kg(latestMuscle.value)}
+        under={
+          latestMuscle === undefined ? null : (
+            <>
+              <Change value={meanChange(muscle)} format={signedKg} />
+              {olderDay(latestMuscle)}
+            </>
+          )
+        }
       />
       <Support
         label="Fat mass, derived"

@@ -70,7 +70,8 @@ export function TrendChart({
   const end = toDate(to);
   const innerWidth = Math.max(0, width - MARGIN.left - MARGIN.right);
   const innerHeight = height - MARGIN.top - MARGIN.bottom;
-  const values = shown.map((point) => point.value);
+  // The first means in a range can carry readings from before it, so both bound the axis.
+  const values = shown.flatMap((point) => [point.value, point.average]);
   const xScale = scaleTime({ domain: [start, end], range: [0, innerWidth] });
   const yScale = scaleLinear({
     domain: [Math.min(...values) - pad, Math.max(...values) + pad],
