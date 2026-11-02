@@ -8,6 +8,7 @@ import {
   type DerivedItem,
   type DerivedSession,
   type Measure,
+  type MovementCategory,
   type MovementId,
   type Performance,
   type Quantity,
@@ -16,7 +17,8 @@ import {
   type SpanOf,
 } from "@chalk/contracts";
 
-import { resultDefaults, type ResultDefaults } from "./resultDraft.ts";
+import { intervalRounds, resultDefaults, type ResultDefaults } from "./resultDraft.ts";
+import { describeRounds } from "./rounds.ts";
 import { chosenOption } from "./station.ts";
 
 const kgFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
@@ -39,6 +41,33 @@ export function roundTarget(item: DerivedItem): Quantity | undefined {
     quantities.find((quantity) => ROUND_UNITS[quantity.measure] !== undefined)
   );
 }
+
+/** Measures that make a station a lift, logged by its sets instead. */
+const LIFT_MEASURES: ReadonlySet<Measure> = new Set(["load_kg", "percent_1rm", "rpe"]);
+
+/**
+ * How many rounds the item is logged in, or `undefined` when it is not logged round by round: a
+ * counted station (reps, calories, metres) of an EMOM or every-X block that comes round a whole
+ * number of times. A lift ("3 squat snatches", "10 KB swings @ 24 kg") is logged by its sets.
+ */
+export function stationRounds(
+  item: DerivedItem,
+  block: DerivedBlock | undefined,
+  category: MovementCategory | undefined,
+): number | undefined {
+  if (category === "barbell" || category === "dumbbell_kettlebell") return undefined;
+  if (roundTarget(item) === undefined) return undefined;
+  const lift = item.sets.some((set) =>
+    set.quantities.some((quantity) => LIFT_MEASURES.has(quantity.measure)),
+  );
+  return lift ? undefined : intervalRounds(block);
+}
+
+/** The unit a round of the item is counted in: "reps", "cal", "m". */
+export const roundUnit = (item: DerivedItem | undefined): string | undefined => {
+  const target = item === undefined ? undefined : roundTarget(item);
+  return target === undefined ? undefined : ROUND_UNITS[target.measure];
+};
 
 /** Where a count each round sits on the board's levels: "RX", "under RX (15)". */
 export function describeReach(
@@ -73,7 +102,9 @@ export function describePlan(
   item?: DerivedItem,
 ): string {
   const parts: Array<string> = [];
-  if (plan.perRound !== undefined)
+  if (plan.rounds !== undefined && plan.rounds.length > 0)
+    parts.push(describeRounds(plan.rounds, roundUnit(item)));
+  else if (plan.perRound !== undefined)
     parts.push(
       describePerRound(plan.perRound, item === undefined ? undefined : roundTarget(item), sex),
     );

@@ -8,6 +8,7 @@ import {
   type DerivedItem,
   type ItemGrade,
   type LevelFamily,
+  type Amount,
   type MovementId,
   type Performance,
 } from "@chalk/contracts";
@@ -19,7 +20,8 @@ import { useState } from "react";
 import { parseAmount, toNumber } from "../../lib/amount.ts";
 import { MEASURE_LABELS } from "../../lib/blockLabels.ts";
 import { convertTyped, readKg, showLoad, type LoadUnit } from "../../lib/loadUnit.ts";
-import { describePlan, describeReach, roundTarget } from "../../lib/plan.ts";
+import { describePlan, describeReach, roundTarget, roundUnit } from "../../lib/plan.ts";
+import { onAim, roundsOnAim, spanOfRounds } from "../../lib/rounds.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
 import { LevelVerdict } from "./LevelVerdict.tsx";
 import { LoadUnitToggle, useLoadUnit } from "./LoadUnitToggle.tsx";
@@ -36,6 +38,8 @@ interface Draft {
   readonly unbroken: string;
   /** Reached each round, "7-8" or "12". */
   readonly perRound: string;
+  /** Reached in each round in order, as typed; counts once every round is in. */
+  readonly rounds: ReadonlyArray<string>;
 }
 
 export const draftFromPerformance = (
@@ -53,7 +57,19 @@ export const draftFromPerformance = (
   })),
   unbroken: performance?.unbroken === undefined ? "" : String(performance.unbroken),
   perRound: performance?.perRound === undefined ? "" : formatAmount(performance.perRound),
+  rounds: (performance?.rounds ?? []).map(String),
 });
+
+/** Every round typed as a whole count, or `undefined` while one is blank or not a count. */
+const countedRounds = (rounds: ReadonlyArray<string>): ReadonlyArray<number> | undefined => {
+  if (rounds.length === 0) return undefined;
+  const counts = rounds.map((raw) => toNumber(raw));
+  return counts.every(
+    (count): count is number => count !== undefined && Number.isInteger(count) && count >= 0,
+  )
+    ? counts
+    : undefined;
+};
 
 /**
  * The draft as a performance: blank fields are left out, half-filled variation rows too. While
@@ -63,7 +79,9 @@ export const performanceFromDraft = (draft: Draft, planning = false): Performanc
   if (!draft.recorded) return undefined;
   const loadKg = readKg(draft.load, draft.unit);
   const unbroken = toNumber(draft.unbroken);
-  const perRound = parseAmount(draft.perRound);
+  const rounds = countedRounds(draft.rounds);
+  // Round by round, the range each round is what the rounds span.
+  const perRound = rounds === undefined ? parseAmount(draft.perRound) : spanOfRounds(rounds);
   const variants = draft.rows.flatMap((row) => {
     const reps = toNumber(row.reps);
     return row.movementId === "" || reps === undefined || !Number.isInteger(reps)
@@ -76,6 +94,7 @@ export const performanceFromDraft = (draft: Draft, planning = false): Performanc
     ...(variants.length === 0 ? {} : { variants }),
     ...(unbroken === undefined || !Number.isInteger(unbroken) ? {} : { unbroken }),
     ...(perRound === undefined ? {} : { perRound }),
+    ...(rounds === undefined ? {} : { rounds }),
   };
   return planning && !draft.asWritten && Object.keys(performance).length === 0
     ? undefined
@@ -172,6 +191,114 @@ function Field({
 }
 
 /**
+ * An EMOM station round by round: what was reached each time it came up, against the athlete's
+ * own aim ("7-8"), each round marked on aim or short of it. The aim is the plan's count each
+ * round, so a plan made beforehand fills it.
+ */
+function RoundByRound({
+  count,
+  rounds,
+  unit,
+  aim,
+  onAim: setAim,
+  onChange,
+}: {
+  readonly count: number;
+  readonly rounds: ReadonlyArray<string>;
+  readonly unit: string | undefined;
+  readonly aim: Amount | undefined;
+  readonly onAim: ((aim: Amount | undefined) => void) | undefined;
+  readonly onChange: (rounds: ReadonlyArray<string>) => void;
+}) {
+  const [aimTyped, setAimTyped] = useState(() => (aim === undefined ? "" : formatAmount(aim)));
+  const shown = Array.from({ length: count }, (_, at) => rounds[at] ?? "");
+  const counts = shown.map((raw) => {
+    const value = toNumber(raw);
+    return value !== undefined && Number.isInteger(value) && value >= 0 ? value : undefined;
+  });
+  const done = counts.filter((value): value is number => value !== undefined);
+  const complete = done.length === shown.length;
+  const first = done[0];
+  const setRound = (index: number, value: string) =>
+    onChange(shown.map((raw, at) => (at === index ? value : raw)));
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="form-label text-muted-foreground">
+          Round by round{unit === undefined ? "" : `, ${unit}`}
+        </span>
+        {aim !== undefined && done.length > 0 ? (
+          <span className="text-sm font-semibold tabular-nums">
+            {roundsOnAim(done, aim)} of {done.length} on aim
+          </span>
+        ) : null}
+      </div>
+      {setAim === undefined ? null : (
+        <label className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-2">
+          <span className="text-sm text-muted-foreground">Your aim each round</span>
+          <Input
+            inputMode="decimal"
+            aria-label="Aim each round"
+            placeholder="7-8"
+            value={aimTyped}
+            onChange={(event) => {
+              setAimTyped(event.target.value);
+              const next = parseAmount(event.target.value);
+              if (event.target.value.trim() === "" || next !== undefined) setAim(next);
+            }}
+          />
+        </label>
+      )}
+      <ol className="grid grid-cols-4 gap-1.5">
+        {shown.map((raw, index) => {
+          const value = counts[index];
+          const mark = aim === undefined || value === undefined ? undefined : onAim(value, aim);
+          return (
+            <li
+              // oxlint-disable-next-line react/no-array-index-key -- a cell is its round; inputs are controlled
+              key={index}
+              className="grid gap-0.5"
+            >
+              <Input
+                inputMode="numeric"
+                aria-label={`Round ${index + 1}`}
+                placeholder={`R${index + 1}`}
+                value={raw}
+                onChange={(event) => setRound(index, event.target.value)}
+              />
+              <span
+                data-round-mark={mark === undefined ? undefined : mark ? "hit" : "miss"}
+                className="form-label h-4 px-1 tabular-nums"
+              >
+                {mark === undefined ? "" : mark ? "On aim" : "Short"}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          {complete
+            ? `${done.length} rounds, ${done.reduce((total, value) => total + value, 0)}${unit === undefined ? "" : ` ${unit}`} in all.`
+            : done.length === 0
+              ? "What you reached each time it came round."
+              : "Fill every round to count it."}
+        </p>
+        {first !== undefined && !complete ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onChange(shown.map((raw) => (raw.trim() === "" ? String(first) : raw)))}
+          >
+            Fill the rest with {first}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
  * How a programmed movement was done (or, in `plan` mode, will be scaled): as prescribed, at
  * another load, or reps by variation, with the biggest unbroken set; graded live. Logging a plan
  * shows it and can take it over. A complex asks only the bar's load, graded for every movement.
@@ -186,6 +313,8 @@ export function PerformanceEditor({
   planned,
   onAsPlanned,
   complexGrades,
+  roundCount,
+  onAim: setAim,
 }: {
   readonly performance: Performance | undefined;
   readonly item: DerivedItem;
@@ -199,6 +328,10 @@ export function PerformanceEditor({
   readonly onAsPlanned?: (() => void) | undefined;
   /** A complex: the grade of each of its movements, which share this load. */
   readonly complexGrades?: ReadonlyArray<ItemGrade | undefined> | undefined;
+  /** An EMOM station: the rounds it came up in, logged one by one. */
+  readonly roundCount?: number | undefined;
+  /** Sets the athlete's own aim each round, kept as the plan's count each round. */
+  readonly onAim?: ((aim: Amount | undefined) => void) | undefined;
 }) {
   const sex = useAthleteSex();
   const { unit } = useLoadUnit();
@@ -222,6 +355,7 @@ export function PerformanceEditor({
   const perRound = parseAmount(draft.perRound);
   const reach = perRound === undefined ? undefined : describeReach(perRound, target, sex);
   const complex = complexGrades !== undefined;
+  const byRound = !planning && !complex && target !== undefined && roundCount !== undefined;
   // One verdict per level-sheet row: a power clean and a hang power clean grade on the same one.
   const verdicts = complex
     ? complexGrades.filter(
@@ -280,6 +414,21 @@ export function PerformanceEditor({
           <span className="form-label shrink-0 text-muted-foreground">Planned</span>
           <span className="min-w-0">{describePlan(planned, nameOf, sex, item)}</span>
         </p>
+      ) : null}
+
+      {byRound ? (
+        <RoundByRound
+          key={item.spanId}
+          count={roundCount}
+          rounds={draft.rounds}
+          unit={roundUnit(item)}
+          aim={planned?.perRound}
+          onAim={setAim}
+          onChange={(rounds) =>
+            // A count typed per round replaces a range typed for every round.
+            edit({ ...draft, recorded: true, perRound: "", rounds })
+          }
+        />
       ) : null}
 
       {draft.recorded ? null : (
@@ -451,7 +600,7 @@ export function PerformanceEditor({
             </div>
           )}
 
-          {target === undefined ? null : (
+          {target === undefined || byRound ? null : (
             <div className="grid gap-1">
               <Field
                 label={`${planning ? "Aim each round" : "Each round"}, ${MEASURE_LABELS[target.measure].toLowerCase()}`}

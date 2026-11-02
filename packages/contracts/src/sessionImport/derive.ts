@@ -301,6 +301,8 @@ const performanceProblem = (
     if (min > max) return "the count each round must run from low to high";
     if (max > MAX_PER_ROUND) return `the count each round must be at most ${MAX_PER_ROUND}`;
   }
+  if (performance.rounds?.some((count) => !Number.isInteger(count) || count > MAX_PER_ROUND))
+    return `the count each round must be 0 to ${MAX_PER_ROUND}`;
   return undefined;
 };
 

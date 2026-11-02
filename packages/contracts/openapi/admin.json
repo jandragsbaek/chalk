@@ -2549,6 +2549,14 @@
               "max"
             ],
             "additionalProperties": false
+          },
+          "rounds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
           }
         },
         "additionalProperties": false

@@ -59,6 +59,18 @@ describe("resultDefaults", () => {
     ).toMatchObject({ sets: 5, reps: 5, loadKg: 100 });
   });
 
+  it("reads sets from how often an EMOM comes round to the item's line", () => {
+    // "EMOM 16" over four numbered lines: "3) 3 squat snatches" is done 4 times.
+    const emom: DerivedBlock = {
+      ...every(1),
+      title: "EMOM 16",
+      format: "emom",
+      params: { durationSeconds: 960, intervalSeconds: 60 },
+      rotation: 4,
+    };
+    expect(resultDefaults(item([[exact("reps", 3)]]), emom)).toMatchObject({ sets: 4, reps: 3 });
+  });
+
   it("makes one row per written line of a build-up", () => {
     const buildUp = item([[exact("reps", 10)], [exact("reps", 5)], [exact("reps", 3)]]);
     expect(resultDefaults(buildUp, undefined)).toMatchObject({ sets: 3, rows: [10, 5, 3] });

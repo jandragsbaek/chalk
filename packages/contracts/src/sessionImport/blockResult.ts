@@ -123,6 +123,8 @@ export const stationCount = (
   sex: Sex | undefined,
 ): number | undefined => {
   const done = doneOption(item);
+  const counted = done.performance?.rounds?.[round];
+  if (counted !== undefined) return counted;
   const perRound = (done.performance ?? done.plan)?.perRound;
   if (perRound !== undefined) return Math.round((perRound.min + perRound.max) / 2);
   let total: number | undefined;

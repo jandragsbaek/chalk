@@ -1,5 +1,6 @@
 import {
   resultSets,
+  roundsOf,
   type Amount,
   type DerivedBlock,
   type DerivedItem,
@@ -55,7 +56,20 @@ const exactOf = (quantities: ReadonlyArray<Quantity>, measure: Quantity["measure
     : exact(quantity.amount);
 };
 
-/** "Every 90 sec x 6 / 2 snatches": 6 sets of 2. A build-up of written lines: one set per line. */
+/**
+ * How many times an EMOM or every-X block comes round to its lines: "Every 90 sec x 8" is 8, and
+ * "EMOM 16" over four numbered lines is 4. A rotation that does not divide evenly says nothing.
+ */
+export const intervalRounds = (block: DerivedBlock | undefined): number | undefined => {
+  if (block?.format !== "emom" && block?.format !== "every") return undefined;
+  const rounds = roundsOf(block);
+  return rounds !== undefined && Number.isInteger(rounds) && rounds > 0 ? rounds : undefined;
+};
+
+/**
+ * "Every 90 sec x 6 / 2 snatches": 6 sets of 2, and "EMOM 16 / 3) 3 squat snatches" over four
+ * lines 4 sets of 3. A build-up of written lines: one set per line.
+ */
 export const resultDefaults = (
   item: DerivedItem,
   block: DerivedBlock | undefined,
@@ -69,7 +83,7 @@ export const resultDefaults = (
     };
   const quantities = item.sets[0]?.quantities ?? [];
   return {
-    sets: exactOf(quantities, "sets") ?? exact(block?.params.rounds),
+    sets: exactOf(quantities, "sets") ?? intervalRounds(block) ?? exact(block?.params.rounds),
     reps: exactOf(quantities, "reps"),
     loadKg: exactOf(quantities, "load_kg"),
     rows: undefined,

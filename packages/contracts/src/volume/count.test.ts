@@ -67,6 +67,22 @@ describe("countBlock", () => {
     ]);
   });
 
+  it("counts an EMOM station logged round by round as the rounds' sum", () => {
+    // "EMOM 16" over four lines: the burpees come up 4 times, 8 + 8 + 7 + 6 of them.
+    const burpees: WorkItem = {
+      ...item("burpee", q("reps", 12)),
+      performance: { perRound: { min: 6, max: 8 }, rounds: [8, 8, 7, 6] },
+    };
+    const count = countBlock(
+      block("emom", [burpees], {
+        params: { durationSeconds: 960, intervalSeconds: 60 },
+        rotation: 4,
+      }),
+      { sex: "m" },
+    );
+    expect(amounts(count.counted)).toEqual([["burpee", "burpee", 29, "reps"]]);
+  });
+
   it("credits the 'or' that was done, written as the first option", () => {
     const doubleUnders: WorkItem = {
       ...item("double-under", q("reps", 60)),
