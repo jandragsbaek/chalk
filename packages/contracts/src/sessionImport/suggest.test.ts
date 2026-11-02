@@ -164,13 +164,16 @@ describe("suggestSpans", () => {
     const text = [
       "- Clean & jerk 3x1 @ 90 kg",
       "Notes",
-      "1 Clean & jerk 100 kg. Failed 105 kg.",
+      "1 Clean & jerk 100 kg and 2 Clean and jerk 95 kg. Failed 105 kg.",
       "2 days off, then back squat 140 kg felt light",
     ].join("\n");
     let next = 0;
+    // In text order, so each lift reads reps, movement, load.
     const rows = describeSpans(
       text,
-      suggestSpans(text, cleans, () => `s${++next}`),
+      suggestSpans(text, cleans, () => `s${++next}`).toSorted(
+        (left, right) => left.start - right.start,
+      ),
     );
     expect(rows).toEqual([
       "movement Clean & jerk = clean-and-jerk",
@@ -178,9 +181,12 @@ describe("suggestSpans", () => {
       "quantity 1 = 1 rep -> Clean & jerk",
       "quantity 90 kg = 90 kg -> Clean & jerk",
       "notes Notes",
-      "movement Clean & jerk = clean-and-jerk",
       "quantity 1 = 1 rep -> Clean & jerk",
+      "movement Clean & jerk = clean-and-jerk",
       "quantity 100 kg = 100 kg -> Clean & jerk",
+      "quantity 2 = 2 reps -> Clean and jerk",
+      "movement Clean and jerk = clean-and-jerk",
+      "quantity 95 kg = 95 kg -> Clean and jerk",
       "movement back squat = back-squat",
       "quantity 140 kg = 140 kg -> back squat",
     ]);

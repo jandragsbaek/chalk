@@ -406,18 +406,18 @@ export const suggestSpans = (
       );
       if (!quantities.some((match) => match.quantity.measure === "load_kg")) continue;
       const movements = addMovements(sentence[0], sentenceOffset);
-      // "1 Clean and jerk 100 kg": a number right before the movement is its reps.
-      const lead = /^\s*(\d+)\s*(?:x\s*)?/i.exec(sentence[0]);
-      const reps = lead && quantityFromText(lead[1]!, "reps");
-      const first = movements[0];
-      if (
-        lead &&
-        reps &&
-        first?.start === sentenceOffset + lead[0].length &&
-        !quantities.some((match) => match.start < first.start)
-      ) {
-        const start = sentenceOffset + lead[0].indexOf(lead[1]!);
-        addQuantity({ start, end: start + lead[1]!.length, quantity: reps }, first.id);
+      // "1 Clean and jerk 100 kg and 2 Clean and jerk 105 kg": a number opening the sentence or
+      // a clause (after ",", ";", "&" or "and"), right before a movement, is its reps.
+      for (const movement of movements) {
+        const lead = /(?:^|[,;&]|\band)\s*(\d+)\s*(?:x\s*)?$/i.exec(
+          sentence[0].slice(0, movement.start - sentenceOffset),
+        );
+        const reps = lead && quantityFromText(lead[1]!, "reps");
+        if (!lead || !reps) continue;
+        const start = sentenceOffset + lead.index + lead[0].lastIndexOf(lead[1]!);
+        const end = start + lead[1]!.length;
+        if (quantities.some((match) => match.start < end && match.end > start)) continue;
+        addQuantity({ start, end, quantity: reps }, movement.id);
       }
       for (const match of quantities) {
         const owner = pickOwner({ ...match, measure: "load_kg" }, movements) ?? lineMovement;
