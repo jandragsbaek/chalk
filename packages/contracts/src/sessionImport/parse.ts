@@ -203,9 +203,9 @@ const RECOGNIZERS: ReadonlyArray<Recognizer> = [
     },
   },
   {
-    // "@75%", "@70-80%", and the typo "@ 92-95@".
+    // "@75%", "@70-80%", and the typo "@ 92-95@". An open-ended "@ 90+%" is at least 90 %.
     pattern: new RegExp(
-      String.raw`(?:@\s*(${R})\s*[%@]|(${R})\s*%)(?:\s*(?:of|af)\s*(?:(?:din|your)\s*)?1\s*RM)?`,
+      String.raw`(?:@\s*(${R})\+?\s*[%@]|(${R})\+?\s*%)(?:\s*(?:of|af)\s*(?:(?:din|your)\s*)?1\s*RM)?`,
       "giu",
     ),
     read: (match) => whole(match, quantityOf("percent_1rm", (match[1] ?? match[2])!)),
