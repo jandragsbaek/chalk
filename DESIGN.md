@@ -342,6 +342,12 @@ Printed and decisive: square, semi-bold, no gradient.
 - **Variants:** blocks are a 1px ink outline on no fill; parts are a solid ink block with paper text; scores carry a double underline; date, session and notes use a 2px dotted underline.
 - **State:** hover or linked deepens the fill toward its ink (26%); open drops the fill for a 1.5px dashed outline; selected adds a 3px double outline offset 1px.
 - **Offered:** a movement chip Chalk derives rather than one the athlete set (a scaling offered by the core movement or the level sheet) drops the fill for the same 1.5px dashed outline (`data-derived`).
+- **Changed load:** a load the athlete changed from the board's reads like a changed attempt on a
+  meet protocol: the board's number, on the athlete's side of an M/F split, drops its fill for
+  pencil-grey text struck through in canary ink (`data-struck`, a `del`), and the load used follows
+  it as a full canary chip (an `ins`). After the boxes, "71 % of board" in pencil-grey meta. A load
+  the board wrote (any set, anywhere in a range) or a level's tier load is never struck; planning
+  strikes nothing.
 - **Tail:** words the matcher left after a movement mark ("lateral over DB" after "Burpee") carry no fill, only a 1.5px dashed underline in movement ink, offset under the baseline: the mark may run on into a variation, still open. The tail belongs to its mark: it lights and selects with it (dashed outline when selected), and the protocol row prints it in Courier under the name with "variation?" in condensed caps.
 
 ### Cards / Containers
@@ -378,7 +384,8 @@ Movement rows take the copy-blue tint on hover (55%) and selection (70% with a d
 
 A scored block's header strip carries its score right after the title, where the whiteboard writes
 it, in a 28px result box ("Score Capped · 113 reps"); with none yet it is an open box (1.5px dashed
-ink) with "Score" and a plus. Scores marked in the text and what the block lifted sit at the right.
+ink) with "Score" and a plus. Scores marked in the text and what the block lifted sit at the right; when a load was changed, the
+Lifted box adds "71 % of board" in pencil-grey meta: the same reps at the board's loads.
 Logging, the time cap is set here only; the block inspector offers it while planning. Pressing
 it opens a fresh-sheet strip under the header: the outcome switch ("Finished" or "Capped" for a
 for-time, the result-mode switch's vocabulary), the fields for it, the cap in minutes, Clear and

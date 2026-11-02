@@ -20,12 +20,19 @@ import {
 } from "@chalk/contracts";
 import { LevelBadge } from "@chalk/ui/components/level-ruler.tsx";
 import { Plus } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 
 import { formatKg } from "../../lib/blockLabels.ts";
 import { formatComplex, type Complex } from "../../lib/complexes.ts";
 import { describePlan } from "../../lib/plan.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
+import {
+  boardTonnageOf,
+  isStruck,
+  loadChangeOf,
+  loadSide,
+  shareOfBoard,
+} from "../../lib/scaledLoad.ts";
 import { chosenOption } from "../../lib/station.ts";
 import { BlockResultEditor } from "./BlockResultEditor.tsx";
 import { LevelLine, type GradeSide, type LevelLead } from "./LevelVerdict.tsx";
@@ -138,6 +145,8 @@ function OptionRow({
   const grade = names.gradeOf(item.spanId);
   const tail = editor?.tailOf?.(item.spanId);
   const lead = full ? leadOf(item, names, sex) : undefined;
+  // Planning, a load is meant rather than used: the plan line says it, nothing is struck.
+  const change = names.gradeSide === "planned" ? undefined : loadChangeOf(item, sex);
   const selected = editor?.selectedId === item.spanId;
   // Quiet rows: only the selected one, and one with something done or planned, print a level.
   const levelLine =
@@ -188,18 +197,53 @@ function OptionRow({
         ) : (
           item.sets.map((set) => (
             <span key={set.line} data-attempt className="inline-flex gap-0.5 p-0.5">
-              {set.quantities.map((quantity) => (
-                <span
-                  key={`${quantity.measure}-${quantity.amount.min}-${quantity.amount.max}`}
-                  data-chip
-                  data-measure={quantity.measure}
-                  className="px-1.5 text-sm font-medium leading-6 tabular-nums"
-                >
-                  {formatQuantity(quantity)}
-                </span>
-              ))}
+              {set.quantities.map((quantity) => {
+                const key = `${quantity.measure}-${quantity.amount.min}-${quantity.amount.max}`;
+                if (change === undefined || !isStruck(quantity, change, sex))
+                  return (
+                    <span
+                      key={key}
+                      data-chip
+                      data-measure={quantity.measure}
+                      className="px-1.5 text-sm font-medium leading-6 tabular-nums"
+                    >
+                      {formatQuantity(quantity)}
+                    </span>
+                  );
+                // A changed attempt: the board's load struck, the one used written beside it.
+                const board = formatQuantity({
+                  measure: quantity.measure,
+                  amount: loadSide(quantity, sex),
+                });
+                return (
+                  <Fragment key={key}>
+                    <del
+                      data-chip
+                      data-measure={quantity.measure}
+                      data-struck
+                      title={`The board wrote ${board}`}
+                      className="px-1.5 text-sm font-medium leading-6 tabular-nums"
+                    >
+                      {board}
+                    </del>
+                    <ins
+                      data-chip
+                      data-measure={quantity.measure}
+                      title={`Done at ${formatKg(change.doneKg)}`}
+                      className="px-1.5 text-sm font-medium leading-6 tabular-nums no-underline"
+                    >
+                      {formatKg(change.doneKg)}
+                    </ins>
+                  </Fragment>
+                );
+              })}
             </span>
           ))
+        )}
+        {change === undefined ? null : (
+          <span className="flex h-7 items-center text-xs text-muted-foreground tabular-nums">
+            {shareOfBoard(change.doneKg, change.boardKg)} % of board
+          </span>
         )}
         {!full && grade?.prescribed !== undefined ? (
           <span className="flex h-7 items-center">
@@ -526,6 +570,8 @@ function BlockHeader({
   // The entered result is the first score; the editor prints it in its own box.
   const marked = block.result === undefined ? block.scores : block.scores.slice(1);
   const title = describeBlock(block.format, block.params);
+  // Planning, nothing is lifted yet, so there is no share of the board to give.
+  const boardKg = names.gradeSide === "planned" ? undefined : boardTonnageOf(block.items, sex);
   return (
     <>
       <div className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1 bg-muted px-4 py-1">
@@ -573,7 +619,17 @@ function BlockHeader({
             </ScoreBox>
           ))}
           {block.tonnageKg > 0 ? (
-            <ScoreBox label="Lifted">{formatKg(block.tonnageKg)}</ScoreBox>
+            <ScoreBox label="Lifted">
+              {formatKg(block.tonnageKg)}
+              {boardKg === undefined ? null : (
+                <span
+                  title={`At the board's loads, for the same reps: ${formatKg(boardKg)}`}
+                  className="text-xs font-normal text-muted-foreground"
+                >
+                  {shareOfBoard(block.tonnageKg, boardKg)} % of board
+                </span>
+              )}
+            </ScoreBox>
           ) : null}
         </span>
       </div>
