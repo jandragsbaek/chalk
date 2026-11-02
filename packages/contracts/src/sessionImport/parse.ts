@@ -388,14 +388,51 @@ const roundsIn = (
   intervalSeconds: number,
   amount: string | undefined,
   unit: string | undefined,
-): BlockParams | undefined => {
-  if (amount === undefined || unit === undefined) return undefined;
-  const durationSeconds = toNumber(amount) * timeFactor(unit);
+): BlockParams | undefined =>
+  amount === undefined || unit === undefined
+    ? undefined
+    : roundsOver(intervalSeconds, toNumber(amount) * timeFactor(unit));
+
+const roundsOver = (intervalSeconds: number, durationSeconds: number): BlockParams => {
   const count = durationSeconds / intervalSeconds;
   return Number.isInteger(count) && count > 0
     ? { rounds: { min: count, max: count } }
     : { durationSeconds };
 };
+
+/** A count as a number or spelled out: "5", "FIVE". */
+const COUNT = String.raw`(?:\d+|${Object.keys(NUMBER_WORDS).join("|")})`;
+const countOf = (raw: string) => NUMBER_WORDS[raw.toLowerCase()] ?? Number(raw);
+
+/** One stretch of an interval: "2 min", "40 sec", "90s", "1:30". */
+const STRETCH = String.raw`(?:\d+:\d{2}|${N}\s*(?:sec(?:onds?)?|s|min(?:utes?)?|m)(?!\p{L}))`;
+const stretchSeconds = (text: string) => {
+  const clock = text.match(/(\d+):(\d{2})/);
+  if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
+  const match = text.match(new RegExp(String.raw`(${N})\s*(sec|s|min|m)`, "i"))!;
+  return toNumber(match[1]!) * timeFactor(match[2]!);
+};
+const ON = String.raw`(?:on|på|work|arbejde)(?!\p{L})`;
+const OFF = String.raw`(?:off|af|rest|hvil|pause)(?!\p{L})`;
+const ROUND_WORD = String.raw`(?:rounds?|sets?|runder|sæt)(?!\p{L})`;
+
+/**
+ * Work and rest on one clock, with the rounds before or after: "5x 2 min on, 2 min off",
+ * "40 sec på / 20 sec af x 9", "5 rounds of 2:00 work / 1:00 rest", "Work 2 min, rest 1 min for
+ * 5 sets", "2 min on, 2 min off for 20 min".
+ */
+const INTERVALS = new RegExp(
+  [
+    String.raw`^(?:(?<before>${COUNT})\s*(?:[x×]|${ROUND_WORD}(?:\s+(?:of|af))?)\s*:?\s*)?`,
+    String.raw`(?<work>${STRETCH}\s*${ON}|${ON}\s*:?\s*${STRETCH})`,
+    String.raw`\s*[/,;&]?\s*(?:(?:and|og)\s+)?`,
+    String.raw`(?<rest>${STRETCH}\s*${OFF}|${OFF}\s*:?\s*${STRETCH})`,
+    String.raw`(?:\s*,?\s*(?:[x×]\s*(?<from>\d+)(?:\s*-\s*(?<to>\d+))?`,
+    String.raw`|(?:for\s+(?:a\s+total\s+of\s+)?)?(?<after>${COUNT})\s*${ROUND_WORD}`,
+    String.raw`|for\s+(?<total>${STRETCH})))?`,
+  ].join(""),
+  "iu",
+);
 
 const FORMAT_RULES: ReadonlyArray<FormatRule> = [
   {
@@ -443,19 +480,25 @@ const FORMAT_RULES: ReadonlyArray<FormatRule> = [
     },
   },
   {
-    // "40 sec på / 20 sec af x 9", "30 sec on/15 sec off x 8".
-    pattern: new RegExp(
-      String.raw`^(${N})\s*(?:sec|s)\s*(?:på|on)\s*\/?\s*(${N})\s*(?:sec|s)\s*(?:af|off)(?:\s*[x×]\s*(\d+)(?:\s*-\s*(\d+))?)?`,
-      "i",
-    ),
-    read: (match) => ({
-      format: "intervals",
-      params: {
-        workSeconds: toNumber(match[1]!),
-        restSeconds: toNumber(match[2]!),
-        ...rounds(match[3], match[4]),
-      },
-    }),
+    pattern: INTERVALS,
+    read: (match) => {
+      const { before, work, rest, from, to, after, total } = match.groups!;
+      const workSeconds = stretchSeconds(work!);
+      const restSeconds = stretchSeconds(rest!);
+      const count = before ?? after;
+      return {
+        format: "intervals",
+        params: {
+          workSeconds,
+          restSeconds,
+          ...(count !== undefined
+            ? rounds(String(countOf(count)))
+            : total !== undefined
+              ? roundsOver(workSeconds + restSeconds, stretchSeconds(total))
+              : rounds(from, to)),
+        },
+      };
+    },
   },
   {
     pattern: /^tabata/i,
