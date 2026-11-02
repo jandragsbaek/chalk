@@ -7,6 +7,8 @@ import {
   BlockFormat,
   formatQuantity,
   LEVEL_NAMES,
+  lineNumberOf,
+  splitLines,
   LEVELS,
   levelIndex,
   Measure,
@@ -32,12 +34,12 @@ import {
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, NativeSelect } from "@chalk/ui/components/field.tsx";
 import { Link2, Plus, Trash2, X } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 
 import { parseAmount, toNumber } from "../../lib/amount.ts";
 import { formatKg, MEASURE_LABELS } from "../../lib/blockLabels.ts";
 import { separateLoads, shareLoads, withResults, withShared } from "../../lib/complexes.ts";
-import type { PickMode } from "../../lib/importEditor.ts";
+import type { CarriedLoad, PickMode } from "../../lib/importEditor.ts";
 import type { ResultDefaults } from "../../lib/resultDraft.ts";
 import { CoreMovementField } from "./CoreMovementField.tsx";
 import { MovementLevelsField } from "./MovementLevelsField.tsx";
@@ -324,6 +326,7 @@ export function SpanInspector({
   complex,
   tail,
   onVariationPicked,
+  carried = new Map(),
 }: {
   readonly span: Span;
   readonly text: string;
@@ -357,8 +360,21 @@ export function SpanInspector({
     end: number,
     learned: boolean,
   ) => void;
+  /** Loads written once and held for other lines of the movement, by the receiving movement. */
+  readonly carried?: ReadonlyMap<SpanId, CarriedLoad>;
 }) {
   const phrase = text.slice(span.start, span.end);
+  const lines = splitLines(text);
+  // A movement holding a load written on another line, or a load held on other lines.
+  const held = span._tag === "movement" ? carried.get(span.id) : undefined;
+  const heldLoad = spans.find(
+    (candidate): candidate is SpanOf<"quantity"> =>
+      candidate._tag === "quantity" && candidate.id === held?.from,
+  );
+  const heldOn =
+    span._tag === "quantity"
+      ? [...carried.values()].flatMap((load) => (load.from === span.id ? load.lines : []))
+      : [];
   const oneBar = span._tag === "movement" && complex?.shared === true;
   const picked =
     span._tag === "movement" && span.movementId !== undefined
@@ -433,6 +449,15 @@ export function SpanInspector({
           text={text}
           tail={tail}
           onVariationPicked={onVariationPicked}
+          heldLoad={
+            heldLoad === undefined || held === undefined ? undefined : (
+              <HeldLoad
+                load={heldLoad}
+                from={lineNumberOf(lines, heldLoad.start)}
+                here={held.lines.map((line) => line + 1)}
+              />
+            )
+          }
         />
       ) : null}
 
@@ -495,6 +520,23 @@ export function SpanInspector({
               onUpdate(rest);
             }}
           />
+          {heldOn.length > 0 ? (
+            <div className="grid gap-1 border-t pt-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="form-label text-muted-foreground">Also held on</span>
+                <span className="font-mono text-sm">
+                  {[...new Set(heldOn)]
+                    .sort((left, right) => left - right)
+                    .map((line) => `L${line + 1}`)
+                    .join(" · ")}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Written once, so it holds for {textOf(span.attachedTo) ?? "the movement"}&rsquo;s
+                lines in this block with no load of their own.
+              </p>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -765,9 +807,12 @@ function MovementMark({
   text,
   tail,
   onVariationPicked,
+  heldLoad,
 }: {
   readonly span: SpanOf<"movement">;
   readonly phrase: string;
+  /** The load it holds from another line of the movement, as a receipt. */
+  readonly heldLoad: ReactNode;
   readonly text: string;
   readonly tail: TrailingWords | undefined;
   readonly onVariationPicked:
@@ -963,12 +1008,14 @@ function MovementMark({
         {ladder}
         {identity}
         {outcome}
+        {heldLoad}
       </>
     );
   return (
     <>
       {ladder}
       {outcome}
+      {heldLoad}
       <details data-disclosure className="group border-t pt-3">
         <summary className="flex cursor-pointer list-none items-baseline justify-between gap-2">
           <span className="form-label text-muted-foreground">Movement</span>
@@ -982,6 +1029,45 @@ function MovementMark({
         <div className="grid gap-4 pt-3">{identity}</div>
       </details>
     </>
+  );
+}
+
+/**
+ * A load the movement holds from another of its lines in the block ("21 power cleans (60 kg) /
+ * 15 power cleans"): what it is, where it was written, and how to give this line its own.
+ */
+function HeldLoad({
+  load,
+  from,
+  here,
+}: {
+  readonly load: SpanOf<"quantity">;
+  /** 1-based line it was written on. */
+  readonly from: number;
+  /** 1-based lines of this movement holding it. */
+  readonly here: ReadonlyArray<number>;
+}) {
+  return (
+    <div className="grid gap-1.5 border-t pt-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="form-label text-muted-foreground">Load</span>
+        <span
+          data-chip
+          data-measure="load_kg"
+          data-derived
+          className="px-1.5 text-sm font-medium leading-6 tabular-nums"
+        >
+          {formatQuantity(load)}
+          <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">
+            L{from}
+          </span>
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Written once on L{from} and held here. Write a load on{" "}
+        {here.map((line) => `L${line}`).join(" or ")} to lift another.
+      </p>
+    </div>
   );
 }
 

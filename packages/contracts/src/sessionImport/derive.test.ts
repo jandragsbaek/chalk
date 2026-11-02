@@ -96,7 +96,12 @@ describe("deriveSession", () => {
         "overhead-squat[1 rep 70 %]",
         "snatch[1 rep 80 %]",
       ],
-      ["wall-ball[10 reps]", "thruster[5 reps 40 kg]", "thruster[5 reps] | snatch[5 reps 60 %]"],
+      // The second thruster line takes the bar's 40 kg; the wall balls never do.
+      [
+        "wall-ball[10 reps]",
+        "thruster[5 reps 40 kg]",
+        "thruster[5 reps 40 kg] | snatch[5 reps 60 %]",
+      ],
     ]);
   });
 
@@ -302,6 +307,107 @@ const withResults = (
     }),
   };
 };
+
+describe("carried loads", () => {
+  const blocksOf = (text: string) => {
+    const document = documentOf(text);
+    const session = deriveSession(document, nameOf);
+    const spanText = (id: string | undefined) => {
+      const span = document.spans.find((candidate) => candidate.id === id);
+      return span === undefined ? undefined : text.slice(span.start, span.end);
+    };
+    return session.parts.flatMap((part) =>
+      part.blocks.map((block) =>
+        block.items.map((item) => {
+          const carried = item.sets.map((set) => spanText(set.carried?.from)).filter(Boolean);
+          return `${itemRow(item)}${carried.length > 0 ? ` from ${carried.join(", ")}` : ""}`;
+        }),
+      ),
+    );
+  };
+
+  it("holds a load written once for every line of that movement in a for time", () => {
+    const text = [
+      "For time:",
+      "21 Power Cleans (135/95lbs)",
+      "15 Bar Facing Burpees",
+      "15 Power Cleans",
+      "9 Bar Facing Burpees",
+      "9 Power Cleans",
+      "3 Bar Facing Burpees",
+    ].join("\n");
+    expect(blocksOf(text)).toEqual([
+      [
+        "power-clean[21 reps 61.25/43 kg]",
+        "bar-facing-burpee[15 reps]",
+        "power-clean[15 reps 61.25/43 kg] from 135/95lbs",
+        "bar-facing-burpee[9 reps]",
+        "power-clean[9 reps 61.25/43 kg] from 135/95lbs",
+        "bar-facing-burpee[3 reps]",
+      ],
+    ]);
+  });
+
+  it("counts every round of a scored block at the load written once", () => {
+    const document = documentOf(
+      [
+        "For time:",
+        "21 Power Cleans @ 60 kg",
+        "15 Burpees",
+        "15 Power Cleans",
+        "9 Power Cleans",
+      ].join("\n"),
+    );
+    const done: ImportDocument = {
+      ...document,
+      spans: document.spans.map((span) =>
+        span._tag === "movement" && span.movementId === "power-clean"
+          ? { ...span, performance: {} }
+          : span._tag === "block"
+            ? { ...span, result: { _tag: "time", seconds: 480 } }
+            : span,
+      ),
+    };
+    const [block] = deriveSession(done, nameOf).parts[0]?.blocks ?? [];
+    expect(block?.tonnageKg).toBe(45 * 60);
+  });
+
+  it("keeps a line's own load, and takes the nearest one above when several are written", () => {
+    const text = [
+      "Amrap 12",
+      "5 Deadlifts",
+      "5 Deadlifts @ 100 kg",
+      "10 Burpees",
+      "5 Deadlifts @ 120 kg",
+      "5 Deadlifts",
+      "5 Deadlifts @ 80%",
+    ].join("\n");
+    expect(blocksOf(text)).toEqual([
+      [
+        "deadlift[5 reps]",
+        "deadlift[5 reps 100 kg]",
+        "burpee[10 reps]",
+        "deadlift[5 reps 120 kg]",
+        "deadlift[5 reps 120 kg] from 120 kg",
+        "deadlift[5 reps 80 %]",
+      ],
+    ]);
+  });
+
+  it("carries nothing in a strength block, nor from one block into the next", () => {
+    const text = [
+      "Strength",
+      "5 Back squats @ 100 kg",
+      "3 Back squats",
+      "For time:",
+      "10 Back squats",
+    ].join("\n");
+    expect(blocksOf(text)).toEqual([
+      ["back-squat[5 reps 100 kg]", "back-squat[3 reps]"],
+      ["back-squat[10 reps]"],
+    ]);
+  });
+});
 
 describe("lift results", () => {
   it("expands fixed, ramp and set-by-set results into sets", () => {

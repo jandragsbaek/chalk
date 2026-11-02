@@ -19,6 +19,15 @@ interface Segment {
 /** Words left after a movement mark ("o. line" after "Burpee"), by the mark's id. */
 export type Tails = ReadonlyMap<SpanId, TextRange>;
 
+/**
+ * A load written once and held on another line, echoed at the end of that line as it was
+ * written ("135/95lbs"); by 0-based line. `linked` lights it with its marks.
+ */
+export type CarriedEchoes = ReadonlyMap<
+  number,
+  { readonly text: string; readonly linked: boolean }
+>;
+
 /** Splits one line into plain runs, tails and highlights. Spans never overlap. */
 const segmentsOf = (
   lineStart: number,
@@ -94,6 +103,7 @@ export function AnnotatedText({
   onClickSpan,
   flaggedLines,
   tails = new Map(),
+  carried = new Map(),
 }: {
   readonly text: string;
   readonly spans: ReadonlyArray<Span>;
@@ -105,6 +115,7 @@ export function AnnotatedText({
   /** 1-based line numbers with an issue that blocks saving; the gutter marks them. */
   readonly flaggedLines: ReadonlySet<number>;
   readonly tails?: Tails;
+  readonly carried?: CarriedEchoes;
 }) {
   function handleMouseUp(event: React.MouseEvent<HTMLDivElement>) {
     const selection = window.getSelection();
@@ -142,6 +153,9 @@ export function AnnotatedText({
           key={line.start}
           data-line-start={line.start}
           data-flagged={flaggedLines.has(index + 1) ? "" : undefined}
+          // Drawn by CSS, so it is never part of the text a selection or an offset reads.
+          data-carried={carried.get(index)?.text}
+          data-carried-linked={carried.get(index)?.linked ? "" : undefined}
           className="min-h-7 whitespace-pre-wrap break-words"
         >
           {segmentsOf(line.start, line.end, spans, tails).map(({ start, end, span, tailOf }) =>

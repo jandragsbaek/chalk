@@ -95,6 +95,28 @@
 [data-annotated][data-picking] {
   cursor: crosshair;
 }
+/*
+ * A load written once on another line of the movement and held here, echoed after the line as it
+ * was written. Not text, so no mark box (that reads as an open mark): small pencil grey on a
+ * dashed load-ink underline, filled while its marks are lit.
+ */
+[data-annotated] [data-carried]::after {
+  content: attr(data-carried);
+  margin-left: 2ch;
+  padding: 0 0.125rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  text-decoration: underline 1.5px dashed var(--copy-canary-ink);
+  text-underline-offset: 0.3em;
+  text-decoration-skip-ink: none;
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out;
+}
+[data-annotated] [data-carried-linked]::after {
+  background: color-mix(in oklch, var(--copy-canary) 70%, transparent);
+  color: var(--foreground);
+}
 
 mark[data-tag] {
   color: inherit;

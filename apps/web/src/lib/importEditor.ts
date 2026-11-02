@@ -3,6 +3,7 @@ import {
   findBenchmark,
   isEmptyDebrief,
   lineIndexAt,
+  lineNumberOf,
   normalizeDebrief,
   makeMovementMatcher,
   parseBlockFormat,
@@ -14,6 +15,8 @@ import {
   type ClassType,
   type Coaching,
   type Debrief,
+  type DerivedItem,
+  type DerivedSession,
   type ImportDocument,
   type IsoDate,
   type Measure,
@@ -419,4 +422,66 @@ export const linkedIds = (
     if (other._tag === "movement" && other.alternativeOf === owner) ids.add(other.id);
   }
   return ids;
+};
+
+/** A load written once and held for another line of the same movement. */
+export interface CarriedLoad {
+  /** The load span, on the line it was written. */
+  readonly from: SpanId;
+  /** Lines (0-based) of the receiving movement that hold it. */
+  readonly lines: ReadonlyArray<number>;
+}
+
+/**
+ * Loads written once and held for other lines of the same movement ("21 power cleans (60 kg) /
+ * 15 power cleans"), by the receiving movement's id.
+ */
+export const carriedLoadsOf = (session: DerivedSession): ReadonlyMap<SpanId, CarriedLoad> => {
+  const carried = new Map<SpanId, CarriedLoad>();
+  const visit = (item: DerivedItem) => {
+    const sets = item.sets.filter((set) => set.carried !== undefined);
+    const [first] = sets;
+    if (first?.carried !== undefined)
+      carried.set(item.spanId, { from: first.carried.from, lines: sets.map((set) => set.line) });
+    item.alternatives.forEach(visit);
+  };
+  for (const part of session.parts) for (const block of part.blocks) block.items.forEach(visit);
+  return carried;
+};
+
+/**
+ * What lights with the pointed mark through carried loads: a movement lights the load it takes,
+ * and a load lights every movement holding it.
+ */
+export const carriedLinks = (
+  carried: ReadonlyMap<SpanId, CarriedLoad>,
+  pointed: SpanId | undefined,
+  linked: ReadonlySet<SpanId>,
+): ReadonlyArray<SpanId> =>
+  pointed === undefined
+    ? []
+    : [...carried].flatMap(([movement, { from }]) =>
+        from === pointed ? [movement] : linked.has(movement) ? [from] : [],
+      );
+
+/**
+ * The source's echo of each carried load, by 0-based line: the load as written and the line it
+ * was written on ("135/95lbs · L8"). Lit with the movement holding it, or with the load itself.
+ */
+export const carriedEchoes = (
+  carried: ReadonlyMap<SpanId, CarriedLoad>,
+  document: Pick<ImportDocument, "text" | "spans">,
+  pointed: SpanId | undefined,
+  pointedIds: ReadonlySet<SpanId>,
+): ReadonlyMap<number, { readonly text: string; readonly linked: boolean }> => {
+  const lines = splitLines(document.text);
+  const echoes = new Map<number, { readonly text: string; readonly linked: boolean }>();
+  for (const [movement, { from, lines: held }] of carried) {
+    const load = document.spans.find((span) => span.id === from);
+    if (load === undefined) continue;
+    const text = `${document.text.slice(load.start, load.end)} · L${lineNumberOf(lines, load.start)}`;
+    const linked = pointedIds.has(movement) || pointed === from;
+    for (const line of held) echoes.set(line, { text, linked });
+  }
+  return echoes;
 };

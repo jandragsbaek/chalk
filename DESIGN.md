@@ -348,6 +348,7 @@ Printed and decisive: square, semi-bold, no gradient.
   it as a full canary chip (an `ins`). After the boxes, "71 % of board" in pencil-grey meta. A load
   the board wrote (any set, anywhere in a range) or a level's tier load is never struck; planning
   strikes nothing.
+- **Held load:** a load written once on a movement ("21 Power cleans (135/95lbs)") and held on its other lines in a for time, AMRAP, EMOM or interval block is a derived chip too: the same dashed outline in load ink, with the line it was written on in pencil-grey Courier after the value ("61.25/43 kg L8"). The source echoes it after each line holding it, small pencil grey on a 1.5px dashed load-ink underline ("135/95lbs · L8"), never boxed (a dashed box is an open mark); the echo fills canary while its movement or the load is pointed at, and pointing at either lights the other. The inspector prints it as a "Load" row with how to override it (write a load on the line); the load's own inspector lists "Also held on" lines.
 - **Tail:** words the matcher left after a movement mark ("lateral over DB" after "Burpee") carry no fill, only a 1.5px dashed underline in movement ink, offset under the baseline: the mark may run on into a variation, still open. The tail belongs to its mark: it lights and selects with it (dashed outline when selected), and the protocol row prints it in Courier under the name with "variation?" in condensed caps.
 
 ### Cards / Containers
