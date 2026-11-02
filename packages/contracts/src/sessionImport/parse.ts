@@ -31,18 +31,6 @@ export const lineIndexAt = (lines: ReadonlyArray<Line>, offset: number): number 
   return low;
 };
 
-/** "(7,5 m)": a bracket holding only a distance, the length of one shuttle or lunge block. */
-const DISTANCE_ASIDE = /^\(\s*\d+(?:[.,]\d+)?\s*(?:m|meters?|metres?)\s*\)$/iu;
-
-/**
- * Parenthesized asides ("(heavy)", "(4 af hver)") hold no prescription; blank them, keep
- * offsets. A distance alone in brackets is kept, without its brackets.
- */
-export const maskParentheses = (text: string): string =>
-  text.replace(/\([^)]*\)?/g, (aside) =>
-    DISTANCE_ASIDE.test(aside) ? ` ${aside.slice(1, -1)} ` : " ".repeat(aside.length),
-  );
-
 const toNumber = (raw: string) => Number(raw.replace(",", "."));
 
 const LB_TO_KG = 0.45359237;
@@ -98,6 +86,26 @@ export interface QuantityMatch {
 const N = String.raw`\d+(?:[.,]\d+)?`;
 const R = String.raw`${N}(?:\s*-\s*${N})*`;
 const TIME_UNIT = String.raw`(sec(?:onds?)?|s|min(?:utes?)?|m)`;
+
+/** "(7,5 m)": a bracket holding only a distance, the length of one shuttle or lunge block. */
+const DISTANCE_ASIDE = /^\(\s*\d+(?:[.,]\d+)?\s*(?:m|meters?|metres?)\s*\)$/iu;
+
+/** A load with its unit, as a bracket may hold it: "(20/14lbs to 10')", "(50/35 lb)". */
+const ASIDE_LOAD = new RegExp(String.raw`${R}(?:\s*\/\s*${R})?\s*${LOAD_UNIT}(?!\p{L})`, "giu");
+
+/**
+ * Parenthesized asides ("(heavy)", "(4 af hver)") hold no prescription; blank them, keep
+ * offsets. A distance alone in brackets is kept, without its brackets, and so is a load with its
+ * unit, the rest of its bracket blanked: "(50/35lbs)" is the movement's load.
+ */
+export const maskParentheses = (text: string): string =>
+  text.replace(/\([^)]*\)?/g, (aside) => {
+    if (DISTANCE_ASIDE.test(aside)) return ` ${aside.slice(1, -1)} `;
+    let masked = " ".repeat(aside.length);
+    for (const load of aside.matchAll(ASIDE_LOAD))
+      masked = masked.slice(0, load.index) + load[0] + masked.slice(load.index + load[0].length);
+    return masked;
+  });
 
 interface Recognizer {
   readonly pattern: RegExp;
@@ -345,6 +353,30 @@ const rounds = (from: string | undefined, to?: string): BlockParams =>
     ? {}
     : { rounds: parseRange(to === undefined ? from : `${from}-${to}`).amount };
 
+/** A round count the board spells out: "Ten rounds for time". */
+const NUMBER_WORDS: Readonly<Record<string, number>> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+  twenty: 20,
+};
+
 /** ", for 6 minutes", " for 90 sec": how long an "every" block runs. */
 const FOR_DURATION = String.raw`\s*,?\s*for\s+(${N})\s*${TIME_UNIT}\b`;
 
@@ -441,10 +473,14 @@ const FORMAT_RULES: ReadonlyArray<FormatRule> = [
     }),
   },
   {
-    pattern: /^(\d+)\s*(?:rounds?|runder|rft)(?:\s*(for time|of))?/i,
+    // "5 rounds for time", "Ten rounds for time of:".
+    pattern: new RegExp(
+      String.raw`^(\d+|${Object.keys(NUMBER_WORDS).join("|")})\s*(?:rounds?|runder|rft)(?:\s*(for time|of))?`,
+      "i",
+    ),
     read: (match) => ({
       format: /rft|for time/i.test(match[0]) ? "for_time" : "other",
-      params: rounds(match[1]),
+      params: rounds(String(NUMBER_WORDS[match[1]!.toLowerCase()] ?? match[1])),
     }),
   },
   { pattern: /^for time/i, read: () => ({ format: "for_time", params: {} }) },

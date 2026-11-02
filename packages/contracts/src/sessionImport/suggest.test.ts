@@ -204,6 +204,49 @@ describe("suggestSpans", () => {
     ]);
   });
 
+  it("reads rounds spelled out, loads in brackets, and the goal as intent", () => {
+    const text = [
+      "Ten rounds for time of:",
+      "15 Wall Ball Shots (20/14lbs to 10')",
+      "12 Alternating Dumbbell Snatches (50/35lbs)",
+      "9/7 Calorie Row",
+      "Goal = <20 minutes",
+      "Cap = 23 Minutes",
+    ].join("\n");
+    const withDumbbells = makeMovementMatcher([
+      ...CATALOG,
+      { id: MovementId.make("dumbbell-snatch"), name: "Dumbbell snatch", aliases: [] },
+    ]);
+    let next = 0;
+    expect(
+      describeSpans(
+        text,
+        suggestSpans(text, withDumbbells, () => `s${++next}`),
+      ),
+    ).toEqual([
+      'block Ten rounds for time = for_time {"rounds":{"min":10,"max":10},"timeCapSeconds":1380}',
+      "movement Wall Ball = wall-ball",
+      "quantity 15 = 15 reps -> Wall Ball",
+      "quantity 20/14lbs = 9/6.25 kg -> Wall Ball",
+      "movement Dumbbell Snatches = dumbbell-snatch",
+      "quantity 12 = 12 reps -> Dumbbell Snatches",
+      "quantity 50/35lbs = 22.75/16 kg -> Dumbbell Snatches",
+      "movement Row = row",
+      "quantity 9/7 Calorie = 9/7 cal -> Row",
+      "intent Goal = <20 minutes",
+      "intent Cap = 23 Minutes",
+    ]);
+    // A goal on top of its own paragraph is still the block's, not a part.
+    const goal = "For time:\n30 Burpees\n\nGoal: unbroken sets\nCap = 23 Minutes";
+    expect(describeSpans(goal, suggest(goal))).toEqual([
+      'block For time = for_time {"timeCapSeconds":1380}',
+      "movement Burpees = burpee",
+      "quantity 30 = 30 reps -> Burpees",
+      "intent Goal: unbroken sets",
+      "intent Cap = 23 Minutes",
+    ]);
+  });
+
   it("reads an every block run for a duration, and plural snatches", () => {
     const text =
       "Every 2 minutes, for 6 minutes (3 sets of):\n3 Snatches + 1 Overhead Squat @ 66-71%";

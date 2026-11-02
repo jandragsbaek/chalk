@@ -64,6 +64,8 @@ const PLAIN_DATED = /^(?:session\s*#?\s*\d+|[<[]?\d{4}-\d{2}-\d{2})/i;
 const NOTES_HEADING = /^(?:notes?|noter|results?|resultater)\s*:?$/i;
 const CONTAINER_HEADING = /^(?:workouts?|wod|træning)\s*:?$/i;
 const FAILED = /\b(?:fail(?:ed)?|miss(?:ed)?|no[\s-]?rep)\b/i;
+/** "Goal = <20 minutes": the coach's target for the block, not a number to log. */
+const GOAL = /^goal\s*[:=]/i;
 /** Formats that run in rounds, so a rest between rounds belongs to them. */
 const ROUNDED: ReadonlySet<BlockFormat> = new Set(["amrap", "for_time", "other"]);
 /** Intensity a line can carry without naming a movement: "70-80% af ovenstående", "RPE 8". */
@@ -211,6 +213,10 @@ export const suggestSpans = (
   };
 
   const workoutLine = (content: string, offset: number) => {
+    if (GOAL.test(content)) {
+      addIntent(offset, offset + content.length);
+      return;
+    }
     // "Cap = 15 Minutes": the cap of the for-time block above, and the coach's words for it.
     const cap = parseTimeCap(content);
     if (cap !== undefined) {
@@ -362,6 +368,7 @@ export const suggestSpans = (
       return true;
     if (region === "notes" || !paragraphStart || !followed) return false;
     if (/[.!?]$/.test(content) || /^[*#]/.test(content) || !/\p{L}/u.test(content)) return false;
+    if (GOAL.test(content)) return false;
     const masked = maskParentheses(content);
     return (
       parseBlockFormat(masked) === undefined &&
