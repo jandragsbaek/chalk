@@ -154,6 +154,38 @@ describe("suggestSpans", () => {
     ]);
   });
 
+  it("reads the reps written before a movement in the notes, and & as and", () => {
+    const cleans = makeMovementMatcher([
+      ...CATALOG,
+      { id: MovementId.make("clean"), name: "Clean", aliases: [] },
+      { id: MovementId.make("jerk"), name: "Jerk", aliases: [] },
+      { id: MovementId.make("clean-and-jerk"), name: "Clean and jerk", aliases: [] },
+    ]);
+    const text = [
+      "- Clean & jerk 3x1 @ 90 kg",
+      "Notes",
+      "1 Clean & jerk 100 kg. Failed 105 kg.",
+      "2 days off, then back squat 140 kg felt light",
+    ].join("\n");
+    let next = 0;
+    const rows = describeSpans(
+      text,
+      suggestSpans(text, cleans, () => `s${++next}`),
+    );
+    expect(rows).toEqual([
+      "movement Clean & jerk = clean-and-jerk",
+      "quantity 3 = 3 sets -> Clean & jerk",
+      "quantity 1 = 1 rep -> Clean & jerk",
+      "quantity 90 kg = 90 kg -> Clean & jerk",
+      "notes Notes",
+      "movement Clean & jerk = clean-and-jerk",
+      "quantity 1 = 1 rep -> Clean & jerk",
+      "quantity 100 kg = 100 kg -> Clean & jerk",
+      "movement back squat = back-squat",
+      "quantity 140 kg = 140 kg -> back squat",
+    ]);
+  });
+
   it("matches aliases and plurals, and splits complexes on +", () => {
     const rows = describeSpans(SNATCH_EMOM, suggest(SNATCH_EMOM));
     expect(rows).toContain("movement squat snatch = snatch");
@@ -538,6 +570,7 @@ describe("parse helpers", () => {
     expect(normalizeMovementPhrase("Snatches")).toBe("snatch");
     expect(normalizeMovementPhrase("Push presses")).toBe("push press");
     expect(normalizeMovementPhrase("Lunges")).toBe("lunge");
+    expect(normalizeMovementPhrase("C&J")).toBe("c and j");
     expect(matcher.lookup("double unders")).toBe("double-under");
   });
 

@@ -66,6 +66,7 @@ import { AnnotatedText, type TextRange } from "./AnnotatedText.tsx";
 import { PlaceField } from "../PlaceField.tsx";
 import { CoachingField } from "./CoachingField.tsx";
 import { DebriefSheet } from "./DebriefSheet.tsx";
+import { ExtraWorkField } from "./ExtraWorkField.tsx";
 import { FieldBox } from "../FieldBox.tsx";
 import { SimilarSessions, usePlanEchoes } from "../sessions/SimilarSessions.tsx";
 import { SessionProtocol } from "./SessionProtocol.tsx";
@@ -190,6 +191,7 @@ export function ImportWorkbench({
   const savePlan = useAtomSet(savePlanAtom, { mode: "promiseExit" });
   const editing = replace !== undefined || (planning && plan !== undefined);
   const debriefField = useRef<HTMLInputElement>(null);
+  const sourceScroll = useRef<HTMLDivElement>(null);
 
   const matcher = makeMovementMatcher(catalog);
   const names = new Map(catalog.map((movement) => [movement.id, movement.name]));
@@ -703,7 +705,7 @@ export function ImportWorkbench({
         <section aria-label="Source text" className="flex min-h-0 flex-col border-b lg:border-r">
           <PaneHeader title="Source" meta={`${lines.length} lines, ${state.spans.length} marks`} />
           <TagBar selectedText={selectedText} onTag={tag} />
-          <div className="min-h-0 flex-1 overflow-auto bg-card">
+          <div ref={sourceScroll} className="min-h-0 flex-1 overflow-auto bg-card">
             <AnnotatedText
               text={state.text}
               spans={state.spans}
@@ -717,6 +719,19 @@ export function ImportWorkbench({
               carried={echoes}
             />
           </div>
+          {planning ? null : (
+            <ExtraWorkField
+              onAdd={(typed) => {
+                setSelection(undefined);
+                dispatch({ type: "addExtra", typed, matcher });
+                // The lines land at the end of the text: show them.
+                requestAnimationFrame(() => {
+                  const pane = sourceScroll.current;
+                  pane?.scrollTo({ top: pane.scrollHeight });
+                });
+              }}
+            />
+          )}
         </section>
         <section aria-label="Protocol" className="flex min-h-0 flex-col border-b lg:border-r">
           <PaneHeader

@@ -14,13 +14,15 @@ export interface Token {
   readonly end: number;
 }
 
-const TOKEN = /[\p{L}\p{N}]+/gu;
+/** Words, and "&" as a word of its own: "Clean & jerk" is "clean and jerk". */
+const TOKEN = /[\p{L}\p{N}]+|&/gu;
 
 /**
  * "Pull-ups" and "pull up" are one key; a trailing plural "s" is dropped ("DUs", "squats"), and
- * the "es" after a hissing end ("snatches", "presses", "boxes").
+ * the "es" after a hissing end ("snatches", "presses", "boxes"). "&" is "and".
  */
 export const normalizeToken = (token: string): string => {
+  if (token === "&") return "and";
   const lower = token.toLowerCase();
   if (lower.length >= 5 && /(?:ch|sh|ss|x|z)es$/.test(lower)) return lower.slice(0, -2);
   return lower.length >= 3 && lower.endsWith("s") && !lower.endsWith("ss")

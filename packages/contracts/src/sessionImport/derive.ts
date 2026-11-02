@@ -304,9 +304,17 @@ const performanceProblem = (
   return undefined;
 };
 
+/**
+ * The last part with a format line is the session's workout: one of loose lines after it (extra
+ * work, accessories) does not make a for time into "other".
+ */
 const kindOf = (parts: ReadonlyArray<DerivedPart>): WorkoutKind => {
   const formats = parts.flatMap((part) => part.blocks.map((block) => block.format));
-  const last = parts.at(-1)?.blocks.map((block) => block.format) ?? [];
+  const last =
+    parts
+      .filter((part) => part.blocks.some((block) => block.format !== undefined))
+      .at(-1)
+      ?.blocks.map((block) => block.format) ?? [];
   for (const kind of ["for_time", "amrap", "emom"] as const) if (last.includes(kind)) return kind;
   return formats.includes("strength") ? "strength" : "other";
 };

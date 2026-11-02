@@ -11,6 +11,7 @@ import {
   parseQuantities,
   parseRoundRest,
   parseTimeCap,
+  quantityFromText,
   splitLines,
   type QuantityMatch,
 } from "./parse.ts";
@@ -405,6 +406,19 @@ export const suggestSpans = (
       );
       if (!quantities.some((match) => match.quantity.measure === "load_kg")) continue;
       const movements = addMovements(sentence[0], sentenceOffset);
+      // "1 Clean and jerk 100 kg": a number right before the movement is its reps.
+      const lead = /^\s*(\d+)\s*(?:x\s*)?/i.exec(sentence[0]);
+      const reps = lead && quantityFromText(lead[1]!, "reps");
+      const first = movements[0];
+      if (
+        lead &&
+        reps &&
+        first?.start === sentenceOffset + lead[0].length &&
+        !quantities.some((match) => match.start < first.start)
+      ) {
+        const start = sentenceOffset + lead[0].indexOf(lead[1]!);
+        addQuantity({ start, end: start + lead[1]!.length, quantity: reps }, first.id);
+      }
       for (const match of quantities) {
         const owner = pickOwner({ ...match, measure: "load_kg" }, movements) ?? lineMovement;
         addQuantity(match, owner?.id);
