@@ -323,6 +323,75 @@ describe("parse helpers", () => {
     expect(parseBlockFormat("12 Thrusters")).toBeUndefined();
   });
 
+  it("reads work and rest on one clock, with the rounds before or after", () => {
+    const intervals = (text: string) => {
+      const match = parseBlockFormat(text);
+      return (
+        match && { format: match.format, ...match.params, phrase: text.slice(0, match.length) }
+      );
+    };
+    const twoOnTwoOff = { format: "intervals", workSeconds: 120, restSeconds: 120 };
+    const five = { min: 5, max: 5 };
+    expect(intervals("5x 2 min on, 2 min off")).toEqual({
+      ...twoOnTwoOff,
+      rounds: five,
+      phrase: "5x 2 min on, 2 min off",
+    });
+    expect(intervals("2 min on / 2 min off x 5")).toMatchObject({ ...twoOnTwoOff, rounds: five });
+    expect(intervals("FIVE rounds of 2:00 on, 2:00 off:")).toEqual({
+      ...twoOnTwoOff,
+      rounds: five,
+      phrase: "FIVE rounds of 2:00 on, 2:00 off",
+    });
+    expect(intervals("2 minutes on and 2 minutes off for a total of 5 sets")).toMatchObject({
+      ...twoOnTwoOff,
+      rounds: five,
+    });
+    expect(intervals("Work 2 min, rest 1 min for 15 min")).toMatchObject({
+      workSeconds: 120,
+      restSeconds: 60,
+      rounds: five,
+    });
+    expect(intervals("90s work / 30s rest x 6-8")).toMatchObject({
+      workSeconds: 90,
+      restSeconds: 30,
+      rounds: { min: 6, max: 8 },
+    });
+    expect(intervals("1:30 on, 1 min off")).toEqual({
+      format: "intervals",
+      workSeconds: 90,
+      restSeconds: 60,
+      phrase: "1:30 on, 1 min off",
+    });
+    expect(intervals("40 sec på / 20 sec af x 9")).toMatchObject({
+      workSeconds: 40,
+      restSeconds: 20,
+      rounds: { min: 9, max: 9 },
+    });
+    // Work with no rest, or a stretch of a movement, is no interval.
+    expect(parseBlockFormat("5x 2 min on the bike")).toBeUndefined();
+    expect(parseBlockFormat("2 min row, 1 min rest")).toBeUndefined();
+  });
+
+  it("puts the movements under a work/rest header in its interval block", () => {
+    const text = [
+      "5x 2 min on, 2 min off",
+      "3 Burpees",
+      "12 Pull-ups",
+      "Max Double Unders in the remaining time.",
+      "",
+      "Rest 2 minutes between sets and repeat for a total of FIVE sets (20 minutes).",
+    ].join("\n");
+    expect(describeSpans(text, suggest(text))).toEqual([
+      'block 5x 2 min on, 2 min off = intervals {"workSeconds":120,"restSeconds":120,"rounds":{"min":5,"max":5}}',
+      "movement Burpees = burpee",
+      "quantity 3 = 3 reps -> Burpees",
+      "movement Pull-ups = pull-up",
+      "quantity 12 = 12 reps -> Pull-ups",
+      "movement Double Unders = double-under",
+    ]);
+  });
+
   it("tells a rest between rounds from a rest block", () => {
     expect(parseRoundRest("Rest 30 sec b/t rounds.")).toBe(30);
     expect(parseRoundRest("Rest 1 min between each round")).toBe(60);
