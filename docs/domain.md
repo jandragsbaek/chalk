@@ -367,9 +367,11 @@ re-derivable.
   top of a paragraph ("Workout #1", "Strength": first line or after a blank one, more lines
   under it, no movement, format, number or benchmark, no sentence) opens a part. Bullets are
   `-`, `+` or `•`.
-  Quantities attach to the movement in the same `+` / `or` / `/` segment of their line (a slash
-  splits only between two movements: "120 Double unders / 180 Single unders" makes the single
-  unders the alternative; "20/14" and "w/ 40 kg" stay as they are); a line of only
+  Quantities attach to the movement in the same `+` / `&` / `or` / `/` segment of their line (a
+  slash splits only between two movements: "120 Double unders / 180 Single unders" makes the
+  single unders the alternative; "20/14" and "w/ 40 kg" stay as they are; a separator inside a
+  catalog name does not split, and "&" reads as "and", so "Clean & jerk" is the clean and jerk); a
+  line of only
   numbers ("5 reps @40%") attaches to the last movement of the part. Coach comments (`- *...`)
   and lines with a % or RPE but no movement become intent; asides in parentheses are skipped.
   Variation words before a known movement ("High-hang", "Pause") widen its mark, and unless
@@ -385,6 +387,15 @@ re-derivable.
   only mean it is left out.
 - Movements in the notes region with a load become **lift sets**, linked by
   `lift_sets.workout_id`, so they feed rep maxes. Failed attempts ("Failed 155 kg") are skipped.
+  A number right before the movement is its reps ("1 Clean and jerk 100 kg").
+- **Extra work (built, web).** What was done beside the board (a PR attempt after class) is typed
+  in the editor's Extra work field as it would be written. `appendExtraWork`
+  (`lib/extraWork.ts`) adds the lines to the end of the text under an "Extra work" part (the one
+  already ending the text, else a new one in the paste's stars and bullets), marks them with the
+  parser run on those lines alone, and gives a lift written with reps and a load ("1x1 @ 100 kg")
+  that as its result, so it reaches rep maxes; the rest is entered in the inspector. The text
+  stays the source of truth. A session's kind comes from its last part with a format line, so a
+  loose part after the WOD leaves a for time a for time.
 - **Results (built).** A programmed movement can carry a `result` on its span, entered in the
   editor rather than read from the text: `fixed` (sets × reps at one load), `ramp` (first load
   plus a step per set: 6 × 2 from 50 by 2.5 ends at 62.5) or `each` (reps and load per set).

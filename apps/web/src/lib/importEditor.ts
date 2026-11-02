@@ -21,6 +21,7 @@ import {
   type IsoDate,
   type Measure,
   type MovementId,
+  type MovementMatcher,
   type Place,
   type SessionMarks,
   type SessionType,
@@ -28,6 +29,8 @@ import {
   type SpanId,
   type SpanOf,
 } from "@chalk/contracts";
+
+import { appendExtraWork } from "./extraWork.ts";
 
 /** What a click on a highlight does while picking: attach the selected span to the target. */
 export type PickMode = "attach" | "alternative";
@@ -86,7 +89,9 @@ export type EditorAction =
   | { readonly type: "setSessionType"; readonly sessionType: SessionType | undefined }
   | { readonly type: "setPlace"; readonly place: Place }
   | { readonly type: "tagPhrase"; readonly phrase: string; readonly movementId: MovementId }
-  | { readonly type: "replaceAll"; readonly spans: ReadonlyArray<Span> };
+  | { readonly type: "replaceAll"; readonly spans: ReadonlyArray<Span> }
+  /** Lines of extra work typed in the editor, added to the end of the text (`appendExtraWork`). */
+  | { readonly type: "addExtra"; readonly typed: string; readonly matcher: MovementMatcher };
 
 const byStart = (spans: ReadonlyArray<Span>) =>
   [...spans].sort((left, right) => left.start - right.start);
@@ -363,6 +368,8 @@ export const editorReducer = (state: EditorState, action: EditorAction): EditorS
       return { ...state, place: action.place };
     case "replaceAll":
       return { ...state, spans: byStart(action.spans), selectedId: undefined, picking: undefined };
+    case "addExtra":
+      return appendExtraWork(state, action.typed, action.matcher);
     case "tagPhrase": {
       // After "Burpee over rower" is learned, upgrade its other occurrences: where a shorter
       // movement sits inside it, or on a line that already carries numbers.

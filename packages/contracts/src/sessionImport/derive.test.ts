@@ -115,6 +115,17 @@ describe("deriveSession", () => {
     expect(session.kind).toBe("strength");
   });
 
+  it("keeps the session's kind when loose lines follow its workout", () => {
+    const text = `${SESSION_166}\n\n**** Extra work\n- Deadlift 1x1 @ 180 kg`;
+    const session = deriveSession(documentOf(text), nameOf);
+    expect(session.parts.map((part) => part.title)).toEqual([
+      "Workout #1",
+      "Workout #2",
+      "Extra work",
+    ]);
+    expect(session.kind).toBe("amrap");
+  });
+
   it("hangs intent on the block it sits in, with the intensity it names", () => {
     const session = deriveSession(documentOf(SESSION_167), nameOf);
     const [every, emom] = session.parts[0]?.blocks ?? [];
