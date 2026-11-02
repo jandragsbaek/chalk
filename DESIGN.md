@@ -367,7 +367,7 @@ Printed and decisive: square, semi-bold, no gradient.
 
 ### Navigation
 
-- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Calendar, Plan, Log, Strength, Benchmarks, Levels, Movements, Power, Workouts, Import, Coach, Settings); Today is the front page, Calendar the programmed weeks, Log the manual entry page, Workouts the session register and Settings the athlete's profile. Settings carries its own tab strip under its title (Profile, Connections): condensed caps tabs on a 1px rule, the active one in ink with a 2px ink inset underline, like the level groups' tabs. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
+- **Style:** 48px ink header band. Wordmark in headline caps, then the tabs (Today, Calendar, Plan, Log, Strength, Benchmarks, Levels, Movements, Power, Body, Workouts, Import, Coach, Settings); Today is the front page, Calendar the programmed weeks, Log the manual entry page, Body the weigh-ins with body fat and muscle mass, Workouts the session register and Settings the athlete's profile. Settings carries its own tab strip under its title (Profile, Connections): condensed caps tabs on a 1px rule, the active one in ink with a 2px ink inset underline, like the level groups' tabs. Tabs are 0.875rem semi-bold uppercase, semi-condensed, band-muted at rest, paper on hover; the active tab is paper with a 2px paper bottom rule flush to the band edge.
 
 ### Protocol Field Box
 
@@ -610,9 +610,23 @@ real): a command in Courier on a paper box with a ghost Copy, the pasted token f
 textarea, the import day and the primary button. A failing connection reopens its setup under
 the strip.
 
-The bodyweight chart on Profile draws the 7-day trailing mean as its 2px ink line; scale readings
-are 3px quiet squares under it, typed weigh-ins 6px ink squares, with a legend once scale data
-is there and the range switch (90 days, 1 year, All) once the history is longer than 90 days.
+### Body
+
+`/body` in one 72rem column under its page title. It opens on one strip of protocol field boxes
+on fresh sheet: Body fat and Muscle mass lead in display caps at 3.75rem, the unit after the
+number in pencil-grey semi-condensed lower case, each over its 30-day change in the weekly mean
+(the change in bold ink); a 2px ink rule closes them off from the supporting boxes in 2.25rem
+display caps: Fat mass (labelled derived), Bodyweight, and Measured (the short day, then the
+full day and source in pencil grey). A number not measured yet prints the empty-cell rule.
+Below, a Trends section (legend and the range switch as its meta) charts body fat and muscle
+mass side by side and bodyweight under them at full width, all on the same days, each a
+fresh-sheet figure with its condensed caps caption in the corner. Each chart draws the 7-day
+trailing mean as its 2px ink line; scale readings are 3px quiet squares under it, typed ones
+6px ink squares; the range switch (90 days, 1 year, All) shows once the history is longer than
+90 days. Then the Weigh-ins section: one ruled form row (day, bodyweight, body fat and muscle
+mass with "Optional" as their placeholder) over the table, body fat and muscle first and bold,
+an empty-cell rule where a reading measured none. Settings keeps a short Bodyweight section
+pointing to Body.
 
 ### Source Line Gutter
 

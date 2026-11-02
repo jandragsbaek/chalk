@@ -3,9 +3,9 @@ import * as Schema from "effect/Schema";
 import { IsoDate, IsoDateTime, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
 /**
- * Garmin Connect: Chalk reads the athlete's smart-scale weigh-ins into bodyweight. Garmin has no
- * personal API and its login only lets a real browser through, so the athlete logs in once on
- * their own machine (`pnpm garmin:login`) and pastes the tokens it prints. The server renews
+ * Garmin Connect: Chalk reads the athlete's smart-scale weigh-ins (weight, body fat, muscle
+ * mass). Garmin has no personal API and its login only lets a real browser through, so the
+ * athlete logs in once on their own machine (`pnpm garmin:login`) and pastes the tokens it prints. The server renews
  * them itself, reads weigh-ins only, and never returns a token to the browser.
  */
 

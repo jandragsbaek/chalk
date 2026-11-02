@@ -33,7 +33,10 @@ export class ProfilePersistenceError extends Schema.TaggedError<ProfilePersisten
   }
 }
 
-/** One day's scale reading: the day, kilograms and the local "HH:MM" it was taken. */
+/**
+ * One day's scale reading: the day, kilograms, body fat and muscle mass when measured, and the
+ * local "HH:MM" it was taken.
+ */
 export interface ScaleReading extends BodyweightEntry {
   readonly measuredAt: string | null;
 }
@@ -44,7 +47,7 @@ export class ProfileStore extends Context.Service<
     /** Sex, height, limbs and every weigh-in (oldest first); defaults before the first save. */
     readonly get: () => Effect.Effect<AthleteProfile, ProfilePersistenceError>;
     readonly update: (body: AthleteBody) => Effect.Effect<AthleteProfile, ProfilePersistenceError>;
-    /** The day's weigh-in; a day logged again keeps only the new reading. */
+    /** The day's weigh-in; a day logged again keeps only the new reading, composition too. */
     readonly logBodyweight: (
       entry: BodyweightEntry,
     ) => Effect.Effect<BodyweightEntry, ProfilePersistenceError>;
@@ -81,7 +84,8 @@ const make = Effect.gen(function* () {
     Request: Schema.Void,
     Result: Bodyweight,
     execute: () => sql`
-      SELECT performed_on AS "performedOn", kg, source, measured_at AS "measuredAt"
+      SELECT performed_on AS "performedOn", kg, body_fat_pct AS "bodyFatPct",
+             muscle_mass_kg AS "muscleMassKg", source, measured_at AS "measuredAt"
       FROM bodyweights
       ORDER BY performed_on
     `,
@@ -126,10 +130,17 @@ const make = Effect.gen(function* () {
     function* (entry: BodyweightEntry) {
       const now = DateTime.formatIso(yield* DateTime.now);
       yield* sql`
-        INSERT INTO bodyweights (performed_on, kg, source, measured_at, created_at)
-        VALUES (${entry.performedOn}, ${entry.kg}, 'manual', NULL, ${now})
+        INSERT INTO bodyweights (
+          performed_on, kg, body_fat_pct, muscle_mass_kg, source, measured_at, created_at
+        )
+        VALUES (
+          ${entry.performedOn}, ${entry.kg}, ${entry.bodyFatPct}, ${entry.muscleMassKg}, 'manual',
+          NULL, ${now}
+        )
         ON CONFLICT (performed_on) DO UPDATE SET
           kg = excluded.kg,
+          body_fat_pct = excluded.body_fat_pct,
+          muscle_mass_kg = excluded.muscle_mass_kg,
           source = 'manual',
           measured_at = NULL,
           created_at = excluded.created_at
@@ -160,10 +171,17 @@ const make = Effect.gen(function* () {
         Effect.forEach(
           readings,
           (reading) => sql`
-            INSERT INTO bodyweights (performed_on, kg, source, measured_at, created_at)
-            VALUES (${reading.performedOn}, ${reading.kg}, 'garmin', ${reading.measuredAt}, ${now})
+            INSERT INTO bodyweights (
+              performed_on, kg, body_fat_pct, muscle_mass_kg, source, measured_at, created_at
+            )
+            VALUES (
+              ${reading.performedOn}, ${reading.kg}, ${reading.bodyFatPct},
+              ${reading.muscleMassKg}, 'garmin', ${reading.measuredAt}, ${now}
+            )
             ON CONFLICT (performed_on) DO UPDATE SET
               kg = excluded.kg,
+              body_fat_pct = excluded.body_fat_pct,
+              muscle_mass_kg = excluded.muscle_mass_kg,
               measured_at = excluded.measured_at,
               created_at = excluded.created_at
             WHERE bodyweights.source = 'garmin'

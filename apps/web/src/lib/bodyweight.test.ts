@@ -2,8 +2,10 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   bodyweightRows,
-  bodyweightTrend,
+  fatMassKg,
   parseMeasure,
+  seriesOf,
+  seriesTrend,
   shiftDay,
   trailingAverage,
 } from "./bodyweight.ts";
@@ -38,33 +40,61 @@ describe("bodyweightRows", () => {
   });
 });
 
-describe("bodyweightTrend", () => {
+describe("seriesOf", () => {
+  it("keeps the weigh-ins that measured the number, oldest first, the number as their value", () => {
+    const measured = [
+      { performedOn: "2026-10-02", kg: 84, bodyFatPct: 21.4 },
+      { performedOn: "2026-10-03", kg: 84.2, bodyFatPct: null },
+      { performedOn: "2026-10-01", kg: 84.5, bodyFatPct: 21.9 },
+    ];
+    expect(
+      seriesOf(measured, (entry) => entry.bodyFatPct).map((p) => [p.performedOn, p.value]),
+    ).toEqual([
+      ["2026-10-01", 21.9],
+      ["2026-10-02", 21.4],
+    ]);
+  });
+});
+
+describe("seriesTrend", () => {
+  const points = seriesOf(entries, (entry) => entry.kg);
+
   it("compares the latest with the reading in force a window before it, and the first", () => {
-    const trend = bodyweightTrend(entries, 30);
-    expect(trend?.latest).toEqual({ performedOn: "2026-10-28", kg: 84.6 });
+    const trend = seriesTrend(points, 30);
+    expect(trend?.latest).toEqual({ performedOn: "2026-10-28", kg: 84.6, value: 84.6 });
     expect(trend?.change).toBeCloseTo(-1.4);
     expect(trend?.sinceFirst).toBeCloseTo(-1.4);
-    expect(bodyweightTrend(entries, 90)?.change).toBeUndefined();
+    expect(seriesTrend(points, 90)?.change).toBeUndefined();
   });
 
-  it("is undefined without weigh-ins", () => {
-    expect(bodyweightTrend([], 30)).toBeUndefined();
+  it("is undefined without readings", () => {
+    expect(seriesTrend([], 30)).toBeUndefined();
   });
 });
 
 describe("trailingAverage", () => {
-  it("means each weigh-in with the ones in the days before it, a lone one on its own", () => {
-    const daily = [
-      { performedOn: "2026-10-03", kg: 85 },
-      { performedOn: "2026-10-01", kg: 84 },
-      { performedOn: "2026-10-02", kg: 86 },
-      { performedOn: "2026-10-20", kg: 83 },
-    ];
+  it("means each reading with the ones in the days before it, a lone one on its own", () => {
+    const daily = seriesOf(
+      [
+        { performedOn: "2026-10-03", kg: 85 },
+        { performedOn: "2026-10-01", kg: 84 },
+        { performedOn: "2026-10-02", kg: 86 },
+        { performedOn: "2026-10-20", kg: 83 },
+      ],
+      (entry) => entry.kg,
+    );
     expect(trailingAverage(daily, 2).map((entry) => [entry.performedOn, entry.average])).toEqual([
       ["2026-10-01", 84],
       ["2026-10-02", 85],
       ["2026-10-03", 85.5],
       ["2026-10-20", 83],
     ]);
+  });
+});
+
+describe("fatMassKg", () => {
+  it("is the body fat share of the weigh-in, none without a body fat reading", () => {
+    expect(fatMassKg({ kg: 118, bodyFatPct: 33.6 })).toBeCloseTo(39.65);
+    expect(fatMassKg({ kg: 118, bodyFatPct: null })).toBeNull();
   });
 });

@@ -24,10 +24,21 @@ const tokenFile = (refresh: string) =>
     di_client_id: CLIENT,
   });
 
-const metric = (calendarDate: string, kg: number, clock: string) => ({
+/** A reading as an Index scale sends it: composition in percent and grams, 0 when unmeasured. */
+const metric = (
+  calendarDate: string,
+  kg: number,
+  clock: string,
+  composition: { readonly bodyFat: number; readonly muscleKg: number } | undefined = undefined,
+) => ({
   samplePk: 1,
   calendarDate,
   weight: kg * 1000,
+  bmi: 27.1,
+  bodyFat: composition?.bodyFat ?? 0,
+  bodyWater: composition === undefined ? 0 : 52.4,
+  boneMass: composition === undefined ? 0 : 3900,
+  muscleMass: (composition?.muscleKg ?? 0) * 1000,
   date: Date.parse(`${calendarDate}T${clock}:00Z`),
   timestampGMT: Date.parse(`${calendarDate}T${clock}:00Z`) - 3_600_000,
   sourceType: "INDEX_SCALE",
@@ -36,8 +47,8 @@ const metric = (calendarDate: string, kg: number, clock: string) => ({
 /** Every weigh-in on the Garmin account; a range answers the ones inside it. */
 const SCALE = [
   metric("2025-08-30", 90, "07:00"),
-  metric("2025-09-02", 88.4, "06:55"),
-  metric("2026-10-30", 84.6, "18:20"),
+  metric("2025-09-02", 88.4, "06:55", { bodyFat: 24.2, muscleKg: 37.95 }),
+  metric("2026-10-30", 84.6, "18:20", { bodyFat: 21.4, muscleKg: 38.62 }),
   metric("2026-10-30", 84.3, "06:48"),
   metric("2026-10-31", 84.1, "07:02"),
 ];
@@ -117,16 +128,43 @@ describe("Garmin", () => {
         yield* TestClock.setTime(NOW);
         const garmin = yield* Garmin.Garmin;
         const profile = yield* ProfileStore.ProfileStore;
-        yield* profile.logBodyweight({ performedOn: "2026-10-31", kg: 85 });
+        yield* profile.logBodyweight({
+          performedOn: "2026-10-31",
+          kg: 85,
+          bodyFatPct: null,
+          muscleMassKg: null,
+        });
 
         const status = yield* garmin.connect({ tokens: tokenFile("r1"), importFrom: "2025-09-01" });
 
-        // Before the import date stays in Garmin; Oct 30 takes its morning reading; Oct 31 was
-        // typed, so it keeps the athlete's.
+        // Before the import date stays in Garmin; Oct 30 takes its morning weight and the
+        // evening's composition (the morning one measured none); Oct 31 was typed, so it keeps
+        // the athlete's.
         expect((yield* profile.get()).bodyweights).toEqual([
-          { performedOn: "2025-09-02", kg: 88.4, source: "garmin", measuredAt: "06:55" },
-          { performedOn: "2026-10-30", kg: 84.3, source: "garmin", measuredAt: "06:48" },
-          { performedOn: "2026-10-31", kg: 85, source: "manual", measuredAt: null },
+          {
+            performedOn: "2025-09-02",
+            kg: 88.4,
+            bodyFatPct: 24.2,
+            muscleMassKg: 37.95,
+            source: "garmin",
+            measuredAt: "06:55",
+          },
+          {
+            performedOn: "2026-10-30",
+            kg: 84.3,
+            bodyFatPct: 21.4,
+            muscleMassKg: 38.62,
+            source: "garmin",
+            measuredAt: "06:48",
+          },
+          {
+            performedOn: "2026-10-31",
+            kg: 85,
+            bodyFatPct: null,
+            muscleMassKg: null,
+            source: "manual",
+            measuredAt: null,
+          },
         ]);
         expect(status).toEqual({
           _tag: "connected",

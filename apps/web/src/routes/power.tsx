@@ -51,9 +51,13 @@ function PowerPage() {
         </div>
         {body === undefined ? (
           <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Set your height and log a bodyweight in{" "}
+            Set your height in{" "}
             <Link to="/settings" className="underline underline-offset-2 hover:text-foreground">
               Settings
+            </Link>{" "}
+            and log a bodyweight on{" "}
+            <Link to="/body" className="underline underline-offset-2 hover:text-foreground">
+              Body
             </Link>{" "}
             and every session's work and power shows up here.
           </p>

@@ -39,10 +39,93 @@ describe("firstReadings", () => {
         ],
       }),
     ).toEqual([
-      { performedOn: "2026-10-29", kg: 84.9, measuredAt: null },
-      { performedOn: "2026-10-30", kg: 84.3, measuredAt: "06:48" },
+      {
+        performedOn: "2026-10-29",
+        kg: 84.9,
+        measuredAt: null,
+        bodyFatPct: null,
+        muscleMassKg: null,
+      },
+      {
+        performedOn: "2026-10-30",
+        kg: 84.3,
+        measuredAt: "06:48",
+        bodyFatPct: null,
+        muscleMassKg: null,
+      },
     ]);
     expect(firstReadings({})).toEqual([]);
+  });
+
+  // Shapes from a live Index scale reply (2026-11-02): composition rides on each reading, and a
+  // reading without it says 0.
+  it("reads body fat and muscle mass, taking them from the day's first reading that has them", () => {
+    expect(
+      firstReadings({
+        dailyWeightSummaries: [
+          {
+            summaryDate: "2026-11-01",
+            allWeightMetrics: [
+              {
+                calendarDate: "2026-11-01",
+                weight: 118019,
+                bodyFat: 33.6,
+                muscleMass: 42310,
+                date: Date.parse("2026-11-01T07:37Z"),
+              },
+            ],
+          },
+          {
+            summaryDate: "2026-10-21",
+            allWeightMetrics: [
+              // Later in the day, barefoot: the composition the morning reading lacked.
+              {
+                calendarDate: "2026-10-21",
+                weight: 117400,
+                bodyFat: 33.14,
+                muscleMass: 42012,
+                date: Date.parse("2026-10-21T19:05Z"),
+              },
+              {
+                calendarDate: "2026-10-21",
+                weight: 116800,
+                bodyFat: 0,
+                muscleMass: 0,
+                date: Date.parse("2026-10-21T06:50Z"),
+              },
+            ],
+          },
+          {
+            summaryDate: "2026-10-20",
+            allWeightMetrics: [
+              { calendarDate: "2026-10-20", weight: 117000, bodyFat: 0, muscleMass: 0, date: null },
+            ],
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        performedOn: "2026-10-20",
+        kg: 117,
+        measuredAt: null,
+        bodyFatPct: null,
+        muscleMassKg: null,
+      },
+      {
+        performedOn: "2026-10-21",
+        kg: 116.8,
+        measuredAt: "06:50",
+        bodyFatPct: 33.1,
+        muscleMassKg: 42.01,
+      },
+      {
+        performedOn: "2026-11-01",
+        kg: 118.02,
+        measuredAt: "07:37",
+        bodyFatPct: 33.6,
+        muscleMassKg: 42.31,
+      },
+    ]);
   });
 });
 
