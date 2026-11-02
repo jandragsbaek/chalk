@@ -267,6 +267,16 @@ kbd[data-key] {
   outline: 1.5px dashed var(--tag-ink);
   outline-offset: -1.5px;
 }
+/*
+ * The board's load the athlete changed, struck like a changed attempt on a meet protocol: the
+ * tint gives way to the load chip written beside it, the number stays legible under the stroke.
+ */
+[data-chip][data-struck] {
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted-foreground);
+  text-decoration: line-through 1.5px var(--tag-ink);
+}
 [data-empty]::before {
   content: "";
   display: inline-block;
