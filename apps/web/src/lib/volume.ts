@@ -236,6 +236,8 @@ export function volumeGrid(
       totals[index] = add(totals[index]!, amountsOf(entry));
       sessions[index]!.add(sessionKey(entry));
     }
+    // A session with nothing counted still happened; the strip says why it was left out.
+    for (const line of week.leftOut) sessions[index]!.add(sessionKey(line));
   }
 
   const movementOf = new Map(catalog.map((movement) => [movement.id, movement]));

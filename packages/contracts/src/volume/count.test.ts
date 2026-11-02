@@ -216,3 +216,30 @@ describe("weeks", () => {
     ]);
   });
 });
+
+describe("lifted sets of a pair", () => {
+  it("lift both bells unless the athlete said how many", () => {
+    const sets = Array.from({ length: 5 }, () => ({ reps: 10, loadKg: 22.5 }));
+    const devil: WorkItem = { ...item("devil-press", q("reps", 10)), performed: sets };
+    const options = {
+      sex: "m",
+      pairOf: (movementId: MovementId) => movementId === "devil-press",
+    } as const;
+    const tonnage = (lines: ReadonlyArray<Counted>) =>
+      lines.reduce((sum, line) => sum + line.amount * (line.loadKg ?? 0), 0);
+    expect(tonnage(countBlock(block("for_time", [devil]), options).counted)).toBe(2250);
+    // `implements` is already in the set's load.
+    const one: WorkItem = { ...devil, performance: { implements: 1 } };
+    expect(tonnage(countBlock(block("for_time", [one]), options).counted)).toBe(1125);
+  });
+});
+
+describe("countBenchmark, unfinished", () => {
+  it("counts nothing for a time-scored attempt without a time", () => {
+    for (const score of ["DNF", "Capped · 60 reps"]) {
+      const fran = countBenchmark(benchmarkById("fran")!, score, { sex: "m" });
+      expect(fran.counted).toEqual([]);
+      expect(fran.leftOut).toMatchObject([{ text: "Fran", reason: "Not finished in a time." }]);
+    }
+  });
+});

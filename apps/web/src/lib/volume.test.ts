@@ -126,6 +126,29 @@ describe("volumeGrid", () => {
   });
 });
 
+describe("volumeGrid sessions", () => {
+  it("counts a session that only left lines out", () => {
+    const weeks: ReadonlyArray<VolumeWeek> = [
+      {
+        weekStart: "2026-10-26",
+        entries: [],
+        leftOut: [
+          {
+            workoutId: WorkoutId.make("w1"),
+            performedOn: "2026-10-27",
+            text: "AMRAP 15",
+            reason: "AMRAP without a score.",
+          },
+        ],
+      },
+    ];
+    const columns = volumeColumns(weeks, "all", TODAY);
+    expect(volumeGrid(weeks, CATALOG, { view: "volume", basis: "done", columns }).sessions).toEqual(
+      [1],
+    );
+  });
+});
+
 describe("cellSources", () => {
   it("names the other side of a swap", () => {
     const week = WEEKS[1];

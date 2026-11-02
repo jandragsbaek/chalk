@@ -224,20 +224,32 @@ const countItem = (
   }
 };
 
-/** Lifted sets: each at its own load. */
-const countSets = (item: WorkItem, writtenAs: MovementId | undefined, into: Into) => {
+/**
+ * Lifted sets: each at its own load. A set's load is one implement's unless the athlete said how
+ * many (`implements`, already in the set), so a pair (devil press, "dual") lifts both, as
+ * `loadOf` counts it.
+ */
+const countSets = (
+  item: WorkItem,
+  writtenAs: MovementId | undefined,
+  options: CountOptions,
+  into: Into,
+) => {
   const movementId = item.movementId;
   if (movementId === undefined) {
     into.leftOut.push({ movementId: undefined, text: item.text, reason: "No movement picked." });
     return;
   }
+  const both =
+    item.performance?.implements === undefined &&
+    ((options.pairOf?.(movementId) ?? false) || /\bdual\b/i.test(item.text));
   for (const set of item.performed)
     into.counted.push({
       movementId,
       writtenAs,
       amount: set.reps,
       unit: "reps",
-      loadKg: set.loadKg,
+      loadKg: both ? set.loadKg * 2 : set.loadKg,
       text: item.text,
       lifted: true,
     });
@@ -278,7 +290,7 @@ export const countBlock = (block: WorkBlock, options: CountOptions): BlockCount 
       return skippedBlock("Capped, and where it stopped cannot be counted.");
     for (const [index, { item, writtenAs }] of items.entries()) {
       if (item.performed.length > 0) {
-        countSets(item, writtenAs, into);
+        countSets(item, writtenAs, options, into);
         continue;
       }
       const count = roundCount(item, block, options);
@@ -388,7 +400,15 @@ export const countBenchmark = (
     counted.push(...count.counted);
     leftOut.push(...count.leftOut);
   };
-  if (benchmark.scoring === "time")
+  const seconds = benchmark.scoring === "time" ? parseBenchmarkScore("time", score) : undefined;
+  if (benchmark.scoring === "time" && (seconds === undefined || seconds <= 0))
+    // A DNF or a capped attempt did not do the whole prescription, and the score says no more.
+    leftOut.push({
+      movementId: undefined,
+      text: benchmark.name,
+      reason: "Not finished in a time.",
+    });
+  else if (benchmark.scoring === "time")
     for (const block of blocks)
       add(
         countBlock(
