@@ -307,6 +307,8 @@ export interface ProgrammedMovement {
    * done and the block's score, so it takes no sets of its own.
    */
   readonly scored: boolean;
+  /** An EMOM station: the rounds it comes up in, logged one by one. */
+  readonly rounds: number | undefined;
 }
 
 export function SpanInspector({
@@ -931,19 +933,29 @@ function MovementMark({
             item={programmed.item}
             grade={programmed.grade}
             catalog={catalog}
+            roundCount={programmed.rounds}
+            onAim={(aim) => {
+              // The aim is the plan's count each round; the rest of a plan stays.
+              const { perRound: _old, ...rest } = span.plan ?? {};
+              const plan = aim === undefined ? rest : { ...rest, perRound: aim };
+              onUpdate(Object.keys(plan).length === 0 ? withoutField("plan") : { ...span, plan });
+            }}
             onChange={(performance) =>
               onUpdate(
                 performance === undefined ? withoutField("performance") : { ...span, performance },
               )
             }
           />
-          {programmed.scored && span.result === undefined ? (
+          {/* Logged round by round, a counted station has no sets to lift. */}
+          {programmed.rounds !== undefined &&
+          span.result === undefined ? null : programmed.scored && span.result === undefined ? (
             <ScoredLift items={[programmed.item]} />
           ) : (
             <ResultEditor
               results={[span.result]}
               items={[programmed.item]}
               defaults={[programmed.defaults]}
+              lift={picked?.category === "barbell" || picked?.category === "dumbbell_kettlebell"}
               onChange={([result]: ReadonlyArray<LiftResult | undefined>) =>
                 onUpdate(result === undefined ? withoutField("result") : { ...span, result })
               }

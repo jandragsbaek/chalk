@@ -134,6 +134,13 @@ const roundCount = (
     amount += amountFor(count, sex) * lengths * (sets === undefined ? 1 : mid(sets.amount));
   }
   // The count each round is in reps; reps of a written length are metres.
+  // Round by round, the rounds' average, so the block's rounds multiply back to their sum.
+  const rounds = item.performance?.rounds;
+  if (unit !== undefined && rounds !== undefined && rounds.length > 0)
+    return {
+      amount: (rounds.reduce((total, count) => total + count, 0) / rounds.length) * (length ?? 1),
+      unit,
+    };
   const perRound = item.performance?.perRound;
   if (unit !== undefined && perRound !== undefined)
     return { amount: mid(perRound) * (length ?? 1), unit };
@@ -156,8 +163,13 @@ export const loadOf = (item: WorkItem, sex: Sex, pair = false): number | undefin
   return undefined;
 };
 
-/** How many times the block's items are done, before any AMRAP partial round. */
-const roundsOf = (block: WorkBlock): number | undefined => {
+/**
+ * How many times the block's items are done, before any AMRAP partial round. An EMOM rotating
+ * through numbered lines does each line once per rotation: "EMOM 16" over four lines is 4.
+ */
+export const roundsOf = (
+  block: Pick<WorkBlock, "format" | "params" | "rotation">,
+): number | undefined => {
   const { params } = block;
   const rounds = params.rounds === undefined ? undefined : params.rounds.min;
   switch (block.format) {

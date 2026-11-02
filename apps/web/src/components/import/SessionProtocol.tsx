@@ -25,6 +25,7 @@ import { Fragment, useState, type ReactNode } from "react";
 import { formatKg } from "../../lib/blockLabels.ts";
 import { formatComplex, type Complex } from "../../lib/complexes.ts";
 import { describePlan } from "../../lib/plan.ts";
+import { describeOnAim } from "../../lib/rounds.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
 import {
   boardTonnageOf,
@@ -100,6 +101,11 @@ const leadOf = (item: DerivedItem, names: ProtocolNames, sex: Sex): LevelLead | 
   const done = describePlan(item.performance, names.nameOf, sex, item);
   if (plan === undefined)
     return item.performance.perRound === undefined ? undefined : { label: "Done", text: done };
+  // Round by round against an aim: how many rounds reached it says more than the plan again.
+  const aim = item.plan?.perRound;
+  const rounds = item.performance.rounds;
+  if (aim !== undefined && rounds !== undefined && rounds.length > 0)
+    return { label: "Done", text: done, note: describeOnAim(rounds, aim) };
   return done === plan
     ? { label: "Done", text: done, note: "as planned" }
     : { label: "Done", text: done, note: `planned ${plan}` };

@@ -179,6 +179,8 @@ export const Performance = Schema.Struct({
   variants: Schema.optionalKey(Schema.Array(VariantReps)),
   unbroken: Schema.optionalKey(Count),
   perRound: Schema.optionalKey(Schema.Struct({ min: NonNegative, max: NonNegative })),
+  /** That count round by round, in order ("8, 8, 7, 6"); `perRound` then spans it. */
+  rounds: Schema.optionalKey(Schema.Array(Count)),
 }).annotate({ identifier: "Performance" });
 export type Performance = typeof Performance.Type;
 

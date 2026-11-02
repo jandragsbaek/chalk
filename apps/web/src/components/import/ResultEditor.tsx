@@ -64,6 +64,7 @@ export function ResultEditor({
   results,
   items,
   defaults,
+  lift = true,
   onChange,
 }: {
   /** One per movement sharing the form, in order: a single movement, or a complex. */
@@ -71,12 +72,21 @@ export function ResultEditor({
   /** The derived items, for what will be saved (empty when a result has a problem). */
   readonly items: ReadonlyArray<DerivedItem>;
   readonly defaults: ReadonlyArray<ResultDefaults>;
+  /** A barbell, dumbbell or kettlebell lift: opens at one load when the board says the rest. */
+  readonly lift?: boolean;
   readonly onChange: (results: ReadonlyArray<LiftResult | undefined>) => void;
 }) {
   const count = results.length;
   const complex = count > 1;
   const { unit } = useLoadUnit();
-  const [typed, setDraft] = useState(() => draftFromResults(results, defaults, unit));
+  // The board says the sets and reps ("Every 90 sec x 8 / 1 + 1 + 2"): only the load is left
+  // to type, so the form opens at one load. Nothing counts until the load is in.
+  const [typed, setDraft] = useState(() => {
+    const draft = draftFromResults(results, defaults, unit);
+    const known =
+      lift && defaults.every((entry) => entry.sets !== undefined && entry.reps !== undefined);
+    return draft.mode === undefined && known ? { ...draft, mode: "fixed" as const } : draft;
+  });
   // Flipping the unit converts what is typed; the result stays the same.
   const draft = typed.unit === unit ? typed : switchUnit(typed, unit);
 

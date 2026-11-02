@@ -55,7 +55,7 @@ import { formatKg } from "../../lib/blockLabels.ts";
 import { findComplexes } from "../../lib/complexes.ts";
 import { gradeSession } from "../../lib/levelGrades.ts";
 import type { LoadUnit } from "../../lib/loadUnit.ts";
-import { asPlanned, withPlannedLoad } from "../../lib/plan.ts";
+import { asPlanned, stationRounds, withPlannedLoad } from "../../lib/plan.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
 import { resultDefaults } from "../../lib/resultDraft.ts";
 import { chooseOption, chosenOption, stationOptions } from "../../lib/station.ts";
@@ -897,6 +897,13 @@ export function ImportWorkbench({
                           chosen: chosenOption(programmed.station, planning ? "planned" : "done")
                             ?.spanId,
                           scored: scoresMovements(programmed.block.format),
+                          rounds: stationRounds(
+                            programmed.item,
+                            programmed.block,
+                            programmed.item.movementId === undefined
+                              ? undefined
+                              : categories.get(programmed.item.movementId),
+                          ),
                         }
                   }
                   onChooseOption={(chosen) => {
