@@ -103,6 +103,29 @@ describe("countBlock", () => {
     ]);
   });
 
+  it("counts an AMRAP's lifted sets at their own loads, and the partial round across stations", () => {
+    // 2+5 of 10 thrusters at 20, 30, then 40 kg, and 10 burpees: 25 thrusters, 20 burpees.
+    const thrusters: WorkItem = {
+      ...item("thruster", q("reps", 10)),
+      performance: { roundLoadsKg: [20, 30, 40] },
+      performed: [
+        { reps: 10, loadKg: 20 },
+        { reps: 10, loadKg: 30 },
+        { reps: 5, loadKg: 40 },
+      ],
+    };
+    const count = countBlock(
+      block("amrap", [thrusters, item("burpee", q("reps", 10))], { scores: ["2+5"] }),
+      { sex: "m" },
+    );
+    expect(count.counted.map((line) => [line.movementId, line.amount, line.loadKg])).toEqual([
+      ["thruster", 10, 20],
+      ["thruster", 10, 30],
+      ["thruster", 5, 40],
+      ["burpee", 20, undefined],
+    ]);
+  });
+
   it("credits the 'or' that was done, written as the first option", () => {
     const doubleUnders: WorkItem = {
       ...item("double-under", q("reps", 60)),

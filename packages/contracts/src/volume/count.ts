@@ -303,7 +303,9 @@ export const countBlock = (block: WorkBlock, options: CountOptions): BlockCount 
       }
       const extra = Math.min(partial, count.amount);
       partial -= extra;
-      countItem(item, writtenAs, rounds * count.amount + extra, count.unit, options, into);
+      // Lifted round by round from the score, each round at its own load.
+      if (item.performed.length > 0) countSets(item, writtenAs, options, into);
+      else countItem(item, writtenAs, rounds * count.amount + extra, count.unit, options, into);
     }
   } else {
     const rounds = roundsOf(block);
