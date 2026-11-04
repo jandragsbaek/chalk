@@ -39,6 +39,8 @@ export interface DerivedSet {
    * power cleans".
    */
   readonly carried?: { readonly from: SpanId };
+  /** What the line calls a load each round, written before it: "Level 3". */
+  readonly label?: string;
 }
 
 export interface DerivedItem {
@@ -211,7 +213,11 @@ export const formatQuantity = (quantity: Quantity): string => {
     return `${tiers} ${MEASURE_LABELS[quantity.measure]}`;
   }
   const value = quantity.scheme ? quantity.scheme.join("-") : formatAmount(quantity.amount);
-  const female = quantity.female ? `/${formatAmount(quantity.female)}` : "";
+  const female = quantity.femaleScheme
+    ? `/${quantity.femaleScheme.join("-")}`
+    : quantity.female
+      ? `/${formatAmount(quantity.female)}`
+      : "";
   if (quantity.measure === "rpe") return `RPE ${value}${female}`;
   const single = quantity.measure === "reps" && !quantity.female && quantity.amount.max === 1;
   return `${value}${female} ${single ? "rep" : MEASURE_LABELS[quantity.measure]}`;
@@ -288,6 +294,8 @@ const performanceProblem = (
 ): string | undefined => {
   if (performance.loadKg !== undefined && performance.loadKg > MAX_LOAD_KG)
     return `the load must be at most ${MAX_LOAD_KG} kg`;
+  if (performance.roundLoadsKg?.some((kg) => kg > MAX_LOAD_KG))
+    return `the load each round must be at most ${MAX_LOAD_KG} kg`;
   for (const entry of performance.variants ?? []) {
     if (nameOf(entry.movementId) === undefined)
       return `"${entry.movementId}" is not in the catalog`;
@@ -678,19 +686,38 @@ export const deriveSession = (
     }
     return carried;
   };
-  const toQuantity = ({ measure, amount, female, scheme, tiers }: Quantity): Quantity => ({
+  const toQuantity = ({
+    measure,
+    amount,
+    female,
+    scheme,
+    femaleScheme,
+    tiers,
+  }: Quantity): Quantity => ({
     measure,
     amount,
     ...(female === undefined ? {} : { female }),
     ...(scheme === undefined ? {} : { scheme }),
+    ...(femaleScheme === undefined ? {} : { femaleScheme }),
     ...(tiers === undefined ? {} : { tiers }),
   });
+  /** "Level 3: M: 20/25/30/35 - W: …": the words before a line's load each round. */
+  const labelOf = (quantity: SpanOf<"quantity">): string | undefined => {
+    if (quantity.measure !== "load_kg" || quantity.scheme === undefined) return undefined;
+    const line = lines[lineOf(quantity.start)]!;
+    const label = text
+      .slice(line.start, quantity.start)
+      .replace(/^[\s*•+-]+/, "")
+      .replace(/[\s:=–-]+$/, "");
+    return label === "" || label.length > 24 ? undefined : label;
+  };
 
   const setsOf = (
     movement: SpanOf<"movement">,
     carriedLoads: CarriedLoads,
   ): ReadonlyArray<DerivedSet> => {
     const sets = new Map<number, Array<Quantity>>();
+    const labels = new Map<number, string>();
     const own = quantitiesOf.get(movement.id) ?? [];
     const shared = movement.alternativeOf === undefined ? sharedOf(movement) : [];
     for (const quantity of [...own, ...shared].sort((left, right) => left.start - right.start)) {
@@ -698,10 +725,15 @@ export const deriveSession = (
       const list = sets.get(line) ?? [];
       list.push(toQuantity(quantity));
       sets.set(line, list);
+      const label = labelOf(quantity);
+      if (label !== undefined) labels.set(line, label);
     }
     const carried = carriedLoads.get(movement.id);
     if (carried === undefined)
-      return Array.from(sets, ([line, quantities]) => ({ line, quantities }));
+      return Array.from(sets, ([line, quantities]) => {
+        const label = labels.get(line);
+        return label === undefined ? { line, quantities } : { line, quantities, label };
+      });
     // Every line of the movement lifts the load; a movement with no numbers lifts it once.
     if (sets.size === 0) sets.set(lineOf(movement.start), []);
     return Array.from(sets, ([line, quantities]) => ({
@@ -802,10 +834,9 @@ export const deriveSession = (
   };
 
   /**
-   * A block scored as a whole lifts what its movements were done at: a movement with a load
-   * ("Done as" 35 kg, or as prescribed at the load written) and no sets of its own gets one set per
-   * round at that load, by the reps the score says it got through. Left alone when the reps are calories or metres, split by
-   * variation, or differ for men and women with no count of the athlete's own.
+   * A block scored as a whole lifts what its movements were done at: one set per round at the
+   * load ("Done as" 35 kg, as written, or that round's own), by the reps the score says it got
+   * through. Not for calories or metres, reps split by variation, or M/F reps with no own count.
    */
   const withScoredLoads = (
     block: Pick<DerivedBlock, "format" | "params" | "items">,
@@ -830,16 +861,21 @@ export const deriveSession = (
         new Set(written.map(formatQuantity)).size === 1 && side!.min === side!.max
           ? side!.min
           : undefined;
-      // Per implement as entered; a set lifts both bells of a pair.
+      // Per implement as entered; a set lifts both bells of a pair. A load that rose round by
+      // round lifts each round's; past the last one typed, the last.
       const perImplement = option.performance?.loadKg ?? (option.performance && writtenKg);
-      const loadKg =
-        perImplement === undefined
-          ? undefined
-          : perImplement * (option.performance?.implements ?? 1);
+      const roundLoads = option.performance?.roundLoadsKg;
+      const pair = option.performance?.implements ?? 1;
+      const loadAt = (round: number) =>
+        roundLoads !== undefined && roundLoads.length > 0
+          ? (roundLoads[round] ?? roundLoads.at(-1)!) * pair
+          : perImplement === undefined
+            ? undefined
+            : perImplement * pair;
       if (
         reps === undefined ||
-        loadKg === undefined ||
-        loadKg <= 0 ||
+        loadAt(0) === undefined ||
+        reps.every((_, round) => (loadAt(round) ?? 0) <= 0) ||
         option.performed.length > 0 ||
         option.performance?.variants !== undefined ||
         counted.some(
@@ -852,7 +888,10 @@ export const deriveSession = (
         )
       )
         return item;
-      const performed = reps.filter((count) => count > 0).map((count) => ({ reps: count, loadKg }));
+      const performed = reps.flatMap((count, round) => {
+        const loadKg = loadAt(round) ?? 0;
+        return count > 0 && loadKg > 0 ? [{ reps: count, loadKg }] : [];
+      });
       const lifted = { ...option, performed, listed: performed };
       return option === item
         ? lifted
@@ -960,10 +999,10 @@ export const deriveSession = (
               : `${slice(owner)}: the capped result says ${result.total} reps, but the block now adds up to ${side!.total}; enter it again.`,
         );
       }
-      if (block.params.timeCapSeconds === undefined)
+      if (block.params.timeCapSeconds === undefined && result.seconds === undefined)
         issues.push({
           severity: "warning",
-          message: `${slice(owner)}: capped, but the block has no time cap, so its time is unknown.`,
+          message: `${slice(owner)}: stopped short, with no time cap and no time stopped, so its time is unknown.`,
           ...where,
         });
     }

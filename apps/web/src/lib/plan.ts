@@ -108,11 +108,13 @@ export function describePlan(
     parts.push(
       describePerRound(plan.perRound, item === undefined ? undefined : roundTarget(item), sex),
     );
-  if (plan.loadKg !== undefined)
+  // "20-25-30-35 kg": a load that rose round by round.
+  const rising = plan.roundLoadsKg?.length
+    ? plan.roundLoadsKg.map((kg) => kgFormat.format(kg)).join("-")
+    : undefined;
+  if (plan.loadKg !== undefined || rising !== undefined)
     parts.push(
-      plan.implements === 2
-        ? `2 × ${kgFormat.format(plan.loadKg)} kg`
-        : `${kgFormat.format(plan.loadKg)} kg`,
+      `${plan.implements === 2 ? "2 × " : ""}${rising ?? kgFormat.format(plan.loadKg!)} kg`,
     );
   else if (plan.implements === 2) parts.push("dual");
   if (plan.variants !== undefined && plan.variants.length > 0)

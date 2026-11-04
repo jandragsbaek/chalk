@@ -375,7 +375,7 @@ describe("suggestSpans", () => {
     ]);
   });
 
-  it("reads rounds over a rep ladder as one block, and a level's loads as intent", () => {
+  it("reads rounds over a rep ladder as one block, and each level's loads each round", () => {
     const text = [
       "4 Rounds",
       "12-10-8-6",
@@ -392,9 +392,14 @@ describe("suggestSpans", () => {
       "quantity 12/10 cal = 12/10 cal -> row",
       "movement Bar facing burpees = bar-facing-burpee",
       "quantity 12 = 12 reps -> Bar facing burpees",
-      "intent Level 1: M: 30/40/50/60 - W: 30/35/45/50",
-      "intent Level 2: M: 20/30/40/45 - W: 20/25/30/35",
+      "quantity M: 30/40/50/60 - W: 30/35/45/50 = 30-40-50-60/30-35-45-50 kg -> Thrusters",
+      "quantity M: 20/30/40/45 - W: 20/25/30/35 = 20-30-40-45/20-25-30-35 kg -> Thrusters",
     ]);
+    // Loads that are not one per round are the coach's words.
+    const three = "4 Rounds\n12-10-8-6\nThrusters\nLevel 1: M: 30/40/50 - W: 30/35/45";
+    expect(describeSpans(three, suggest(three)).at(-1)).toBe(
+      "intent Level 1: M: 30/40/50 - W: 30/35/45",
+    );
     // A ladder that is not one number per round is a block of its own.
     const apart = "5 Rounds\n21-15-9\nThrusters";
     expect(describeSpans(apart, suggest(apart)).slice(0, 2)).toEqual([
@@ -468,6 +473,13 @@ describe("parse helpers", () => {
       params: { rounds: { min: 4, max: 4 }, scheme: [12, 10, 8, 6] },
     });
     expect(parseBlockFormat("12 Thrusters")).toBeUndefined();
+    expect(quantityFromText("M: 95/115/135 lbs - W: 65/75/95 lbs", "load_kg")).toEqual({
+      measure: "load_kg",
+      amount: { min: 43, max: 61.25 },
+      female: { min: 29.5, max: 43 },
+      scheme: [43, 52.25, 61.25],
+      femaleScheme: [29.5, 34, 43],
+    });
   });
 
   it("reads work and rest on one clock, with the rounds before or after", () => {

@@ -172,6 +172,7 @@ export type VariantReps = typeof VariantReps.Type;
  * How a programmed movement was done; empty means "as prescribed". `loadKg` is per implement,
  * `variants` splits the reps ("6 kipping, 44 jumping"), `unbroken` is the biggest unbroken set of
  * the hardest variation, `perRound` the count reached each round, worst to best ("7-8" cal).
+ * `roundLoadsKg` is a load that rose round by round ("Level 3: 20/25/30/35").
  */
 export const Performance = Schema.Struct({
   loadKg: Schema.optionalKey(NonNegative),
@@ -181,6 +182,8 @@ export const Performance = Schema.Struct({
   perRound: Schema.optionalKey(Schema.Struct({ min: NonNegative, max: NonNegative })),
   /** That count round by round, in order ("8, 8, 7, 6"); `perRound` then spans it. */
   rounds: Schema.optionalKey(Schema.Array(Count)),
+  /** The load each round, per implement, in order ("20, 25, 30, 35"); instead of `loadKg`. */
+  roundLoadsKg: Schema.optionalKey(Schema.Array(NonNegative)),
 }).annotate({ identifier: "Performance" });
 export type Performance = typeof Performance.Type;
 
@@ -907,7 +910,12 @@ export const gradeItem = (
 
   let performed: PerformedGrade | undefined;
   if (performedFamily.kind === "load") {
-    const loadKg = performance?.loadKg ?? item.liftedKg ?? loadWritten;
+    // Round by round: the heaviest round lifted, else the heaviest round meant.
+    const loadKg =
+      performance?.loadKg ??
+      item.liftedKg ??
+      (performance?.roundLoadsKg?.length ? Math.max(...performance.roundLoadsKg) : undefined) ??
+      loadWritten;
     if (loadKg !== undefined) {
       const graded = gradeLoad(performedFamily, loadKg, {
         implements: implementCount,

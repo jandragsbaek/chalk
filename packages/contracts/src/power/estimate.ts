@@ -100,8 +100,8 @@ const secondsOf = (block: WorkBlock): number | undefined => {
   const rounds = params.rounds === undefined ? undefined : params.rounds.min;
   switch (block.format) {
     case "for_time": {
-      // Capped: the block took its cap.
-      if (block.result?._tag === "capped") return params.timeCapSeconds;
+      // Capped: the block took its cap; stopped without one, as long as the athlete went.
+      if (block.result?._tag === "capped") return block.result.seconds ?? params.timeCapSeconds;
       for (const score of block.scores) {
         const seconds = parseBenchmarkScore("time", score);
         if (seconds !== undefined && seconds > 0) return seconds;

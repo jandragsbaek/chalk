@@ -56,6 +56,9 @@ describe("formatBlockResult", () => {
     expect(formatBlockResult({ _tag: "capped", round: 1, at: "x", reps: 23, total: 113 })).toBe(
       "Capped · 113 reps",
     );
+    expect(
+      formatBlockResult({ _tag: "capped", round: 2, at: "x", reps: 4, total: 40, seconds: 1080 }),
+    ).toBe("Stopped · 40 reps");
     expect(formatBlockResult({ _tag: "rounds_reps", rounds: 5, reps: 12 })).toBe("5+12");
     expect(formatBlockResult({ _tag: "reps", reps: 1 })).toBe("1 rep");
   });
@@ -156,16 +159,18 @@ describe("a capped for-time", () => {
     ]);
   });
 
-  it("warns when there is no cap to time it by", () => {
+  it("warns when there is no cap or time stopped to time it by, and is worked over that time", () => {
     const uncapped = suggested("For time:\n30 Burpees\n30 Pull-ups");
     const [, pullUps] = movements(uncapped);
-    const session = deriveSession(
-      withResult(uncapped, { _tag: "capped", round: 1, at: pullUps!.id, reps: 5, total: 35 }),
-      nameOf,
-    );
+    const stop = { _tag: "capped", round: 1, at: pullUps!.id, reps: 5, total: 35 } as const;
+    const session = deriveSession(withResult(uncapped, stop), nameOf);
     expect(session.issues.map((issue) => `${issue.severity}: ${issue.message}`)).toEqual([
-      "warning: For time: capped, but the block has no time cap, so its time is unknown.",
+      "warning: For time: stopped short, with no time cap and no time stopped, so its time is unknown.",
     ]);
+    const stopped = withResult(uncapped, { ...stop, seconds: 600 });
+    expect(deriveSession(stopped, nameOf).issues).toEqual([]);
+    const jan = bodyOf({ sex: "m", heightCm: 180, bodyweightKg: 85 });
+    expect(estimateBlockWork(firstBlock(stopped), jan, workModelsFor([])).seconds).toBe(600);
   });
 
   it("is worked over its cap, up to where it stopped", () => {
@@ -242,6 +247,37 @@ describe("movements of a block scored as a whole", () => {
       ),
     };
     expect(lifted(firstBlock(pair))).toEqual(["", "15@45", "", "15@45", ""]);
+  });
+
+  it("lift each round at its own load when it rose round by round, up to where it stopped", () => {
+    const text = [
+      "Workout",
+      "4 Rounds",
+      "12-10-8-6",
+      "Thrusters",
+      "12 Burpees",
+      "Level 3: M: 20/25/30/35 - W: 15/20/25/30",
+    ].join("\n");
+    const document = suggested(text);
+    const [thrusters] = movements(document);
+    const level3 = {
+      ...document,
+      spans: document.spans.map((span) =>
+        span.id === thrusters!.id
+          ? { ...span, performance: { roundLoadsKg: [20, 25, 30, 35] } }
+          : span,
+      ),
+    };
+    const done = firstBlock(withResult(level3, { _tag: "time", seconds: 1200 }));
+    expect(lifted(done)).toEqual(["12@20 10@25 8@30 6@35", ""]);
+    expect(done.tonnageKg).toBe(940);
+    expect(done.items[0]!.sets[0]!.label).toBe("Level 3");
+    // Stopped 4 thrusters into the last round.
+    const stopped = firstBlock(
+      withResult(level3, { _tag: "capped", round: 4, at: thrusters!.id, reps: 4, total: 70 }),
+    );
+    expect(lifted(stopped)).toEqual(["12@20 10@25 8@30 4@35", ""]);
+    expect(stopped.tonnageKg).toBe(870);
   });
 
   it("lift an AMRAP's full rounds and the reps into the next", () => {

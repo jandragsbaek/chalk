@@ -350,6 +350,8 @@ export interface ProgrammedMovement {
   readonly scored: boolean;
   /** An EMOM station: the rounds it comes up in, logged one by one. */
   readonly rounds: number | undefined;
+  /** In a block scored as a whole: its rounds, which a load can rise over. */
+  readonly loadRounds: number | undefined;
 }
 
 export function SpanInspector({
@@ -967,6 +969,7 @@ function MovementMark({
           item={programmed.item}
           grade={programmed.grade}
           catalog={catalog}
+          loadRounds={programmed.loadRounds}
           onChange={(plan) =>
             onUpdate(plan === undefined ? withoutField("plan") : { ...span, plan })
           }
@@ -981,6 +984,7 @@ function MovementMark({
             grade={programmed.grade}
             catalog={catalog}
             roundCount={programmed.rounds}
+            loadRounds={programmed.loadRounds}
             onAim={(aim) => {
               // The aim is the plan's count each round; the rest of a plan stays.
               const { perRound: _old, ...rest } = span.plan ?? {};

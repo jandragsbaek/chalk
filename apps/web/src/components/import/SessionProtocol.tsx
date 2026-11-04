@@ -233,6 +233,11 @@ function OptionRow({
             const from = set.carried === undefined ? undefined : editor?.lineOf(set.carried.from);
             return (
               <span key={set.line} data-attempt className="inline-flex gap-0.5 p-0.5">
+                {set.label === undefined ? null : (
+                  <span className="form-label self-center px-1 text-muted-foreground">
+                    {set.label}
+                  </span>
+                )}
                 {set.quantities.map((quantity) => {
                   const key = `${quantity.measure}-${quantity.amount.min}-${quantity.amount.max}`;
                   if (change === undefined || !isStruck(quantity, change, sex)) {

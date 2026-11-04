@@ -148,10 +148,14 @@ const roundCount = (
   if (unit !== undefined && perRound !== undefined)
     return { amount: mid(perRound) * (length ?? 1), unit };
   if (unit !== undefined) return { amount, unit };
-  // "21-15-9 thrusters and pull-ups": the block's scheme is every item's reps.
+  // "21-15-9 thrusters and pull-ups": the block's scheme is every item's reps. Under "4 Rounds"
+  // it is already every round's, so a round is its share.
   const scheme = block.params.scheme;
   if (scheme !== undefined && scheme.length > 0)
-    return { amount: scheme.reduce((total, reps) => total + reps, 0), unit: "reps" };
+    return {
+      amount: scheme.reduce((total, reps) => total + reps, 0) / (block.params.rounds?.min ?? 1),
+      unit: "reps",
+    };
   return undefined;
 };
 
@@ -160,6 +164,10 @@ export const loadOf = (item: WorkItem, sex: Sex, pair = false): number | undefin
   const performance = item.performance;
   const implementsCount = performance?.implements ?? (pair || /\bdual\b/i.test(item.text) ? 2 : 1);
   if (performance?.loadKg !== undefined) return performance.loadKg * implementsCount;
+  // Rising round by round with no reps counted per round: the rounds' average.
+  const rounds = performance?.roundLoadsKg;
+  if (rounds !== undefined && rounds.length > 0)
+    return (rounds.reduce((total, kg) => total + kg, 0) / rounds.length) * implementsCount;
   for (const set of item.sets)
     for (const quantity of set.quantities)
       if (quantity.measure === "load_kg") return amountFor(quantity, sex) * implementsCount;
@@ -295,7 +303,9 @@ export const countBlock = (block: WorkBlock, options: CountOptions): BlockCount 
       }
       const extra = Math.min(partial, count.amount);
       partial -= extra;
-      countItem(item, writtenAs, rounds * count.amount + extra, count.unit, options, into);
+      // Lifted round by round from the score, each round at its own load.
+      if (item.performed.length > 0) countSets(item, writtenAs, options, into);
+      else countItem(item, writtenAs, rounds * count.amount + extra, count.unit, options, into);
     }
   } else {
     const rounds = roundsOf(block);
