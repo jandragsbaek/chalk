@@ -295,6 +295,9 @@ export const WORK_MODELS: Readonly<Record<string, WorkModel>> = {
   "overhead-walking-lunge": lungeModel(true),
   "dumbbell-walking-lunge": lungeModel(true),
   "front-rack-lunge": lungeModel(true),
+  // A split squat is a lunge in place: one leg's rep, bodyweight or with dumbbells.
+  "split-squat": weighted(lunge),
+  "bulgarian-split-squat": weighted(lunge),
   // Machines and running.
   row: erg,
   "ski-erg": erg,
@@ -316,5 +319,7 @@ export const WORK_MODELS: Readonly<Record<string, WorkModel>> = {
   "handstand-walk": none(CARRY),
   "dead-hang": none(HOLD),
   "handstand-hold": none(HOLD),
+  "ring-support-hold": none(HOLD),
+  "l-sit": none(HOLD),
   "ring-lower": none("Lowering only: the work is negative."),
 };

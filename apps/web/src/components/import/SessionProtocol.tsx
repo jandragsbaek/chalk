@@ -11,6 +11,7 @@ import {
   type DerivedSession,
   type ImportIssue,
   type ItemGrade,
+  type Measure,
   levelKey,
   levelName,
   scoresMovements,
@@ -72,6 +73,9 @@ export interface ProtocolEditor {
   readonly onCap?: (spanId: SpanId, seconds: number | undefined) => void;
 }
 
+/** What a station counts by, as `stationCount` reads it; without one, a ladder counts it. */
+const COUNTS: ReadonlySet<Measure> = new Set(["reps", "calories", "distance_m"]);
+
 /** Row state the editor reads: selected, lit by a hovered mark. */
 const rowState = (editor: ProtocolEditor | undefined, id: SpanId) => ({
   "data-selected": editor?.selectedId === id ? "" : undefined,
@@ -125,6 +129,7 @@ function OptionRow({
   passed,
   inComplex = false,
   scored = false,
+  ladder,
 }: {
   readonly item: DerivedItem;
   readonly names: ProtocolNames;
@@ -140,6 +145,8 @@ function OptionRow({
    * already prints, and the block header totals it.
    */
   readonly scored?: boolean;
+  /** The block's rep ladder ("21-15-9"), counting this option's rounds when it has no count. */
+  readonly ladder?: ReadonlyArray<number> | undefined;
 }) {
   const sex = useAthleteSex();
   const name = item.movementId === undefined ? undefined : names.nameOf(item.movementId);
@@ -158,6 +165,10 @@ function OptionRow({
   // Planning, a load is meant rather than used: the plan line says it, nothing is struck.
   const change = names.gradeSide === "planned" ? undefined : loadChangeOf(item, sex);
   const selected = editor?.selectedId === item.spanId;
+  const counted = item.sets.some((set) =>
+    set.quantities.some((quantity) => COUNTS.has(quantity.measure)),
+  );
+  const fromLadder = ladder !== undefined && ladder.length > 0 && !counted ? ladder : undefined;
   // Quiet rows: only the selected one, and one with something done or planned, print a level.
   const levelLine =
     full &&
@@ -199,7 +210,20 @@ function OptionRow({
         )}
       </span>
       <span className="relative flex flex-wrap gap-1.5">
-        {item.sets.length === 0 ? (
+        {fromLadder === undefined ? null : (
+          <span data-attempt className="inline-flex gap-0.5 p-0.5">
+            <span
+              data-chip
+              data-measure="reps"
+              data-derived
+              title="Written once for the block, one number per round. Write a count on the line to change it."
+              className="px-1.5 text-sm font-medium leading-6 tabular-nums"
+            >
+              {fromLadder.join("-")} reps
+            </span>
+          </span>
+        )}
+        {item.sets.length === 0 && fromLadder === undefined ? (
           <span className="flex h-7 items-center gap-2 text-xs text-muted-foreground">
             <span data-empty aria-hidden />
             no numbers
@@ -356,11 +380,13 @@ function StationRow({
   names,
   editor,
   scored,
+  ladder,
 }: {
   readonly item: DerivedItem;
   readonly names: ProtocolNames;
   readonly editor: ProtocolEditor | undefined;
   readonly scored: boolean;
+  readonly ladder: ReadonlyArray<number> | undefined;
 }) {
   const picked = chosenOption(item, names.gradeSide ?? "done");
   const leading = picked ?? item;
@@ -376,6 +402,7 @@ function StationRow({
           full={option === leading}
           passed={picked !== undefined && option !== picked}
           scored={scored}
+          ladder={ladder}
         />
       ))}
     </li>
@@ -800,6 +827,7 @@ export function SessionProtocol({
                         names={names}
                         editor={editor}
                         scored={scoresMovements(block.format)}
+                        ladder={block.params.scheme}
                       />
                     ) : (
                       <ComplexRows

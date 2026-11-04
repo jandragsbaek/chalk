@@ -134,6 +134,38 @@ describe("CatalogStore", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect("seeds split squats and static holds, held for seconds", () =>
+    Effect.gen(function* () {
+      const store = yield* CatalogStore.CatalogStore;
+      const catalog = yield* store.list();
+      const byId = new Map(catalog.map((movement) => [movement.id, movement]));
+      expect(byId.get(MovementId.make("bulgarian-split-squat"))?.variationOf).toBe("split-squat");
+      expect(byId.get(MovementId.make("l-sit"))?.measure).toBe("seconds");
+
+      const matcher = makeMovementMatcher(catalog);
+      let next = 0;
+      const text = [
+        "EMOM 16",
+        "1) 10 Bulgarian split squat (højre)",
+        "3) 20 Sec ring support hold",
+        "4) 20 sec L-sit hold.",
+      ].join("\n");
+      const spans = suggestSpans(text, matcher, () => SpanId.make(`s${++next}`));
+      const movementOf = new Map(
+        spans.flatMap((span) => (span._tag === "movement" ? [[span.id, span.movementId]] : [])),
+      );
+      expect(
+        spans.flatMap((span) =>
+          span._tag === "quantity" ? [[span.measure, movementOf.get(span.attachedTo!)]] : [],
+        ),
+      ).toEqual([
+        ["reps", "bulgarian-split-squat"],
+        ["seconds", "ring-support-hold"],
+        ["seconds", "l-sit"],
+      ]);
+    }).pipe(Effect.provide(layer)),
+  );
+
   it.effect("seeds the usual scalings: ring rows for pull-ups, walk-outs for wall walks", () =>
     Effect.gen(function* () {
       const store = yield* CatalogStore.CatalogStore;

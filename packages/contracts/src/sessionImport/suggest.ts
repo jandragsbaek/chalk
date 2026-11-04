@@ -98,6 +98,11 @@ const CONTAINER_HEADING = /^(?:workouts?|wod|træning)\s*:?$/i;
 const FAILED = /\b(?:fail(?:ed)?|miss(?:ed)?|no[\s-]?rep)\b/i;
 /** "Goal = <20 minutes": the coach's target for the block, not a number to log. */
 const GOAL = /^goal\s*[:=]/i;
+/**
+ * "Level 1: M: 30/40/50/60 - W: 30/35/45/50": the coach's loads for one level, round by round,
+ * written apart from any movement. Kept as the coach's words.
+ */
+const LEVEL_LINE = /^(?:level|niveau|lvl)\s*\d+\s*[:.)-]/i;
 /** Formats that run in rounds, so a rest between rounds belongs to them. */
 const ROUNDED: ReadonlySet<BlockFormat> = new Set(["amrap", "for_time", "other"]);
 /** Intensity a line can carry without naming a movement: "70-80% af ovenstående", "RPE 8". */
@@ -265,7 +270,7 @@ export const suggestSpans = (
   };
 
   const workoutLine = (content: string, offset: number) => {
-    if (GOAL.test(content)) {
+    if (GOAL.test(content) || (LEVEL_LINE.test(content) && matcher.find(content, 0).length === 0)) {
       addIntent(offset, offset + content.length);
       return;
     }
@@ -296,17 +301,25 @@ export const suggestSpans = (
 
     const format = parseBlockFormat(content);
     if (format) {
-      const block: SpanOf<"block"> = {
-        _tag: "block",
-        id: makeId(),
-        start: offset,
-        end: offset + format.length,
-        format: format.format,
-        params: format.params,
-      };
-      spans.push(block);
+      const end = offset + format.length;
+      // "4 Rounds" over "12-10-8-6": the ladder counts the rounds, so the lines are one block.
+      const above = spans.at(-1) === currentBlock ? currentBlock : undefined;
+      const joined = above && parseBlockFormat(text.slice(above.start, end));
+      const block: SpanOf<"block"> =
+        above && joined && above.start + joined.length === end
+          ? { ...above, end, format: joined.format, params: joined.params }
+          : {
+              _tag: "block",
+              id: makeId(),
+              start: offset,
+              end,
+              format: format.format,
+              params: format.params,
+            };
+      if (block.id === above?.id) spans[spans.length - 1] = block;
+      else spans.push(block);
       currentBlock = block;
-      if (format.format !== "rest" && format.format !== "strength") lastScoreable = block;
+      if (block.format !== "rest" && block.format !== "strength") lastScoreable = block;
       const rest = content.slice(format.length);
       const skipped = rest.length - rest.trimStart().length;
       content = rest.trimStart();
