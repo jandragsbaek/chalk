@@ -617,11 +617,57 @@ export const parseTimeCap = (text: string): number | undefined => {
   return undefined;
 };
 
+const ROUND_LIST = String.raw`${N}(?:\s*\/\s*${N})+`;
+const MALE = String.raw`(?:m|men|mænd|h|herrer)`;
+const FEMALE = String.raw`(?:w|women|f|k|kvinder|d|damer)`;
+/** "M: 30/40/50/60 - W: 30/35/45/50": a load each round, for men and for women. */
+const ROUND_LOADS = new RegExp(
+  String.raw`(?<![\p{L}\d])${MALE}\s*:\s*(${ROUND_LIST})\s*${LOAD_UNIT}?\s*[-–,;|]?\s*${FEMALE}\s*:\s*(${ROUND_LIST})\s*${LOAD_UNIT}?`,
+  "iu",
+);
+
+/**
+ * A load that rises round by round, men's and women's ("Level 1: M: 30/40/50/60 - W:
+ * 30/35/45/50"): `scheme` and `femaleScheme`, which `amount` and `female` span. Both sides name
+ * every round. Kilograms unless pounds are written.
+ */
+export const parseRoundLoads = (text: string, offset = 0): QuantityMatch | undefined => {
+  const match = ROUND_LOADS.exec(text);
+  if (!match) return undefined;
+  const unit = match[2] ?? match[4];
+  const read = (raw: string) =>
+    raw.split("/").map((value) => {
+      const number = toNumber(value.trim());
+      return unit !== undefined && /^(?:lb|pound)/i.test(unit) ? poundsToKg(number) : number;
+    });
+  const scheme = read(match[1]!);
+  const femaleScheme = read(match[3]!);
+  if (scheme.length !== femaleScheme.length) return undefined;
+  const span = (values: ReadonlyArray<number>) => ({
+    min: Math.min(...values),
+    max: Math.max(...values),
+  });
+  return {
+    start: offset + match.index,
+    end: offset + match.index + match[0].trimEnd().length,
+    quantity: {
+      measure: "load_kg",
+      amount: span(scheme),
+      female: span(femaleScheme),
+      scheme,
+      femaleScheme,
+    },
+  };
+};
+
 /**
  * The quantity a highlighted phrase stands for, as `measure`. Uses the recognizers when they
  * agree on the measure, else reads the first number(s) of the phrase.
  */
 export const quantityFromText = (text: string, measure: Measure): Quantity | undefined => {
+  // "M: 30/40/50/60 - W: …" holds loads a recognizer would read as one M/F split.
+  const roundLoads = measure === "load_kg" ? parseRoundLoads(text) : undefined;
+  if (roundLoads) return roundLoads.quantity;
   const recognized = parseQuantities(text, 0, { bareReps: true }).find(
     (match) => match.quantity.measure === measure,
   );

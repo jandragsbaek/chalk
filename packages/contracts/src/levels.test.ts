@@ -217,6 +217,19 @@ describe("gradeItem", () => {
       gradeItem({ movementId: id("power-clean"), sets, liftedKg: 72.5 }, movements, "m")?.performed
         ?.level,
     ).toBe("intermediate");
+    // A load rising round by round: the heaviest round lifted, else the heaviest meant.
+    const rising = { roundLoadsKg: [20, 25, 30, 35] };
+    expect(
+      gradeItem({ movementId: id("power-clean"), sets, performance: rising }, movements, "m")
+        ?.performed?.loadKg,
+    ).toBe(35);
+    expect(
+      gradeItem(
+        { movementId: id("power-clean"), sets, performance: rising, liftedKg: 30 },
+        movements,
+        "m",
+      )?.performed?.loadKg,
+    ).toBe(30);
   });
 
   it("splits reps by variation and keeps the hardest as what the athlete can do", () => {

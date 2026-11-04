@@ -58,8 +58,13 @@ export const Quantity = Schema.Struct({
   amount: Amount,
   /** Second number of a male/female split such as "12/10 cal" or "@40/25". */
   female: Schema.optionalKey(Amount),
-  /** Reps per round, e.g. 21-15-9; `amount` is then the total. */
+  /**
+   * Reps per round, e.g. 21-15-9; `amount` is then the total. A load's is the load each round
+   * ("M: 20/25/30/35"), and `amount` then spans it.
+   */
   scheme: Schema.optionalKey(Schema.Array(NonNegative)),
+  /** The female side of a load each round ("W: 15/20/25/30"); `female` then spans it. */
+  femaleScheme: Schema.optionalKey(Schema.Array(NonNegative)),
   /**
    * Targets by level, hardest first: "18-15/15-12 cal" is 18/15 at Elite and 15/12 at RX.
    * `amount` and `female` then span the tiers (15-18, 12-15), so anything reading one number
@@ -122,7 +127,8 @@ export type LiftResult = typeof LiftResult.Type;
 /**
  * A block's score, entered by the athlete. `capped`: the cap came in round `round` (1-based) on
  * station `at` (an item span) after `reps` of it; `total` is the board's score, counted by the
- * editor, which knows the athlete's side of an M/F split.
+ * editor, which knows the athlete's side of an M/F split. `seconds`: when the athlete stopped,
+ * for a block the board gave no cap.
  */
 export const BlockResult = Schema.TaggedUnion({
   time: { seconds: Count },
@@ -131,6 +137,7 @@ export const BlockResult = Schema.TaggedUnion({
     at: SpanId,
     reps: Count,
     total: Count,
+    seconds: Schema.optionalKey(Count),
   },
   rounds_reps: { rounds: Count, reps: Count },
   reps: { reps: Count },

@@ -59,13 +59,17 @@ export const parseClock = (text: string): number | undefined => {
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
-/** The score as the board writes it: "12:34", "Capped · 113 reps", "5+12", "150 reps". */
+/**
+ * The score as the board writes it: "12:34", "Capped · 113 reps", "Stopped · 40 reps", "5+12",
+ * "150 reps".
+ */
 export const formatBlockResult = (result: BlockResult): string => {
   switch (result._tag) {
     case "time":
       return formatClock(result.seconds);
     case "capped":
-      return `Capped · ${plural(result.total, "rep", "reps")}`;
+      // No clock in the text: a benchmark's score reads one as a finished time.
+      return `${result.seconds === undefined ? "Capped" : "Stopped"} · ${plural(result.total, "rep", "reps")}`;
     case "rounds_reps":
       return `${result.rounds}+${result.reps}`;
     case "reps":

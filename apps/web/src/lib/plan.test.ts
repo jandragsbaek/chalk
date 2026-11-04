@@ -17,6 +17,7 @@ describe("describePlan", () => {
 
   it("names the load per implement, and the reps by variation", () => {
     expect(describePlan({ loadKg: 22.5, implements: 2 }, nameOf, "m")).toBe("2 × 22.5 kg");
+    expect(describePlan({ roundLoadsKg: [20, 25, 30, 35] }, nameOf, "m")).toBe("20-25-30-35 kg");
     expect(
       describePlan(
         {

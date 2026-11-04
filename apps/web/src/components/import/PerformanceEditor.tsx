@@ -11,6 +11,7 @@ import {
   type Amount,
   type MovementId,
   type Performance,
+  type Sex,
 } from "@chalk/contracts";
 import { Button } from "@chalk/ui/components/button.tsx";
 import { Input, NativeSelect } from "@chalk/ui/components/field.tsx";
@@ -32,6 +33,8 @@ interface Draft {
   readonly asWritten: boolean;
   /** Typed in `unit`. */
   readonly load: string;
+  /** The load each round, typed in `unit` in order: "20, 25, 30, 35". */
+  readonly roundLoads: string;
   readonly unit: LoadUnit;
   readonly implements: 1 | 2;
   readonly rows: ReadonlyArray<{ readonly movementId: string; readonly reps: string }>;
@@ -49,6 +52,7 @@ export const draftFromPerformance = (
   recorded: performance !== undefined,
   asWritten: performance !== undefined && Object.keys(performance).length === 0,
   load: showLoad(performance?.loadKg, unit),
+  roundLoads: (performance?.roundLoadsKg ?? []).map((kg) => showLoad(kg, unit)).join(", "),
   unit,
   implements: performance?.implements ?? 1,
   rows: (performance?.variants ?? []).map((entry) => ({
@@ -59,6 +63,14 @@ export const draftFromPerformance = (
   perRound: performance?.perRound === undefined ? "" : formatAmount(performance.perRound),
   rounds: (performance?.rounds ?? []).map(String),
 });
+
+/** Every load of "20, 25, 30, 35" (or "20/25/30/35"), or `undefined` while one is not a load. */
+const typedRoundLoads = (raw: string, unit: LoadUnit): ReadonlyArray<number> | undefined => {
+  const typed = raw.split(/[\s,;/]+/).filter((part) => part !== "");
+  if (typed.length === 0) return undefined;
+  const loads = typed.map((part) => readKg(part, unit));
+  return loads.every((kg): kg is number => kg !== undefined) ? loads : undefined;
+};
 
 /** Every round typed as a whole count, or `undefined` while one is blank or not a count. */
 const countedRounds = (rounds: ReadonlyArray<string>): ReadonlyArray<number> | undefined => {
@@ -77,7 +89,9 @@ const countedRounds = (rounds: ReadonlyArray<string>): ReadonlyArray<number> | u
  */
 export const performanceFromDraft = (draft: Draft, planning = false): Performance | undefined => {
   if (!draft.recorded) return undefined;
-  const loadKg = readKg(draft.load, draft.unit);
+  // A load each round stands in for one load.
+  const roundLoadsKg = typedRoundLoads(draft.roundLoads, draft.unit);
+  const loadKg = roundLoadsKg === undefined ? readKg(draft.load, draft.unit) : undefined;
   const unbroken = toNumber(draft.unbroken);
   const rounds = countedRounds(draft.rounds);
   // Round by round, the range each round is what the rounds span.
@@ -90,6 +104,7 @@ export const performanceFromDraft = (draft: Draft, planning = false): Performanc
   });
   const performance: Performance = {
     ...(loadKg === undefined ? {} : { loadKg }),
+    ...(roundLoadsKg === undefined ? {} : { roundLoadsKg }),
     ...(draft.implements === 2 ? { implements: 2 as const } : {}),
     ...(variants.length === 0 ? {} : { variants }),
     ...(unbroken === undefined || !Number.isInteger(unbroken) ? {} : { unbroken }),
@@ -158,6 +173,64 @@ function ScaleTo({
               onClick={() => onPick(option.id)}
             >
               {option.name}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The board's loads each round, one line per level ("Level 3: M: 20/25/30/35 - W: …"), on the
+ * athlete's side.
+ */
+const roundLoadLines = (item: DerivedItem, sex: Sex) =>
+  item.sets.flatMap((set) => {
+    const load = set.quantities.find(
+      (quantity) => quantity.measure === "load_kg" && quantity.scheme !== undefined,
+    );
+    if (load?.scheme === undefined) return [];
+    const loads = sex === "f" && load.femaleScheme !== undefined ? load.femaleScheme : load.scheme;
+    return [{ line: set.line, label: set.label ?? `L${set.line + 1}`, loads }];
+  });
+
+/** One press to a level's loads each round. Pressed while those are the loads typed. */
+function RoundLoadPicker({
+  lines,
+  typed,
+  unit,
+  planning,
+  onPick,
+}: {
+  readonly lines: ReturnType<typeof roundLoadLines>;
+  readonly typed: string;
+  readonly unit: LoadUnit;
+  readonly planning: boolean;
+  readonly onPick: (loads: ReadonlyArray<number>) => void;
+}) {
+  if (lines.length === 0) return null;
+  const shown = (loads: ReadonlyArray<number>) => loads.map((kg) => showLoad(kg, unit)).join(", ");
+  const current = typedRoundLoads(typed, unit);
+  const label = planning ? "Plan at" : "Done at";
+  return (
+    <div className="grid gap-1">
+      <span className="form-label text-muted-foreground">{label}</span>
+      <div role="group" aria-label={label} className="flex flex-wrap gap-1">
+        {lines.map((line) => {
+          const on = current !== undefined && shown(current) === shown(line.loads);
+          return (
+            <Button
+              key={line.line}
+              size="sm"
+              variant={on ? "default" : "outline"}
+              aria-pressed={on}
+              onClick={() => onPick(line.loads)}
+            >
+              {line.label}
+              <span className="font-normal tabular-nums opacity-70">
+                {line.loads.map((kg) => showLoad(kg, unit)).join("-")}
+              </span>
             </Button>
           );
         })}
@@ -314,6 +387,7 @@ export function PerformanceEditor({
   onAsPlanned,
   complexGrades,
   roundCount,
+  loadRounds,
   onAim: setAim,
 }: {
   readonly performance: Performance | undefined;
@@ -330,6 +404,8 @@ export function PerformanceEditor({
   readonly complexGrades?: ReadonlyArray<ItemGrade | undefined> | undefined;
   /** An EMOM station: the rounds it came up in, logged one by one. */
   readonly roundCount?: number | undefined;
+  /** In a block scored as a whole with more than one round: a load can rise round by round. */
+  readonly loadRounds?: number | undefined;
   /** Sets the athlete's own aim each round, kept as the plan's count each round. */
   readonly onAim?: ((aim: Amount | undefined) => void) | undefined;
 }) {
@@ -340,11 +416,29 @@ export function PerformanceEditor({
   const draft =
     typed.unit === unit
       ? typed
-      : { ...typed, unit, load: convertTyped(typed.load, typed.unit, unit) };
+      : {
+          ...typed,
+          unit,
+          load: convertTyped(typed.load, typed.unit, unit),
+          roundLoads: typed.roundLoads
+            .split(/\s*,\s*/)
+            .map((part) => convertTyped(part, typed.unit, unit))
+            .join(", "),
+        };
   const family = grade?.family;
   const nameOf = (id: MovementId) => catalog.find((movement) => movement.id === id)?.name;
   const written = prescribedLoad(item.sets, sex);
   const asksLoad = family === undefined || family.kind === "load" || written !== undefined;
+  const levelLoads = asksLoad && !(complexGrades !== undefined) ? roundLoadLines(item, sex) : [];
+  const asksRoundLoads = asksLoad && (levelLoads.length > 0 || (loadRounds ?? 0) > 1);
+  const pickRoundLoads = (loads: ReadonlyArray<number>) =>
+    edit({
+      ...draft,
+      recorded: true,
+      asWritten: false,
+      load: "",
+      roundLoads: loads.map((kg) => showLoad(kg, unit)).join(", "),
+    });
   const showImplements = family?.group === "kb_db";
   const planning = mode === "plan";
   // Nothing said, but the block is scored: it counts as planned, or as prescribed, until the
@@ -476,6 +570,13 @@ export function PerformanceEditor({
               {planning ? "Scale it" : "Scaled it"}
             </Button>
           </div>
+          <RoundLoadPicker
+            lines={levelLoads}
+            typed={draft.roundLoads}
+            unit={unit}
+            planning={planning}
+            onPick={pickRoundLoads}
+          />
           <ScaleTo options={scalings} rows={undefined} onPick={scaleTo} />
           {assumed
             ? verdicts.map((verdict) => (
@@ -487,7 +588,24 @@ export function PerformanceEditor({
 
       {draft.recorded ? (
         <>
-          {asksLoad ? (
+          {asksRoundLoads ? (
+            <>
+              <RoundLoadPicker
+                lines={levelLoads}
+                typed={draft.roundLoads}
+                unit={unit}
+                planning={planning}
+                onPick={pickRoundLoads}
+              />
+              <Field
+                label={`${planning ? "Planned load" : "Load"} each round, ${unit}`}
+                value={draft.roundLoads}
+                placeholder={levelLoads[0]?.loads.map((kg) => showLoad(kg, unit)).join(", ") ?? ""}
+                onChange={(roundLoads) => edit({ ...draft, roundLoads })}
+              />
+            </>
+          ) : null}
+          {asksLoad && draft.roundLoads.trim() === "" ? (
             <div className={showImplements ? "grid grid-cols-2 items-end gap-2" : "grid gap-2"}>
               <Field
                 label={planning ? `Planned load, ${unit}` : `Load used, ${unit}`}

@@ -24,6 +24,8 @@ interface Draft {
   readonly at: SpanId | undefined;
   readonly reps: string;
   readonly rounds: string;
+  /** Stopped short of a block with no cap: when, as typed. */
+  readonly stoppedAt: string;
 }
 
 const count = (text: string) => (/^\d+$/.test(text.trim()) ? Number(text.trim()) : undefined);
@@ -37,6 +39,7 @@ const draftOf = (block: DerivedBlock, result: BlockResult | undefined): Draft =>
     at: block.items.at(-1)?.spanId,
     reps: "",
     rounds: "",
+    stoppedAt: "",
   };
   // A result kind the format no longer takes starts over with the format's own.
   if (result === undefined || !kinds.includes(result._tag)) return empty;
@@ -50,6 +53,7 @@ const draftOf = (block: DerivedBlock, result: BlockResult | undefined): Draft =>
         round: result.round,
         at: result.at,
         reps: String(result.reps),
+        stoppedAt: result.seconds === undefined ? "" : formatClock(result.seconds),
       };
     case "rounds_reps":
       return {
@@ -85,7 +89,17 @@ const resultOf = (draft: Draft, block: DerivedBlock, sex: Sex): BlockResult | un
           : stationCount(station, block.params, draft.round - 1, sex);
       if (asked !== undefined && reps > asked) return undefined;
       const total = cappedTotal(block, stop, sex);
-      return total === undefined ? undefined : { _tag: "capped", ...stop, total };
+      // No cap on the board: the time stopped, when given, is the block's time.
+      const seconds =
+        block.params.timeCapSeconds === undefined ? parseClock(draft.stoppedAt) : undefined;
+      return total === undefined
+        ? undefined
+        : {
+            _tag: "capped",
+            ...stop,
+            total,
+            ...(seconds === undefined || seconds === 0 ? {} : { seconds }),
+          };
     }
     case "rounds_reps": {
       const rounds = count(draft.rounds);
@@ -168,6 +182,7 @@ export function BlockResultEditor({
       : stationCount(block.items[stopAt]!, block.params, draft.round - 1, sex);
   const result = resultOf(draft, block, sex);
   const seconds = draft.kind === "time" ? parseClock(draft.time) : undefined;
+  const stoppedSeconds = parseClock(draft.stoppedAt);
   const repsValue = count(draft.reps);
   const repsTooMany =
     draft.kind === "capped" &&
@@ -194,7 +209,11 @@ export function BlockResultEditor({
                 size="sm"
                 onClick={() => edit({ ...draft, kind })}
               >
-                {kind === "time" ? "Finished" : BLOCK_RESULT_LABELS[kind]}
+                {kind === "time"
+                  ? "Finished"
+                  : kind === "capped" && cap === undefined
+                    ? "Stopped"
+                    : BLOCK_RESULT_LABELS[kind]}
               </Button>
             ))}
           </div>
@@ -263,6 +282,19 @@ export function BlockResultEditor({
                 onChange={(event) => edit({ ...draft, reps: event.target.value })}
               />
             </label>
+            {cap === undefined ? (
+              <label className="grid gap-1">
+                <span className="form-label text-muted-foreground">Time</span>
+                <Input
+                  inputMode="decimal"
+                  className="w-24"
+                  placeholder="18:00"
+                  aria-invalid={draft.stoppedAt.trim() !== "" && stoppedSeconds === undefined}
+                  value={draft.stoppedAt}
+                  onChange={(event) => edit({ ...draft, stoppedAt: event.target.value })}
+                />
+              </label>
+            ) : null}
           </>
         ) : null}
 
@@ -305,7 +337,7 @@ export function BlockResultEditor({
           </label>
         ) : null}
 
-        {block.format === "for_time" && onCap ? (
+        {block.format === "for_time" && onCap && !(draft.kind === "capped" && cap === undefined) ? (
           <label className="grid gap-1">
             <span className="form-label text-muted-foreground">Cap min</span>
             <Input
@@ -345,8 +377,10 @@ export function BlockResultEditor({
           ? repsTooMany
             ? `More than the station's ${stopCount}: you were on the next one.`
             : result?._tag === "capped"
-              ? `${result.total} reps by the cap${cap === undefined ? "" : ` of ${formatClock(cap)}`}: every station before ${stopAt + 1}. ${stationName(stopAt)}${rounds > 1 ? ` in round ${draft.round}` : ""} in full, then ${result.reps} of it.${cap === undefined ? " Add the cap to time it." : ""}`
-              : "Pick the station the cap came in and how many reps of it you got."
+              ? `${result.total} reps ${cap === undefined ? "when you stopped" : `by the cap of ${formatClock(cap)}`}: every station before ${stopAt + 1}. ${stationName(stopAt)}${rounds > 1 ? ` in round ${draft.round}` : ""} in full, then ${result.reps} of it.${cap === undefined && result.seconds === undefined ? " Add the time you stopped to time it." : ""}`
+              : cap === undefined
+                ? "Pick the station you stopped on and how many reps of it you got."
+                : "Pick the station the cap came in and how many reps of it you got."
           : draft.kind === "time"
             ? seconds !== undefined && cap !== undefined && seconds > cap
               ? `Over the ${formatClock(cap)} cap: capped instead?`

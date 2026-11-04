@@ -1731,6 +1731,11 @@
                               "type": "integer",
                               "minimum": 0,
                               "maximum": 9007199254740991
+                            },
+                            "seconds": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
                             }
                           },
                           "required": [
@@ -2052,6 +2057,13 @@
                         "minimum": 0
                       }
                     },
+                    "femaleScheme": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
                     "tiers": {
                       "type": "array",
                       "items": {
@@ -2189,6 +2201,11 @@
                               "maximum": 9007199254740991
                             },
                             "total": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "seconds": {
                               "type": "integer",
                               "minimum": 0,
                               "maximum": 9007199254740991
@@ -2563,6 +2580,13 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 9007199254740991
+            }
+          },
+          "roundLoadsKg": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0
             }
           }
         },
@@ -3275,6 +3299,13 @@
             "additionalProperties": false
           },
           "scheme": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "femaleScheme": {
             "type": "array",
             "items": {
               "type": "number",

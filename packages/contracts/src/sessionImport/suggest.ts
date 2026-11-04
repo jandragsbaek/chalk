@@ -1,6 +1,7 @@
 import type { BenchmarkId } from "../baseSchemas.ts";
 import { findBenchmark } from "../benchmarks/index.ts";
 import type { BlockFormat, Measure, Span, SpanId, SpanOf } from "../sessionImport.ts";
+import { roundsOfBlock } from "./blockResult.ts";
 import { tokenize, type MovementMatcher } from "./movementMatcher.ts";
 import {
   findScore,
@@ -9,6 +10,7 @@ import {
   maskParentheses,
   parseBlockFormat,
   parseQuantities,
+  parseRoundLoads,
   parseRoundRest,
   parseTimeCap,
   quantityFromText,
@@ -99,8 +101,8 @@ const FAILED = /\b(?:fail(?:ed)?|miss(?:ed)?|no[\s-]?rep)\b/i;
 /** "Goal = <20 minutes": the coach's target for the block, not a number to log. */
 const GOAL = /^goal\s*[:=]/i;
 /**
- * "Level 1: M: 30/40/50/60 - W: 30/35/45/50": the coach's loads for one level, round by round,
- * written apart from any movement. Kept as the coach's words.
+ * "Level 1: M: 30/40/50/60 - W: 30/35/45/50": the coach's loads for one level, round by round.
+ * Kept as the coach's words when they do not fit the block's rounds.
  */
 const LEVEL_LINE = /^(?:level|niveau|lvl)\s*\d+\s*[:.)-]/i;
 /** Formats that run in rounds, so a rest between rounds belongs to them. */
@@ -269,8 +271,42 @@ export const suggestSpans = (
     return true;
   };
 
+  /** A load each round ("M: 30/40/50/60 - W: …") with one load for every round of the block. */
+  const roundLoadsIn = (masked: string, offset: number) => {
+    const match = parseRoundLoads(masked, offset);
+    return match &&
+      currentBlock &&
+      roundsOfBlock(currentBlock.params) === match.quantity.scheme!.length
+      ? match
+      : undefined;
+  };
+
+  /** The block's one movement with no numbers of its own: loads each round belong to it. */
+  const bareMovementOfBlock = () => {
+    if (currentBlock === undefined) return undefined;
+    const below = spans.slice(spans.indexOf(currentBlock) + 1);
+    const bare = below.filter(
+      (span): span is SpanOf<"movement"> =>
+        span._tag === "movement" &&
+        span.alternativeOf === undefined &&
+        // Another level's loads each round are no numbers of its own.
+        !below.some(
+          (other) =>
+            other._tag === "quantity" &&
+            other.attachedTo === span.id &&
+            !(other.measure === "load_kg" && other.scheme !== undefined),
+        ),
+    );
+    return bare.length === 1 ? bare[0] : undefined;
+  };
+
   const workoutLine = (content: string, offset: number) => {
-    if (GOAL.test(content) || (LEVEL_LINE.test(content) && matcher.find(content, 0).length === 0)) {
+    if (
+      GOAL.test(content) ||
+      (LEVEL_LINE.test(content) &&
+        matcher.find(content, 0).length === 0 &&
+        roundLoadsIn(maskParentheses(content), offset) === undefined)
+    ) {
       addIntent(offset, offset + content.length);
       return;
     }
@@ -338,11 +374,16 @@ export const suggestSpans = (
 
     const masked = maskParentheses(content);
     const movements = addMovements(masked, offset);
+    const roundLoads = roundLoadsIn(masked, offset);
     // A number inside a movement's mark ("with 2-sec pause") is part of its name.
-    const quantities = parseQuantities(masked, offset, { bareReps: movements.length > 0 }).filter(
-      (match) =>
-        !movements.some((movement) => match.start < movement.end && match.end > movement.start),
-    );
+    const quantities = [
+      ...parseQuantities(masked, offset, { bareReps: movements.length > 0 }).filter(
+        (match) =>
+          !movements.some((movement) => match.start < movement.end && match.end > movement.start) &&
+          !(roundLoads && match.start < roundLoads.end && match.end > roundLoads.start),
+      ),
+      ...(roundLoads ? [roundLoads] : []),
+    ].sort((left, right) => left.start - right.start);
     const segments = splitSegments(masked, offset, movements);
     const inSegment = (segment: Segment, placed: Placed) =>
       placed.start >= segment.start && placed.end <= segment.end;
@@ -377,7 +418,9 @@ export const suggestSpans = (
           ? pickOwner({ ...match, measure: match.quantity.measure }, own)
           : quantityOnly
             ? lastPartMovement
-            : undefined;
+            : match === roundLoads
+              ? bareMovementOfBlock()
+              : undefined;
       addQuantity(match, owner?.id);
     }
 

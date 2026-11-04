@@ -4,6 +4,7 @@ import {
   lineNumberOf,
   loadUnitOf,
   makeMovementMatcher,
+  roundsOfBlock,
   scoresMovements,
   splitLines,
   suggestSpans,
@@ -903,6 +904,9 @@ export function ImportWorkbench({
                           chosen: chosenOption(programmed.station, planning ? "planned" : "done")
                             ?.spanId,
                           scored: scoresMovements(programmed.block.format),
+                          loadRounds: scoresMovements(programmed.block.format)
+                            ? roundsOfBlock(programmed.block.params)
+                            : undefined,
                           rounds: stationRounds(
                             programmed.item,
                             programmed.block,
