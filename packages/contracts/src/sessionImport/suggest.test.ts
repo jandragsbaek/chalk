@@ -374,6 +374,34 @@ describe("suggestSpans", () => {
       "quantity @ 66-71% = 66-71 % -> Overhead Squat",
     ]);
   });
+
+  it("reads rounds over a rep ladder as one block, and a level's loads as intent", () => {
+    const text = [
+      "4 Rounds",
+      "12-10-8-6",
+      "Thrusters",
+      "12/10 cal row",
+      "12 Bar facing burpees",
+      "Level 1: M: 30/40/50/60 - W: 30/35/45/50",
+      "Level 2: M: 20/30/40/45 - W: 20/25/30/35",
+    ].join("\n");
+    expect(describeSpans(text, suggest(text))).toEqual([
+      'block 4 Rounds\n12-10-8-6 = for_time {"rounds":{"min":4,"max":4},"scheme":[12,10,8,6]}',
+      "movement Thrusters = thruster",
+      "movement row = row",
+      "quantity 12/10 cal = 12/10 cal -> row",
+      "movement Bar facing burpees = bar-facing-burpee",
+      "quantity 12 = 12 reps -> Bar facing burpees",
+      "intent Level 1: M: 30/40/50/60 - W: 30/35/45/50",
+      "intent Level 2: M: 20/30/40/45 - W: 20/25/30/35",
+    ]);
+    // A ladder that is not one number per round is a block of its own.
+    const apart = "5 Rounds\n21-15-9\nThrusters";
+    expect(describeSpans(apart, suggest(apart)).slice(0, 2)).toEqual([
+      'block 5 Rounds = other {"rounds":{"min":5,"max":5}}',
+      'block 21-15-9 = for_time {"scheme":[21,15,9]}',
+    ]);
+  });
 });
 
 describe("suggestSpans on plain text", () => {
@@ -434,6 +462,10 @@ describe("parse helpers", () => {
     });
     expect(parseBlockFormat("Every 90 sec for 10 min")).toMatchObject({
       params: { intervalSeconds: 90, durationSeconds: 600 },
+    });
+    expect(parseBlockFormat("4 rounds:\n12-10-8-6")).toMatchObject({
+      format: "for_time",
+      params: { rounds: { min: 4, max: 4 }, scheme: [12, 10, 8, 6] },
     });
     expect(parseBlockFormat("12 Thrusters")).toBeUndefined();
   });

@@ -353,7 +353,8 @@ export interface BlockMatch {
 
 interface FormatRule {
   readonly pattern: RegExp;
-  readonly read: (match: RegExpMatchArray) => Omit<BlockMatch, "length">;
+  /** `undefined` when the match reads as no format after all. */
+  readonly read: (match: RegExpMatchArray) => Omit<BlockMatch, "length"> | undefined;
 }
 
 const rounds = (from: string | undefined, to?: string): BlockParams =>
@@ -524,6 +525,20 @@ const FORMAT_RULES: ReadonlyArray<FormatRule> = [
     }),
   },
   {
+    // "4 Rounds" over "12-10-8-6": a rep ladder, one number per round, for every movement
+    // without a count of its own. A ladder of another length is not the rounds'.
+    pattern: new RegExp(
+      String.raw`^(${COUNT})\s*(?:rounds?|runder|rft)(?:\s*(?:for time|of))?\s*:?\s+(\d+(?:\s*-\s*\d+){2,})(?:\s*(?:reps?|for time|rft))*\s*$`,
+      "i",
+    ),
+    read: (match) => {
+      const scheme = match[2]!.split(/\s*-\s*/).map(Number);
+      return scheme.length === countOf(match[1]!)
+        ? { format: "for_time", params: { ...rounds(String(scheme.length)), scheme } }
+        : undefined;
+    },
+  },
+  {
     // "5 rounds for time", "Ten rounds for time of:".
     pattern: new RegExp(
       String.raw`^(\d+|${Object.keys(NUMBER_WORDS).join("|")})\s*(?:rounds?|runder|rft)(?:\s*(for time|of))?`,
@@ -552,7 +567,9 @@ const FORMAT_RULES: ReadonlyArray<FormatRule> = [
 export const parseBlockFormat = (text: string): BlockMatch | undefined => {
   for (const rule of FORMAT_RULES) {
     const match = text.match(rule.pattern);
-    if (match) return { ...rule.read(match), length: match[0].trimEnd().length };
+    if (!match) continue;
+    const read = rule.read(match);
+    if (read) return { ...read, length: match[0].trimEnd().length };
   }
   return undefined;
 };
