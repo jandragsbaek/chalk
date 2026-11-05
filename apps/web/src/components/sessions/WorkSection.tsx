@@ -1,7 +1,13 @@
-import type { BlockRole, BlockWork, MovementId, SessionWork } from "@chalk/contracts";
+import {
+  blockLabel,
+  type BlockRole,
+  type BlockWork,
+  type MovementId,
+  type SessionWork,
+} from "@chalk/contracts";
 import { Link } from "@tanstack/react-router";
 
-import { blockLabel, formatClock, formatKj, formatWatts, leftOutLines } from "../../lib/power.ts";
+import { formatClock, formatKj, formatWatts, leftOutLines } from "../../lib/power.ts";
 import { SectionHeader } from "../import/SessionProtocol.tsx";
 
 const Empty = ({ label }: { readonly label: string }) => <span data-empty aria-label={label} />;

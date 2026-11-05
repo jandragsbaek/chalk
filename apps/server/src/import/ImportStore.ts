@@ -1,5 +1,6 @@
 import {
   blockingIssues,
+  Debrief,
   normalizeDebrief,
   deriveSession,
   ImportConflictError,
@@ -34,7 +35,12 @@ import { deleteWorkoutRows } from "../workout/deleteWorkoutRows.ts";
 export class ImportPersistenceError extends Schema.TaggedError<ImportPersistenceError>()(
   "ImportPersistenceError",
   {
-    operation: Schema.Literals(["list imports", "load an import", "save an import"]),
+    operation: Schema.Literals([
+      "list imports",
+      "load an import",
+      "load the debriefs",
+      "save an import",
+    ]),
     cause: Schema.Defect(),
   },
 ) {
@@ -86,6 +92,8 @@ export class ImportStore extends Context.Service<
     readonly get: (
       workoutId: WorkoutId,
     ) => Effect.Effect<StoredImport, ImportNotFoundError | ImportPersistenceError>;
+    /** Every imported session's debrief, by workout; sessions without one are absent. */
+    readonly debriefs: () => Effect.Effect<ReadonlyMap<WorkoutId, Debrief>, ImportPersistenceError>;
     /**
      * Derives the session from the document and stores it: workout, parts, blocks, items, lift
      * sets from the notes and from the items' results, and the debrief; logged from a plan, it
@@ -149,6 +157,15 @@ const make = Effect.gen(function* () {
       sql`SELECT document FROM session_imports WHERE workout_id = ${workoutId}`,
   });
 
+  const selectDebriefs = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: Schema.Struct({ workoutId: WorkoutId, debrief: Schema.fromJsonString(Debrief) }),
+    execute: () => sql`
+      SELECT workout_id AS "workoutId", json_extract(document, '$.debrief') AS debrief
+      FROM session_imports WHERE json_extract(document, '$.debrief') IS NOT NULL
+    `,
+  });
+
   const selectMovementNames = SqlSchema.findAll({
     Request: Schema.Void,
     Result: MovementNameRow,
@@ -159,6 +176,15 @@ const make = Effect.gen(function* () {
     return yield* selectSummaries(undefined).pipe(
       Effect.mapError((cause) => new ImportPersistenceError({ operation: "list imports", cause })),
     );
+  });
+
+  const debriefs = Effect.fn("ImportStore.debriefs")(function* () {
+    const rows = yield* selectDebriefs(undefined).pipe(
+      Effect.mapError(
+        (cause) => new ImportPersistenceError({ operation: "load the debriefs", cause }),
+      ),
+    );
+    return new Map(rows.map((row) => [row.workoutId, row.debrief]));
   });
 
   const get = Effect.fn("ImportStore.get")(function* (workoutId: WorkoutId) {
@@ -334,7 +360,7 @@ const make = Effect.gen(function* () {
     );
   });
 
-  return ImportStore.of({ list, get, save });
+  return ImportStore.of({ list, get, debriefs, save });
 });
 
 export const layer = Layer.effect(ImportStore, make).pipe(Layer.provide(layerProfile));

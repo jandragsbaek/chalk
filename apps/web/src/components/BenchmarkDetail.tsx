@@ -1,5 +1,6 @@
 import {
   BENCHMARK_SOURCES,
+  bodyOn,
   estimateBenchmarkWork,
   gradeItem,
   LEVEL_SHORT,
@@ -17,7 +18,7 @@ import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 import { benchmarkFacts, historyByBenchmark, historyOf, rxDivision } from "../lib/benchmarks.ts";
 import { catalogLookup, type CatalogLookup } from "../lib/catalog.ts";
-import { bodyOn, formatWatts, useProfile } from "../lib/power.ts";
+import { formatWatts, useProfile } from "../lib/power.ts";
 import { useAthleteSex } from "../lib/profile.ts";
 import { formatDay } from "../lib/utils.ts";
 import { benchmarkResultsAtom } from "../state/benchmarks.ts";

@@ -14,8 +14,16 @@ Two ways to talk to the coach, on the Coach page (`/coach`):
 
 ## Conversations (built)
 
-- **Tools** (`apps/server/src/coach/tools.ts`): `list_movements`, `list_workouts`,
-  `list_lift_sets`, `get_rep_maxes` (with the best estimated 1RM, Epley with its spread, the
+- **Tools** (`apps/server/src/coach/tools.ts`): `list_movements`, `list_workouts` (each with
+  the athlete's whole debrief: feel, session RPE, capacity, minutes, limiters, pain, next time,
+  notes), `get_session` (one session in full: the workout, its debrief, and for an import the
+  pasted text and every part, block and movement, with the block's format, intent and result
+  and each movement's prescription, plan and how it was done, from `deriveSession`),
+  `get_volume` (per ISO week and movement as done: sessions, reps, metres, calories, seconds,
+  tonnage, and what could not be counted; the last 4 weeks by default), `list_body` (weigh-ins
+  with body fat and muscle mass, typed or from the Garmin scale; the last 90 days by default),
+  `get_power` (per session work and power, `sessionPowerRows`, the same estimate as the Power
+  page), `list_lift_sets`, `get_rep_maxes` (with the best estimated 1RM, Epley with its spread, the
   same formulas as the Strength page), `list_benchmarks` (the catalog of named workouts, with
   scoring and the posted prescription, by category or name), `list_benchmark_results` and
   `find_similar_sessions` (a session's, or a date range's, repeats and look-alikes from
@@ -35,7 +43,11 @@ Two ways to talk to the coach, on the Coach page (`/coach`):
   refused with the reasons when a percent has no training max, a movement is unknown, or a
   day is past; `replaces` rewrites a draft, never a block already in the calendar). Each is an Effect `Tool`
   with Schema parameters and results; a failure (unknown movement, storage) goes back to the
-  model as a message instead of breaking the reply. Free-text notes are not sent.
+  model as a message instead of breaking the reply. The athlete's own words are sent: debrief
+  text, session notes and the pasted text.
+  `guardCalls` sits between the model and the toolkit: Claude and GPT are sent optional
+  parameters as required and nullable, so a `null` is dropped before decoding; and a call the
+  toolkit refuses before its handler (unknown tool, bad parameters) is still a failed receipt.
 - **Loop** (`CoachService`): the thread's transcript (the `Chat` export, tool calls and results
   included) is stored with the thread, so a reply resumes with everything read before. Per
   reply: at most 8 reads (past that a read answers "budget spent"), 5 model calls (the last may

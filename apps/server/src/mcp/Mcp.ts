@@ -20,9 +20,12 @@ import { CoachReads, makeHandlers, ToolFailure, type ReadLog } from "../coach/to
 import * as ImportStore from "../import/ImportStore.ts";
 import * as LevelStore from "../levels/LevelStore.ts";
 import * as PlanStore from "../plan/PlanStore.ts";
+import * as PowerStore from "../power/PowerStore.ts";
+import * as ProfileStore from "../profile/ProfileStore.ts";
 import * as RestDayStore from "../rest/RestDayStore.ts";
 import * as StrengthStore from "../strength/StrengthStore.ts";
 import * as BlockStore from "../training/BlockStore.ts";
+import * as VolumeStore from "../volume/VolumeStore.ts";
 import * as WorkoutStore from "../workout/WorkoutStore.ts";
 import {
   DocumentInspection,
@@ -138,9 +141,13 @@ const ListCatalog = Tool.make("list_catalog", {
 export const ChalkMcpToolkit = Toolkit.make(
   asRows(CoachReads.ListMovements),
   asRows(CoachReads.ListWorkouts),
+  asRows(CoachReads.GetSession),
   asRows(CoachReads.ListLiftSets),
   asRows(CoachReads.ListScalings),
   asRows(CoachReads.GetRepMaxes),
+  asRows(CoachReads.GetVolume),
+  asRows(CoachReads.ListBody),
+  asRows(CoachReads.GetPower),
   asRows(CoachReads.ListBenchmarks),
   asRows(CoachReads.ListBenchmarkResults),
   asRows(CoachReads.FindSimilarSessions),
@@ -182,6 +189,9 @@ const layerHandlers = ChalkMcpToolkit.toLayer(
     const levels = yield* LevelStore.LevelStore;
     const imports = yield* ImportStore.ImportStore;
     const catalog = yield* CatalogStore.CatalogStore;
+    const volume = yield* VolumeStore.VolumeStore;
+    const profile = yield* ProfileStore.ProfileStore;
+    const power = yield* PowerStore.PowerStore;
 
     /** The coach's handlers for this call, so "today" is the day it is made (UTC). */
     const coach = Effect.map(DateTime.now, (now) =>
@@ -192,6 +202,11 @@ const layerHandlers = ChalkMcpToolkit.toLayer(
         plans,
         blocks,
         levels,
+        imports,
+        volume,
+        profile,
+        power,
+        catalog,
         today: DateTime.formatIsoDateUtc(now),
         log: unlogged,
       }),
@@ -209,6 +224,10 @@ const layerHandlers = ChalkMcpToolkit.toLayer(
     return ChalkMcpToolkit.of({
       list_movements: (params) => coach.pipe(Effect.flatMap((h) => rows(h.list_movements(params)))),
       list_workouts: (params) => coach.pipe(Effect.flatMap((h) => rows(h.list_workouts(params)))),
+      get_session: (params) => coach.pipe(Effect.flatMap((h) => rows(h.get_session(params)))),
+      get_volume: (params) => coach.pipe(Effect.flatMap((h) => rows(h.get_volume(params)))),
+      list_body: (params) => coach.pipe(Effect.flatMap((h) => rows(h.list_body(params)))),
+      get_power: (params) => coach.pipe(Effect.flatMap((h) => rows(h.get_power(params)))),
       list_lift_sets: (params) => coach.pipe(Effect.flatMap((h) => rows(h.list_lift_sets(params)))),
       list_scalings: (params) => coach.pipe(Effect.flatMap((h) => rows(h.list_scalings(params)))),
       get_rep_maxes: (params) => coach.pipe(Effect.flatMap((h) => rows(h.get_rep_maxes(params)))),

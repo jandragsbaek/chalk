@@ -18,9 +18,12 @@ import * as ImportStore from "../import/ImportStore.ts";
 import * as LevelStore from "../levels/LevelStore.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
 import * as PlanStore from "../plan/PlanStore.ts";
+import * as PowerStore from "../power/PowerStore.ts";
+import * as ProfileStore from "../profile/ProfileStore.ts";
 import * as RestDayStore from "../rest/RestDayStore.ts";
 import * as StrengthStore from "../strength/StrengthStore.ts";
 import * as BlockStore from "../training/BlockStore.ts";
+import * as VolumeStore from "../volume/VolumeStore.ts";
 import * as WorkoutStore from "../workout/WorkoutStore.ts";
 import { DocumentInspection } from "./inspect.ts";
 import * as Mcp from "./Mcp.ts";
@@ -34,6 +37,9 @@ const layer = Layer.mergeAll(
   ImportStore.layer,
   CatalogStore.layer,
   LevelStore.layer.pipe(Layer.provide(CatalogStore.layer)),
+  PowerStore.layer,
+  ProfileStore.layer,
+  VolumeStore.layer.pipe(Layer.provide(Layer.mergeAll(CatalogStore.layer, ProfileStore.layer))),
 ).pipe(
   Layer.provideMerge(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)),
   Layer.provide(ServerConfig.layerTest()),
