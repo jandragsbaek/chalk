@@ -7,6 +7,7 @@ import { useParentSize } from "@visx/responsive";
 import { scaleLinear, scaleTime } from "@visx/scale";
 import { LinePath } from "@visx/shape";
 import { useNavigate } from "@tanstack/react-router";
+import type { SessionPowerRow } from "@chalk/contracts";
 import { useState } from "react";
 
 import {
@@ -15,7 +16,6 @@ import {
   formatWatts,
   rollingMedian,
   strengthBlocksLabel,
-  type SessionPowerRow,
 } from "../lib/power.ts";
 import { PROGRESS_RANGES, rangeStart, toDate, type ProgressRange } from "../lib/progress.ts";
 import { localIsoDate } from "../lib/utils.ts";

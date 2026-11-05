@@ -309,16 +309,19 @@ describe("ImportStore", () => {
           pain: null,
           notes: null,
         });
-        expect((yield* store.get(summary.workoutId)).document.debrief).toEqual({
+        const stored = {
           result: "150 kg single, PR",
           effort: 9,
           minutes: 75,
           limiters: ["strength"],
-        });
+        };
+        expect((yield* store.get(summary.workoutId)).document.debrief).toEqual(stored);
+        expect(yield* store.debriefs()).toEqual(new Map([[summary.workoutId, stored]]));
 
         // Replacing without a debrief removes the old one.
         yield* store.save({ document, replace: summary.workoutId });
         expect(yield* sql`SELECT workout_id FROM workout_debriefs`).toEqual([]);
+        expect(yield* store.debriefs()).toEqual(new Map());
       }).pipe(Effect.provide(layer)),
   );
 

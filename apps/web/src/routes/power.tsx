@@ -1,11 +1,16 @@
-import type { AthleteProfile, CatalogMovement } from "@chalk/contracts";
+import {
+  bodyOn,
+  sessionPowerRows,
+  type AthleteProfile,
+  type CatalogMovement,
+} from "@chalk/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { useState } from "react";
 
 import { PowerTrend } from "../components/PowerTrend.tsx";
-import { bodyOn, describeBody, sessionPowerRows, useProfile } from "../lib/power.ts";
+import { describeBody, useProfile } from "../lib/power.ts";
 import { localIsoDate } from "../lib/utils.ts";
 import { catalogAtom } from "../state/imports.ts";
 import { powerSessionsAtom } from "../state/power.ts";

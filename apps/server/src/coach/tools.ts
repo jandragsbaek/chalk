@@ -1,5 +1,20 @@
 import {
   BENCHMARK_CATEGORY_NAMES,
+  blockLabel,
+  CAPACITY_LABELS,
+  Debrief,
+  deriveSession,
+  describeBlock,
+  FEEL_LABELS,
+  formatBlockResult,
+  formatPerformed,
+  formatQuantity,
+  formatSeconds,
+  LIMITER_LABELS,
+  scaleLabel,
+  sessionPowerRows,
+  type DerivedItem,
+  type Performance,
   BlockId,
   BlockStatus,
   DraftSessionInput,
@@ -43,7 +58,12 @@ import * as Schema from "effect/Schema";
 import * as Tool from "effect/ai/Tool";
 import * as Toolkit from "effect/ai/Toolkit";
 
+import type * as CatalogStore from "../catalog/CatalogStore.ts";
+import type * as ImportStore from "../import/ImportStore.ts";
 import type * as LevelStore from "../levels/LevelStore.ts";
+import type * as PowerStore from "../power/PowerStore.ts";
+import type * as ProfileStore from "../profile/ProfileStore.ts";
+import type * as VolumeStore from "../volume/VolumeStore.ts";
 import type * as RestDayStore from "../rest/RestDayStore.ts";
 import type * as PlanStore from "../plan/PlanStore.ts";
 import type * as StrengthStore from "../strength/StrengthStore.ts";
@@ -68,6 +88,14 @@ const Range = {
 
 const common = { failure: ToolFailure, failureMode: "return" } as const;
 
+/** How a debrief reads, for the tool descriptions. */
+const DEBRIEF_FIELDS =
+  "result in their words; feel 1-5 (awful, rough, ok, good, great); effort, the session RPE " +
+  "1-10; capacity 1-5, how hard they could push that day (empty, low, normal, high, peak); " +
+  "minutes trained; limiters (what held them back: engine, muscular, strength, skill, grip, " +
+  "mobility, pacing, energy, mind, pain, or none); pain (where it hurt); nextTime (what they " +
+  "would change); notes.";
+
 const ListMovements = Tool.make("list_movements", {
   description:
     "Search the movement catalog. Returns ids (slugs like 'back-squat') that the other tools take.",
@@ -87,7 +115,9 @@ const ListWorkouts = Tool.make("list_workouts", {
     "Logged training sessions, newest first: date, name, kind (the workout's format), score, " +
     "whether it was Rx, and where recorded the session type ('WOD class', 'Strength class' or " +
     "'Solo' for one done alone), who coached it, and where it was trained ('The box', 'Home' " +
-    "or the other box's name).",
+    "or the other box's name). With the athlete's debrief when they wrote one: " +
+    DEBRIEF_FIELDS +
+    " Read get_session for what was programmed and how each movement was done.",
   parameters: Schema.Struct({
     ...Range,
     limit: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))),
@@ -104,6 +134,7 @@ const ListWorkouts = Tool.make("list_workouts", {
       session: Schema.optionalKey(Schema.String),
       coachedBy: Schema.optionalKey(Schema.String),
       place: Schema.String,
+      debrief: Schema.optionalKey(Debrief),
     }),
   ),
   ...common,
@@ -393,12 +424,190 @@ const ListScalings = Tool.make("list_scalings", {
   ...common,
 });
 
+/** A movement's "how it was done" with names: the `Performance` an athlete records. */
+const PerformanceView = Schema.Struct({
+  loadKg: Schema.optionalKey(Schema.Finite),
+  implements: Schema.optionalKey(Schema.Int),
+  variants: Schema.optionalKey(
+    Schema.Array(Schema.Struct({ movement: Schema.String, reps: Schema.Int })),
+  ),
+  unbroken: Schema.optionalKey(Schema.Int),
+  perRound: Schema.optionalKey(Schema.Struct({ min: Schema.Finite, max: Schema.Finite })),
+  rounds: Schema.optionalKey(Schema.Array(Schema.Int)),
+  roundLoadsKg: Schema.optionalKey(Schema.Array(Schema.Finite)),
+});
+
+/** One movement of a block: what the board wrote, the plan, and how it was done. */
+const MovementView = Schema.Struct({
+  movement: Schema.String,
+  written: Schema.String,
+  prescribed: Schema.Array(Schema.String),
+  planned: Schema.optionalKey(PerformanceView),
+  done: Schema.optionalKey(PerformanceView),
+  assumed: Schema.optionalKey(Schema.Boolean),
+  lifted: Schema.optionalKey(Schema.String),
+});
+
+const GetSession = Tool.make("get_session", {
+  description:
+    "One logged session in full: the workout row, the athlete's whole debrief (" +
+    DEBRIEF_FIELDS +
+    "), and for a session imported from the board, the text as pasted and every part, block " +
+    "and movement: the block's format, the coach's intent, the result, and per movement what " +
+    "was prescribed, what was planned and how it was done. In `done` and `planned`: an empty " +
+    "object means as written; loadKg is per implement (implements 2 for a pair); variants " +
+    "split the reps when scaled ('25 Jumping pull-up + 20 Pull-up'); unbroken is the biggest " +
+    "unbroken set; rounds is the count reached each round (perRound its range); roundLoadsKg " +
+    "a load that rose round by round. assumed means the athlete said nothing and the board " +
+    "counts it as written. lifted is the sets lifted, set by set.",
+  parameters: Schema.Struct({
+    workoutId: WorkoutId.annotate({ description: "A session id from list_workouts" }),
+  }),
+  success: Schema.Struct({
+    id: Schema.String,
+    performedOn: IsoDate,
+    name: Schema.String,
+    kind: WorkoutKind,
+    score: Schema.String,
+    rx: Schema.Boolean,
+    session: Schema.optionalKey(Schema.String),
+    coachedBy: Schema.optionalKey(Schema.String),
+    place: Schema.String,
+    notes: Schema.String,
+    debrief: Schema.optionalKey(Debrief),
+    text: Schema.optionalKey(Schema.String),
+    parts: Schema.Array(
+      Schema.Struct({
+        title: Schema.String,
+        benchmark: Schema.optionalKey(Schema.String),
+        blocks: Schema.Array(
+          Schema.Struct({
+            title: Schema.String,
+            format: Schema.String,
+            intent: Schema.Array(Schema.String),
+            result: Schema.optionalKey(Schema.String),
+            scores: Schema.Array(Schema.String),
+            tonnageKg: Schema.Finite,
+            movements: Schema.Array(
+              Schema.Struct({
+                ...MovementView.fields,
+                /** The "or" lines; the one the athlete picked carries how it was done. */
+                alternatives: Schema.Array(MovementView),
+              }),
+            ),
+          }),
+        ),
+      }),
+    ),
+    liftSetsFromNotes: Schema.Array(
+      Schema.Struct({
+        movement: Schema.String,
+        reps: Schema.Int,
+        loadKg: Schema.Finite,
+        sets: Schema.Int,
+      }),
+    ),
+  }),
+  ...common,
+});
+
+/** Weeks a volume read covers by default: this one and the three before. */
+const VOLUME_DEFAULT_WEEKS = 4;
+
+const GetVolume = Tool.make("get_volume", {
+  description:
+    "Training volume per ISO week (Monday first), per movement as done (the variation reps " +
+    "were scaled to): sessions, reps, metres, calories, seconds and tonnage (reps x external " +
+    "load; bodyweight adds nothing), with writtenAs when the board wrote another movement, and " +
+    "the lines that could not be counted. Defaults to this week and the " +
+    `${VOLUME_DEFAULT_WEEKS - 1} before.`,
+  parameters: Schema.Struct({
+    ...Range,
+    movementId: Schema.optionalKey(MovementId).annotate({
+      description: "Catalog id, e.g. 'thruster'; omit for every movement",
+    }),
+  }),
+  success: Schema.Array(
+    Schema.Struct({
+      weekStart: IsoDate,
+      tonnageKg: Schema.Finite,
+      movements: Schema.Array(
+        Schema.Struct({
+          movementId: MovementId,
+          movement: Schema.String,
+          writtenAs: Schema.Array(Schema.String),
+          sessions: Schema.Int,
+          reps: Schema.Finite,
+          metres: Schema.Finite,
+          calories: Schema.Finite,
+          seconds: Schema.Finite,
+          tonnageKg: Schema.Finite,
+        }),
+      ),
+      leftOut: Schema.Array(
+        Schema.Struct({ performedOn: IsoDate, line: Schema.String, reason: Schema.String }),
+      ),
+    }),
+  ),
+  ...common,
+});
+
+/** Days a body read covers by default, up to today. */
+const BODY_DEFAULT_DAYS = 90;
+
+const ListBody = Tool.make("list_body", {
+  description:
+    "The athlete's weigh-ins, oldest first: bodyweight, and body fat and muscle mass when the " +
+    "scale measured them (null when not), typed by the athlete ('manual') or read from their " +
+    `Garmin scale. Defaults to the last ${BODY_DEFAULT_DAYS} days.`,
+  parameters: Schema.Struct({ ...Range }),
+  success: Schema.Array(
+    Schema.Struct({
+      day: IsoDate,
+      kg: Schema.Finite,
+      bodyFatPct: Schema.NullOr(Schema.Finite),
+      muscleMassKg: Schema.NullOr(Schema.Finite),
+      source: Schema.Literals(["manual", "garmin"]),
+    }),
+  ),
+  ...common,
+});
+
+const GetPower = Tool.make("get_power", {
+  description:
+    "Estimated work and power per session, oldest first, as the Power page shows it: the " +
+    "work (kJ) a session's movements took for the athlete's body that day (height and " +
+    "weigh-ins from Settings), and power (W) over its timed conditioning blocks only; " +
+    "strength blocks are left out of power. A benchmark done Rx is counted whole, so its " +
+    "watts compare across attempts. An estimate from a work model per movement, good for " +
+    "trends, not a measurement.",
+  parameters: Schema.Struct({ ...Range }),
+  success: Schema.Array(
+    Schema.Struct({
+      workoutId: Schema.String,
+      performedOn: IsoDate,
+      name: Schema.String,
+      benchmark: Schema.Boolean,
+      workKj: Schema.Finite,
+      seconds: Schema.Finite,
+      watts: Schema.optionalKey(Schema.Finite),
+      over: Schema.Array(Schema.String),
+      strengthBlocksLeftOut: Schema.Int,
+    }),
+  ),
+  ...common,
+});
+
 export const CoachToolkit = Toolkit.make(
   ListMovements,
   ListWorkouts,
+  GetSession,
   ListLiftSets,
   ListScalings,
   GetRepMaxes,
+  GetVolume,
+  ListBody,
+  GetPower,
   ListBenchmarks,
   ListBenchmarkResults,
   FindSimilarSessions,
@@ -413,9 +622,13 @@ export const CoachToolkit = Toolkit.make(
 export const CoachReads = {
   ListMovements,
   ListWorkouts,
+  GetSession,
   ListLiftSets,
   ListScalings,
   GetRepMaxes,
+  GetVolume,
+  ListBody,
+  GetPower,
   ListBenchmarks,
   ListBenchmarkResults,
   FindSimilarSessions,
@@ -423,6 +636,75 @@ export const CoachReads = {
   ListBlocks,
   ListCalendar,
 } as const;
+
+type CoachTools = Toolkit.Tools<typeof CoachToolkit>;
+
+/** `params` without the keys set to null, at any depth; arrays keep their nulls. */
+const dropNulls = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.map(dropNulls)
+    : typeof value === "object" && value !== null
+      ? Object.fromEntries(
+          Object.entries(value).flatMap(([key, item]) =>
+            item === null ? [] : [[key, dropNulls(item)]],
+          ),
+        )
+      : value;
+
+/**
+ * Claude and GPT get optional parameters as required nullable (the provider's codec) and send
+ * null for "omitted", which the tool schemas reject: drop null keys first. A call refused
+ * before its handler runs is filed as a failed receipt; the model still gets the toolkit's error.
+ */
+export const guardCalls = (
+  toolkit: Toolkit.WithHandler<CoachTools>,
+  log: ReadLog,
+): Toolkit.WithHandler<CoachTools> => {
+  const decoders = new Map(
+    Object.values(toolkit.tools).map((tool) => [
+      tool.name,
+      Schema.decodeUnknownEffect(tool.parametersSchema),
+    ]),
+  );
+  const refused = (tool: string, params: unknown, reason: string) => {
+    const request: ReadonlyArray<CoachRequestPart> = [
+      { tag: "text", text: JSON.stringify(params) ?? "" },
+    ];
+    return log.begin(tool, request).pipe(
+      Effect.flatMap((number) =>
+        log.finish({
+          number,
+          tool,
+          request,
+          summary: reason,
+          status: "failed",
+          columns: [],
+          rows: [],
+          truncated: 0,
+        }),
+      ),
+      // Past the read budget there is no receipt to file; the toolkit still answers.
+      Effect.ignore,
+    );
+  };
+  const handle: Toolkit.WithHandler<CoachTools>["handle"] = (name, params, toolCallId, options) => {
+    const cleaned = dropNulls(params) as typeof params;
+    const decode = decoders.get(name);
+    // An unknown name never gets here: the model's response fails to decode first.
+    const check =
+      decode === undefined
+        ? Effect.void
+        : decode(cleaned).pipe(
+            Effect.matchEffect({
+              onSuccess: () => Effect.void,
+              onFailure: (error) =>
+                refused(name, params, `Refused: ${error.message.replace(/\s+/g, " ")}`),
+            }),
+          );
+    return check.pipe(Effect.andThen(toolkit.handle(name, cleaned, toolCallId, options)));
+  };
+  return { tools: toolkit.tools, handle };
+};
 
 /** Rows a receipt keeps; the model gets every row, the athlete's copy is capped. */
 const RECEIPT_ROWS = 60;
@@ -491,6 +773,49 @@ const SCORED_BY: Record<BenchmarkScoring, string> = {
   load: "Load",
 };
 
+/** "Rough · RPE 9 · capacity low · engine, energy": a debrief's ratings on one line. */
+const debriefLine = (debrief: Debrief) => {
+  const limiters = (debrief.limiters ?? []).filter((limiter) => limiter !== "none");
+  return [
+    debrief.feel === undefined ? undefined : scaleLabel(FEEL_LABELS, debrief.feel),
+    debrief.effort === undefined ? undefined : `RPE ${debrief.effort}`,
+    debrief.capacity === undefined
+      ? undefined
+      : `capacity ${scaleLabel(CAPACITY_LABELS, debrief.capacity).toLowerCase()}`,
+    debrief.minutes === undefined ? undefined : `${debrief.minutes} min`,
+    limiters.length === 0
+      ? undefined
+      : limiters.map((limiter) => LIMITER_LABELS[limiter].label.toLowerCase()).join(", "),
+  ]
+    .filter((part) => part !== undefined)
+    .join(" · ");
+};
+
+/** "As written", "2 x 22.5 kg", "25 Jumping pull-up + 20 Pull-up", "rounds 8, 8, 7". */
+const performanceText = (performance: typeof PerformanceView.Type) => {
+  const parts = [
+    performance.roundLoadsKg !== undefined && performance.roundLoadsKg.length > 0
+      ? `${performance.roundLoadsKg.join("-")} kg`
+      : performance.loadKg === undefined
+        ? undefined
+        : `${performance.implements === 2 ? "2 x " : ""}${kg(performance.loadKg)}`,
+    performance.variants?.map((variant) => `${variant.reps} ${variant.movement}`).join(" + "),
+    performance.rounds !== undefined && performance.rounds.length > 0
+      ? `rounds ${performance.rounds.join(", ")}`
+      : performance.perRound === undefined
+        ? undefined
+        : `${performance.perRound.min}-${performance.perRound.max} each round`,
+    performance.unbroken === undefined ? undefined : `${performance.unbroken} unbroken`,
+  ].filter((part) => part !== undefined && part !== "");
+  return parts.length === 0 ? "As written" : parts.join(", ");
+};
+
+/** The Monday of `iso`'s ISO week. */
+const mondayOf = (iso: string) =>
+  addDays(iso, -((new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7));
+
+const amount = (value: number) => String(Math.round(value * 10) / 10);
+
 /** Handlers over the stores, reporting each call to `log`. */
 export const makeHandlers = (deps: {
   readonly workouts: WorkoutStore.WorkoutStore["Service"];
@@ -500,10 +825,16 @@ export const makeHandlers = (deps: {
   readonly plans: PlanStore.PlanStore["Service"];
   readonly blocks: BlockStore.BlockStore["Service"];
   readonly levels: LevelStore.LevelStore["Service"];
+  readonly imports: ImportStore.ImportStore["Service"];
+  readonly volume: VolumeStore.VolumeStore["Service"];
+  readonly profile: ProfileStore.ProfileStore["Service"];
+  readonly power: PowerStore.PowerStore["Service"];
+  readonly catalog: CatalogStore.CatalogStore["Service"];
   readonly today: IsoDate;
   readonly log: ReadLog;
 }) => {
   const { workouts, strength, restDays, plans, blocks, levels, today, log } = deps;
+  const { imports, volume, profile, power, catalog } = deps;
 
   const movementNames = strength
     .movements()
@@ -610,12 +941,13 @@ export const makeHandlers = (deps: {
       read(
         "list_workouts",
         [range({ from, to })],
-        workouts.list().pipe(
-          Effect.map((all) =>
+        Effect.all([workouts.list(), imports.debriefs()]).pipe(
+          Effect.map(([all, debriefs]) =>
             all
               .filter((workout) => inRange(workout.performedOn, { from, to }))
               .slice(0, limit ?? 30)
               .map((workout) => {
+                const debrief = debriefs.get(workout.id);
                 const benchmark =
                   workout.benchmarkId === undefined
                     ? undefined
@@ -634,13 +966,23 @@ export const makeHandlers = (deps: {
                     ? {}
                     : { coachedBy: describeCoaching(workout.coaching) }),
                   place: describePlace(workout.place),
+                  ...(debrief === undefined ? {} : { debrief }),
                 };
               }),
           ),
         ),
         (found) => ({
           summary: plural(found.length, "session"),
-          columns: ["Date", "Workout", "Kind", "Score", "Session", "Coached by", "Place"],
+          columns: [
+            "Date",
+            "Workout",
+            "Kind",
+            "Score",
+            "Session",
+            "Coached by",
+            "Place",
+            "Debrief",
+          ],
           rows: found.map((workout) => [
             day(workout.performedOn),
             workout.name,
@@ -649,6 +991,325 @@ export const makeHandlers = (deps: {
             workout.session ?? "",
             workout.coachedBy ?? "",
             workout.place,
+            workout.debrief === undefined ? "" : debriefLine(workout.debrief),
+          ]),
+        }),
+      ),
+
+    get_session: Effect.fn("CoachTools.get_session")(function* ({ workoutId }) {
+      const all = yield* workouts.list().pipe(Effect.orElseSucceed(() => []));
+      const workout = all.find((candidate) => candidate.id === workoutId);
+      return yield* read(
+        "get_session",
+        [
+          {
+            tag: "text",
+            text:
+              workout === undefined ? workoutId : `${workout.name}, ${day(workout.performedOn)}`,
+          },
+        ],
+        Effect.gen(function* () {
+          if (workout === undefined)
+            return yield* Effect.fail<ToolFailure>({
+              message: `No session '${workoutId}'. Use list_workouts to find its id.`,
+            });
+          const stored = yield* imports
+            .get(workoutId)
+            .pipe(Effect.catchTags({ ImportNotFoundError: () => Effect.succeed(undefined) }));
+          const [names, { sex }] = yield* Effect.all([movementNames, profile.get()]);
+          const nameOf = (id: MovementId) => names.get(id) ?? id;
+          const view = (performance: Performance): typeof PerformanceView.Type => {
+            const { variants, ...rest } = performance;
+            return {
+              ...rest,
+              ...(variants === undefined
+                ? {}
+                : {
+                    variants: variants.map((variant) => ({
+                      movement: nameOf(variant.movementId),
+                      reps: variant.reps,
+                    })),
+                  }),
+            };
+          };
+          const itemName = (item: DerivedItem) =>
+            item.movementId === undefined ? item.text : nameOf(item.movementId);
+          const movementView = (item: DerivedItem): typeof MovementView.Type => ({
+            movement: itemName(item),
+            written: item.text,
+            prescribed: item.sets
+              .map((set) => set.quantities.map(formatQuantity).join(" "))
+              .filter((set) => set !== ""),
+            ...(item.plan === undefined ? {} : { planned: view(item.plan) }),
+            ...(item.performance === undefined ? {} : { done: view(item.performance) }),
+            ...(item.assumed === true ? { assumed: true } : {}),
+            ...(item.performed.length === 0 ? {} : { lifted: formatPerformed(item.performed) }),
+          });
+          const derived =
+            stored === undefined
+              ? undefined
+              : deriveSession(stored.document, (id) => names.get(id), { sex });
+          const type = sessionTypeOf(workout);
+          const debrief = stored?.document.debrief;
+          return {
+            id: workout.id,
+            performedOn: workout.performedOn,
+            name: workout.name,
+            kind: workout.kind,
+            score: workout.score,
+            rx: workout.rx,
+            ...(type === undefined ? {} : { session: SESSION_TYPE_LABELS[type] }),
+            ...(workout.coaching === undefined
+              ? {}
+              : { coachedBy: describeCoaching(workout.coaching) }),
+            place: describePlace(workout.place),
+            notes: workout.notes,
+            ...(debrief === undefined ? {} : { debrief }),
+            ...(stored === undefined ? {} : { text: stored.document.text }),
+            parts: (derived?.parts ?? []).map((part) => {
+              const benchmark =
+                part.benchmarkId === undefined ? undefined : benchmarkById(part.benchmarkId)?.name;
+              return {
+                title: part.title,
+                ...(benchmark === undefined ? {} : { benchmark }),
+                blocks: part.blocks.map((block) => ({
+                  title: block.title,
+                  format: describeBlock(block.format, block.params),
+                  intent: block.intents.map((intent) => intent.text),
+                  ...(block.result === undefined
+                    ? {}
+                    : { result: formatBlockResult(block.result) }),
+                  scores: [...block.scores],
+                  tonnageKg: Math.round(block.tonnageKg * 10) / 10,
+                  movements: block.items.map((item) => ({
+                    ...movementView(item),
+                    alternatives: item.alternatives.map(movementView),
+                  })),
+                })),
+              };
+            }),
+            liftSetsFromNotes: (derived?.liftSets ?? []).map((set) => ({
+              movement: nameOf(set.movementId),
+              reps: set.reps,
+              loadKg: set.loadKg,
+              sets: set.count,
+            })),
+          };
+        }),
+        (found) => ({
+          summary: [
+            found.debrief === undefined ? "No debrief" : debriefLine(found.debrief),
+            plural(
+              found.parts.reduce((count, part) => count + part.blocks.length, 0),
+              "block",
+            ),
+          ]
+            .filter((part) => part !== "")
+            .join(" · "),
+          columns: ["Block", "Movement", "Prescribed", "Done", "Result"],
+          rows: found.parts.flatMap((part) =>
+            part.blocks.flatMap((block) =>
+              block.movements.map((item) => [
+                blockLabel(part.title, block.title),
+                item.movement,
+                item.prescribed.join(", "),
+                item.done === undefined ? "" : performanceText(item.done),
+                block.result ?? block.scores.join(", "),
+              ]),
+            ),
+          ),
+        }),
+      );
+    }),
+
+    get_volume: Effect.fn("CoachTools.get_volume")(function* ({ from, to, movementId }) {
+      const names = yield* movementNames.pipe(
+        Effect.orElseSucceed(() => new Map<MovementId, string>()),
+      );
+      const label = (id: MovementId) => names.get(id) ?? id;
+      const span = {
+        from: from ?? mondayOf(addDays(today, -7 * (VOLUME_DEFAULT_WEEKS - 1))),
+        to,
+      };
+      return yield* read(
+        "get_volume",
+        [
+          movementId === undefined
+            ? { tag: "text", text: "Every movement" }
+            : movement(label(movementId)),
+          range(span),
+        ],
+        Effect.gen(function* () {
+          if (movementId !== undefined) yield* requireMovement(movementId);
+          const weeks = yield* volume.weeks();
+          const wanted = (id: MovementId | undefined, writtenAs?: MovementId) =>
+            movementId === undefined || id === movementId || writtenAs === movementId;
+          return weeks.flatMap((week) => {
+            const byMovement = new Map<
+              MovementId,
+              {
+                sessions: Set<string>;
+                writtenAs: Set<string>;
+                reps: number;
+                metres: number;
+                calories: number;
+                seconds: number;
+                tonnageKg: number;
+              }
+            >();
+            for (const entry of week.entries) {
+              if (!inRange(entry.performedOn, span) || !wanted(entry.movementId, entry.writtenAs))
+                continue;
+              const sum = byMovement.get(entry.movementId) ?? {
+                sessions: new Set<string>(),
+                writtenAs: new Set<string>(),
+                reps: 0,
+                metres: 0,
+                calories: 0,
+                seconds: 0,
+                tonnageKg: 0,
+              };
+              sum.sessions.add(entry.workoutId ?? `sets on ${entry.performedOn}`);
+              if (entry.writtenAs !== entry.movementId) sum.writtenAs.add(label(entry.writtenAs));
+              sum.reps += entry.reps;
+              sum.metres += entry.metres;
+              sum.calories += entry.calories;
+              sum.seconds += entry.seconds;
+              sum.tonnageKg += entry.tonnageKg;
+              byMovement.set(entry.movementId, sum);
+            }
+            const leftOut = week.leftOut
+              .filter((left) => inRange(left.performedOn, span) && wanted(left.movementId))
+              .map((left) => ({
+                performedOn: left.performedOn,
+                line: left.text,
+                reason: left.reason,
+              }));
+            if (byMovement.size === 0 && leftOut.length === 0) return [];
+            const movements = [...byMovement]
+              .map(([id, sum]) => ({
+                movementId: id,
+                movement: label(id),
+                writtenAs: [...sum.writtenAs],
+                sessions: sum.sessions.size,
+                reps: sum.reps,
+                metres: sum.metres,
+                calories: sum.calories,
+                seconds: sum.seconds,
+                tonnageKg: Math.round(sum.tonnageKg * 10) / 10,
+              }))
+              .toSorted((left, right) => left.movement.localeCompare(right.movement));
+            return [
+              {
+                weekStart: week.weekStart,
+                tonnageKg:
+                  Math.round(movements.reduce((total, entry) => total + entry.tonnageKg, 0) * 10) /
+                  10,
+                movements,
+                leftOut,
+              },
+            ];
+          });
+        }),
+        (found) => ({
+          summary:
+            found.length === 0
+              ? "Nothing counted"
+              : `${plural(found.length, "week")}, ${kg(found.reduce((total, week) => total + week.tonnageKg, 0))} lifted`,
+          columns: ["Week of", "Movement", "Sessions", "Reps", "Metres", "Cal", "Time", "Tonnage"],
+          rows: found.flatMap((week) =>
+            week.movements.map((entry) => [
+              day(week.weekStart),
+              entry.movement,
+              String(entry.sessions),
+              entry.reps === 0 ? "" : amount(entry.reps),
+              entry.metres === 0 ? "" : amount(entry.metres),
+              entry.calories === 0 ? "" : amount(entry.calories),
+              entry.seconds === 0 ? "" : formatSeconds(entry.seconds),
+              entry.tonnageKg === 0 ? "" : kg(entry.tonnageKg),
+            ]),
+          ),
+        }),
+      );
+    }),
+
+    list_body: ({ from, to }) => {
+      const span = { from: from ?? addDays(today, -(BODY_DEFAULT_DAYS - 1)), to };
+      return read(
+        "list_body",
+        [range(span)],
+        profile.get().pipe(
+          Effect.map(({ bodyweights }) =>
+            bodyweights
+              .filter((entry) => inRange(entry.performedOn, span))
+              .map((entry) => ({
+                day: entry.performedOn,
+                kg: entry.kg,
+                bodyFatPct: entry.bodyFatPct,
+                muscleMassKg: entry.muscleMassKg,
+                source: entry.source,
+              })),
+          ),
+        ),
+        (found) => {
+          const latest = found.at(-1);
+          return {
+            summary:
+              latest === undefined
+                ? "No weigh-ins"
+                : `${plural(found.length, "weigh-in")}, latest ${kg(latest.kg)}`,
+            columns: ["Date", "Weight", "Body fat", "Muscle", "From"],
+            rows: found.map((entry) => [
+              day(entry.day),
+              kg(entry.kg),
+              entry.bodyFatPct === null ? "" : `${amount(entry.bodyFatPct)} %`,
+              entry.muscleMassKg === null ? "" : kg(entry.muscleMassKg),
+              entry.source === "garmin" ? "Garmin scale" : "Typed",
+            ]),
+          };
+        },
+      );
+    },
+
+    get_power: ({ from, to }) =>
+      read(
+        "get_power",
+        [range({ from, to })],
+        Effect.gen(function* () {
+          const [sessions, athlete, movements] = yield* Effect.all([
+            power.sessions(),
+            profile.get(),
+            catalog.list(),
+          ]);
+          if (athlete.heightCm === null || athlete.bodyweights.length === 0)
+            return yield* Effect.fail<ToolFailure>({
+              message:
+                "Power needs the athlete's height and a weigh-in, and Settings has " +
+                (athlete.heightCm === null ? "no height." : "no weigh-in."),
+            });
+          return sessionPowerRows(sessions, athlete, movements)
+            .filter((row) => inRange(row.performedOn, { from, to }))
+            .map((row) => ({
+              workoutId: row.workoutId,
+              performedOn: row.performedOn,
+              name: row.name,
+              benchmark: row.benchmark,
+              workKj: Math.round(row.joules / 100) / 10,
+              seconds: Math.round(row.seconds),
+              ...(row.watts === undefined ? {} : { watts: Math.round(row.watts) }),
+              over: row.counted.map((block) => block.title),
+              strengthBlocksLeftOut: row.strengthBlocks,
+            }));
+        }),
+        (found) => ({
+          summary: plural(found.length, "session"),
+          columns: ["Date", "Session", "Work", "Time", "Power"],
+          rows: found.map((row) => [
+            day(row.performedOn),
+            row.name,
+            `${row.workKj} kJ`,
+            row.seconds === 0 ? "" : formatSeconds(row.seconds),
+            row.watts === undefined ? "" : `${row.watts} W`,
           ]),
         }),
       ),

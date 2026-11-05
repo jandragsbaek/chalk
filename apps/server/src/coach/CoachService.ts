@@ -33,14 +33,19 @@ import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 
+import * as CatalogStore from "../catalog/CatalogStore.ts";
+import * as ImportStore from "../import/ImportStore.ts";
+import * as PowerStore from "../power/PowerStore.ts";
+import * as ProfileStore from "../profile/ProfileStore.ts";
 import * as RestDayStore from "../rest/RestDayStore.ts";
+import * as VolumeStore from "../volume/VolumeStore.ts";
 import * as PlanStore from "../plan/PlanStore.ts";
 import * as StrengthStore from "../strength/StrengthStore.ts";
 import * as LevelStore from "../levels/LevelStore.ts";
 import * as BlockStore from "../training/BlockStore.ts";
 import * as WorkoutStore from "../workout/WorkoutStore.ts";
 import * as CoachStore from "./CoachStore.ts";
-import { CoachToolkit, makeHandlers, type ReadLog } from "./tools.ts";
+import { CoachToolkit, guardCalls, makeHandlers, type ReadLog } from "./tools.ts";
 
 /** Reads one reply may make; past this a read answers "budget spent" and the coach must answer. */
 export const MAX_READS = 8;
@@ -117,6 +122,10 @@ const systemPrompt = (today: string) =>
       "comes from, like (R2).",
     "Rep maxes marked with fromReps above reps are implied by a bigger set, not tested. An " +
       "estimated 1RM is an estimate: say so, and give its spread when it matters.",
+    "The athlete rates sessions in a debrief (feel, session RPE, capacity, limiters, notes): " +
+      "list_workouts carries it, and get_session has the whole session, what was programmed " +
+      "and how each movement was done. Read them before judging how a session or a week went; " +
+      "the athlete's own words outrank a guess from the score.",
     "Rest is the athlete's choice: a day with nothing logged is not a rest day unless " +
       "list_rest_days has it. When rest would help, suggest a day; put it in their calendar " +
       "with mark_rest_day only when they ask for it or agree, and say which day you marked.",
@@ -182,6 +191,11 @@ const make = Effect.gen(function* () {
   const plans = yield* PlanStore.PlanStore;
   const blocks = yield* BlockStore.BlockStore;
   const levels = yield* LevelStore.LevelStore;
+  const imports = yield* ImportStore.ImportStore;
+  const volume = yield* VolumeStore.VolumeStore;
+  const profile = yield* ProfileStore.ProfileStore;
+  const power = yield* PowerStore.PowerStore;
+  const catalog = yield* CatalogStore.CatalogStore;
 
   const status = () =>
     Effect.succeed(
@@ -238,9 +252,23 @@ const make = Effect.gen(function* () {
 
     const today = options.today ?? DateTime.formatIsoDateUtc(yield* DateTime.now);
     const handlers = yield* CoachToolkit.toHandlers(
-      makeHandlers({ workouts, strength, restDays, plans, blocks, levels, today, log }),
+      makeHandlers({
+        workouts,
+        strength,
+        restDays,
+        plans,
+        blocks,
+        levels,
+        imports,
+        volume,
+        profile,
+        power,
+        catalog,
+        today,
+        log,
+      }),
     );
-    const toolkit = yield* CoachToolkit.pipe(Effect.provideContext(handlers));
+    const toolkit = guardCalls(yield* CoachToolkit.pipe(Effect.provideContext(handlers)), log);
     const chat = yield* options.history === ""
       ? Chat.empty
       : Chat.fromJson(options.history).pipe(Effect.orDie);

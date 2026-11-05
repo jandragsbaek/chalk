@@ -25,8 +25,11 @@ import * as LevelStore from "../levels/LevelStore.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
 import * as RestDayStore from "../rest/RestDayStore.ts";
 import * as PlanStore from "../plan/PlanStore.ts";
+import * as PowerStore from "../power/PowerStore.ts";
+import * as ProfileStore from "../profile/ProfileStore.ts";
 import * as StrengthStore from "../strength/StrengthStore.ts";
 import * as BlockStore from "../training/BlockStore.ts";
+import * as VolumeStore from "../volume/VolumeStore.ts";
 import * as WorkoutStore from "../workout/WorkoutStore.ts";
 import * as CoachService from "./CoachService.ts";
 import * as CoachStore from "./CoachStore.ts";
@@ -115,6 +118,11 @@ const layerWith = <E>(
         PlanStore.layer,
         BlockStore.layer,
         LevelStore.layer.pipe(Layer.provide(CatalogStore.layer)),
+        PowerStore.layer,
+        ProfileStore.layer,
+        VolumeStore.layer.pipe(
+          Layer.provide(Layer.mergeAll(CatalogStore.layer, ProfileStore.layer)),
+        ),
       ).pipe(
         Layer.provide(Layer.mergeAll(Sqlite.layer, SecureRandom.layerWebCrypto)),
         Layer.provide(ServerConfig.layerTest()),
@@ -370,6 +378,149 @@ describe("CoachService", () => {
       const shown = JSON.stringify(readsScalings.calls[1]?.prompt.content.at(-1));
       expect(shown).toContain('"scalesTo":["Ring row","Jumping pull-up"]');
     }).pipe(Effect.provide(layerWith(readsScalings.model))),
+  );
+
+  // Claude's calls as the provider asks for them: optional parameters sent as null.
+  const sendsNulls = scriptedModel((options) =>
+    Effect.succeed(
+      options.prompt.content.at(-1)?.role === "tool"
+        ? text("Ring rows once (R1).")
+        : toolCalls([
+            {
+              name: "list_scalings",
+              params: { movementId: null, from: "2026-09-20", to: null },
+            },
+            { name: "list_lift_sets", params: { from: "2026-09-20" } },
+          ]),
+    ),
+  );
+
+  it.effect("reads a call with nulls for what it leaves out, and files a refused call", () =>
+    Effect.gen(function* () {
+      yield* seedScaledPullUps;
+      const events = yield* send({ text: "Did I scale anything lately?" });
+      const reply = last(events) as Extract<CoachEvent, { _tag: "CoachTurn" }>;
+      // The two calls run together, so their receipts come in either order.
+      const byTool = (tool: string) => reply.turn.receipts.find((receipt) => receipt.tool === tool);
+      expect(reply.turn.receipts.map((receipt) => receipt.number).toSorted()).toEqual([1, 2]);
+      expect(byTool("list_scalings")).toMatchObject({
+        status: "ok",
+        summary: "1 movement done scaled",
+        request: [
+          { tag: "text", text: "Every movement done scaled" },
+          { tag: "range", text: "Since 20 Sep 2026" },
+        ],
+      });
+      expect(byTool("list_lift_sets")).toMatchObject({
+        status: "failed",
+        summary: 'Refused: Missing key at ["movementId"]',
+        request: [{ tag: "text", text: '{"from":"2026-09-20"}' }],
+      });
+      // The model still gets the toolkit's own error for the refused call.
+      const shown = JSON.stringify(sendsNulls.calls[1]?.prompt.content.at(-1));
+      expect(shown).toContain("ToolParameterValidationError");
+    }).pipe(Effect.provide(layerWith(sendsNulls.model))),
+  );
+
+  /** An AMRAP with pull-ups done as ring rows, its debrief, and a body to estimate power for. */
+  const seedDebriefedSession = Effect.gen(function* () {
+    const catalog = yield* (yield* CatalogStore.CatalogStore).list();
+    const text =
+      "** Session 170 <2026-10-06 ti>\n**** Workout #1\nEMOM 10 min\n10 pull-ups or 20 ring rows\n";
+    let next = 0;
+    const spans = suggestSpans(text, makeMovementMatcher(catalog), () => `s${++next}`).map(
+      (span) =>
+        span._tag === "movement" && span.movementId === "pull-up"
+          ? {
+              ...span,
+              performance: { variants: [{ movementId: MovementId.make("ring-row"), reps: 50 }] },
+            }
+          : span,
+    );
+    const saved = yield* (yield* ImportStore.ImportStore).save({
+      document: {
+        text,
+        spans,
+        debrief: {
+          feel: 2,
+          effort: 9,
+          capacity: 2,
+          limiters: ["engine", "energy"],
+          nextTime: "Start slower",
+          notes: "Slept five hours.",
+        },
+      },
+    });
+    const profile = yield* ProfileStore.ProfileStore;
+    yield* profile.update({ sex: "m", heightCm: 180, armLengthCm: null, legLengthCm: null });
+    yield* profile.logBodyweight({
+      performedOn: "2026-10-01",
+      kg: 84,
+      bodyFatPct: 18.5,
+      muscleMassKg: 38.2,
+    });
+    return saved.workoutId;
+  });
+
+  let debriefedId = "";
+  const readsEverything = scriptedModel((options, call) =>
+    Effect.succeed(
+      call === 1
+        ? toolCalls([
+            { name: "list_workouts", params: {} },
+            { name: "get_volume", params: { from: "2026-10-01", to: null } },
+            { name: "list_body", params: { from: null, to: null } },
+            { name: "get_power", params: {} },
+          ])
+        : call === 2
+          ? toolCalls([{ name: "get_session", params: { workoutId: debriefedId } }])
+          : text("Rough day (R1)."),
+    ),
+  );
+
+  it.effect("reads debriefs, a whole session, volume, weigh-ins and power", () =>
+    Effect.gen(function* () {
+      debriefedId = yield* seedDebriefedSession;
+      const events = yield* send({ text: "How did Tuesday go?", today: "2026-10-08" });
+      const reply = last(events) as Extract<CoachEvent, { _tag: "CoachTurn" }>;
+      const receipt = (tool: string) => reply.turn.receipts.find((found) => found.tool === tool);
+
+      expect(receipt("list_workouts")?.rows[0]?.at(-1)).toBe(
+        "Rough · RPE 9 · capacity low · engine, energy",
+      );
+      expect(receipt("get_session")).toMatchObject({
+        status: "ok",
+        summary: "Rough · RPE 9 · capacity low · engine, energy · 1 block",
+        rows: [["Workout #1 · EMOM 10 min", "Pull-up", "10 reps", "50 Ring row", ""]],
+      });
+      // Ten rounds of ten, done as ring rows.
+      expect(receipt("get_volume")?.rows).toEqual([
+        ["5 Oct 2026", "Ring row", "1", "100", "", "", "", ""],
+      ]);
+      expect(receipt("list_body")).toMatchObject({
+        status: "ok",
+        summary: "1 weigh-in, latest 84 kg",
+        rows: [["1 Oct 2026", "84 kg", "18.5 %", "38.2 kg", "Typed"]],
+      });
+      const [power] = receipt("get_power")?.rows ?? [];
+      expect(power?.slice(0, 2)).toEqual(["6 Oct 2026", "EMOM · Pull-up"]);
+      expect(power?.slice(2)).toEqual([
+        expect.stringMatching(/ kJ$/),
+        "10 min",
+        expect.stringMatching(/ W$/),
+      ]);
+
+      // The model gets the whole debrief, free text included, and the session's text.
+      const shown = JSON.stringify(readsEverything.calls[2]?.prompt.content.at(-1));
+      expect(shown).toContain('"nextTime":"Start slower"');
+      expect(shown).toContain('"notes":"Slept five hours."');
+      expect(shown).toContain("EMOM 10 min");
+      expect(shown).toContain('"variants":[{"movement":"Ring row","reps":50}]');
+      // An "or" line comes with its own prescription, not just its name.
+      expect(shown).toContain(
+        '"alternatives":[{"movement":"Ring row","written":"ring rows","prescribed":["20 reps"]',
+      );
+    }).pipe(Effect.provide(layerWith(readsEverything.model))),
   );
 
   const marksRest = scriptedModel((options) =>

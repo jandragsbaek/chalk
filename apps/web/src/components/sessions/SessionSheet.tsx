@@ -1,5 +1,6 @@
 import {
   benchmarkById,
+  bodyOn,
   deriveSession,
   describeCoaching,
   describePlace,
@@ -43,14 +44,7 @@ import { entryPlace } from "../../lib/places.ts";
 import { findComplexes } from "../../lib/complexes.ts";
 import { useAthleteSex } from "../../lib/profile.ts";
 import type { PartEchoGroup } from "../../lib/similar.ts";
-import {
-  bodyOn,
-  describeBody,
-  formatClock,
-  formatKj,
-  formatWatts,
-  useProfile,
-} from "../../lib/power.ts";
+import { describeBody, formatClock, formatKj, formatWatts, useProfile } from "../../lib/power.ts";
 import { formatDay } from "../../lib/utils.ts";
 import { IMPORTS_REACTIVITY_KEY, storedImportAtom } from "../../state/imports.ts";
 import { removeWorkoutAtom } from "../../state/sessions.ts";
