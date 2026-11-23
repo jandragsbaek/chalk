@@ -182,6 +182,8 @@ export const WORK_MODELS: Readonly<Record<string, WorkModel>> = {
   ),
   // Dumbbells and kettlebells.
   "dumbbell-snatch": bellSnatch,
+  // Floor to locked out overhead, snatched or cleaned and jerked: the snatch's path.
+  "dumbbell-ground-to-overhead": bellSnatch,
   "kettlebell-snatch": bellSnatch,
   "dumbbell-clean": bellClean,
   "dumbbell-squat-clean": loaded(
@@ -262,6 +264,8 @@ export const WORK_MODELS: Readonly<Record<string, WorkModel>> = {
   "burpee-over-rower": bodyweight((b) => burpee(b) + joules(b.massKg, 0.1)),
   "burpee-to-target": bodyweight((b) => burpee(b) + joules(b.massKg, 0.1)),
   "burpee-over-dumbbell": bodyweight((b) => burpee(b) + joules(b.massKg, 0.1)),
+  // Over the dumbbell and back: two hops a rep.
+  "burpee-double-jump-over-dumbbell": bodyweight((b) => burpee(b) + joules(b.massKg, 0.2)),
   // The hop over a line is the burpee's own jump, sideways.
   "burpee-over-line": bodyweight(burpee),
   "burpee-broad-jump": bodyweight((b) => getUp(b) + joules(b.massKg, 0.3)),

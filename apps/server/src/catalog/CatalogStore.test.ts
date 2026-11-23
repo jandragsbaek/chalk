@@ -166,6 +166,53 @@ describe("CatalogStore", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect("seeds the dumbbell ground-to-overhead and the double-jump burpee over it", () =>
+    Effect.gen(function* () {
+      const store = yield* CatalogStore.CatalogStore;
+      const catalog = yield* store.list();
+      const byId = new Map(catalog.map((movement) => [movement.id, movement]));
+      expect(byId.get(MovementId.make("burpee-double-jump-over-dumbbell"))).toMatchObject({
+        variationOf: "burpee",
+        scalings: ["burpee-over-dumbbell", "burpee"],
+      });
+
+      const matcher = makeMovementMatcher(catalog);
+      let next = 0;
+      const text = [
+        "Workout #2",
+        "21-15-9",
+        "Dual DB ground to overhead @2x22,5/15kg",
+        "Burpee double jump over DB",
+        "*20/15 cal after each round",
+        "TC: 16 min",
+      ].join("\n");
+      const spans = suggestSpans(text, matcher, () => SpanId.make(`s${++next}`));
+      expect(
+        spans.map((span) => {
+          const shown = text.slice(span.start, span.end);
+          switch (span._tag) {
+            case "movement":
+              return `${shown} = ${span.movementId}`;
+            case "quantity":
+              return `${shown} = ${span.amount.min}/${span.female?.min} ${span.measure} -> ${span.attachedTo}`;
+            case "block":
+              return `${shown} = ${span.format} ${JSON.stringify(span.params)}`;
+            default:
+              return `${span._tag} ${shown}`;
+          }
+        }),
+      ).toEqual([
+        "part Workout #2",
+        '21-15-9 = for_time {"scheme":[21,15,9],"timeCapSeconds":960}',
+        "Dual DB ground to overhead = dumbbell-ground-to-overhead",
+        "@2x22,5/15kg = 22.5/15 load_kg -> s3",
+        "Burpee double jump over DB = burpee-double-jump-over-dumbbell",
+        "intent 20/15 cal after each round",
+        "intent TC: 16 min",
+      ]);
+    }).pipe(Effect.provide(layer)),
+  );
+
   it.effect("seeds the usual scalings: ring rows for pull-ups, walk-outs for wall walks", () =>
     Effect.gen(function* () {
       const store = yield* CatalogStore.CatalogStore;
