@@ -34,6 +34,7 @@ import Migration024 from "./Migrations/024_BodyComposition.ts";
 import Migration025 from "./Migrations/025_MovementMeasure.ts";
 import Migration026 from "./Migrations/026_PauseAndTempoLifts.ts";
 import Migration027 from "./Migrations/027_SplitSquatsAndHolds.ts";
+import Migration028 from "./Migrations/028_GroundToOverheadAndDoubleJumpBurpee.ts";
 
 // Explicit list: Migrator skips every id at or below the highest one recorded, so ids must only grow.
 const migrations = Migrator.fromRecord({
@@ -64,6 +65,7 @@ const migrations = Migrator.fromRecord({
   "25_MovementMeasure": Migration025,
   "26_PauseAndTempoLifts": Migration026,
   "27_SplitSquatsAndHolds": Migration027,
+  "28_GroundToOverheadAndDoubleJumpBurpee": Migration028,
 });
 
 const layerMigrations = SqliteMigrator.layer({ loader: migrations });

@@ -156,6 +156,15 @@ const whole = (match: RegExpExecArray, quantity: Quantity): ReadonlyArray<Quanti
 
 const timeFactor = (unit: string) => (/^m/i.test(unit) ? 60 : 1);
 
+/** A load matched as (male)(/female)?(unit)?, in kilograms. */
+const readLoad = (match: RegExpExecArray): ReadonlyArray<QuantityMatch> => {
+  const pounds = isPounds(match[3]);
+  return whole(
+    match,
+    quantityOf("load_kg", match[1]!, match[2], pounds ? LB_TO_KG : 1, pounds ? roundKg : undefined),
+  );
+};
+
 const RECOGNIZERS: ReadonlyArray<Recognizer> = [
   {
     // "@RPE 8", "RPE 7-8", "@8 RPE". Before the loads, so "@8" is not read as 8 kg.
@@ -187,9 +196,19 @@ const RECOGNIZERS: ReadonlyArray<Recognizer> = [
     },
   },
   {
-    // "5x5", "3 x 8-10": sets then reps, unless the second number carries a unit.
+    // "@2x22,5/15kg": two implements at a load each. The load is per implement, as Chalk keeps
+    // it; the movement says the pair ("Dual DB"). Before sets × reps, which "2x22,5" would be.
     pattern: new RegExp(
-      String.raw`(?<![\p{L}\d])(\d+)\s*[x×]\s*(${R})(?![\d.,]|\s*(?:kg|kilo|lbs?|pound|#|%|sec|s\b|min|m\b|cal))`,
+      String.raw`@\s*2\s*[x×]\s*(${R})(?:\s*\/\s*(${R}))?(?:\s*${LOAD_UNIT}(?!\p{L})|(?![\d.,+]|\s*(?:%|sec|s\b|min|m\b|k?cal)))`,
+      "giu",
+    ),
+    read: readLoad,
+  },
+  {
+    // "5x5", "3 x 8-10": sets then reps, unless the second number carries a unit, alone or
+    // after a female load ("2x22,5/15kg").
+    pattern: new RegExp(
+      String.raw`(?<![\p{L}\d])(\d+)\s*[x×]\s*(${R})(?![\d.,]|\s*(?:kg|kilo|lbs?|pound|#|%|sec|s\b|min|m\b|cal)|\s*\/\s*${R}\s*${LOAD_UNIT})`,
       "giu",
     ),
     read: (match) => {
@@ -217,35 +236,11 @@ const RECOGNIZERS: ReadonlyArray<Recognizer> = [
   {
     // "@40/25", "@60/40 kg", "@95/65 lb", "@95/65#": male/female loads.
     pattern: new RegExp(String.raw`@\s*(${R})\s*\/\s*(${R})\s*${LOAD_UNIT}?(?!\p{L})`, "giu"),
-    read: (match) => {
-      const pounds = isPounds(match[3]);
-      return whole(
-        match,
-        quantityOf(
-          "load_kg",
-          match[1]!,
-          match[2],
-          pounds ? LB_TO_KG : 1,
-          pounds ? roundKg : undefined,
-        ),
-      );
-    },
+    read: readLoad,
   },
   {
     pattern: new RegExp(String.raw`(${R})(?:\s*\/\s*(${R}))?\s*${LOAD_UNIT}(?!\p{L})`, "giu"),
-    read: (match) => {
-      const pounds = isPounds(match[3]);
-      return whole(
-        match,
-        quantityOf(
-          "load_kg",
-          match[1]!,
-          match[2],
-          pounds ? LB_TO_KG : 1,
-          pounds ? roundKg : undefined,
-        ),
-      );
-    },
+    read: readLoad,
   },
   {
     // A bare "@60" is a load in kg.

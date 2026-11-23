@@ -599,6 +599,26 @@ describe("parse helpers", () => {
     ]);
   });
 
+  it("reads a pair of dumbbells at a load each as the load, not sets and reps", () => {
+    const text = ["Deadlift @2x22,5/15kg", "Deadlift 2x22,5/15kg", "Deadlift @ 2 x 50 lb"].join(
+      "\n",
+    );
+    expect(describeSpans(text, suggest(text)).filter((row) => row.startsWith("quantity"))).toEqual([
+      "quantity @2x22,5/15kg = 22.5/15 kg -> Deadlift",
+      "quantity 22,5/15kg = 22.5/15 kg -> Deadlift",
+      "quantity @ 2 x 50 lb = 22.75 kg -> Deadlift",
+    ]);
+    // A percentage or a time after the pair is not a load.
+    for (const [line, row] of [
+      ["Deadlift @2x10min", "quantity 10min = 600 sec -> Deadlift"],
+      ["Deadlift @2x80%", "quantity 80% = 80 % -> Deadlift"],
+    ])
+      expect(describeSpans(line!, suggest(line!))).toContain(row);
+    expect(describeSpans("Deadlift @2x80+%", suggest("Deadlift @2x80+%"))).not.toContain(
+      "quantity @2x80 = 80 kg -> Deadlift",
+    );
+  });
+
   it("tells the unit a session writes its loads in", () => {
     expect(loadUnitOf("Deadlift 5x3 @225#\nThrusters 95/65 lb")).toBe("lb");
     expect(loadUnitOf("Back squat 5x5 @100 kg\nDB snatch 50 lb")).toBe("kg");
